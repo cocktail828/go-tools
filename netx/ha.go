@@ -95,7 +95,7 @@ func (rrset *RRSet) Refresh(addr string) bool {
 	rrset.mu.Lock()
 	defer rrset.mu.Unlock()
 
-	if addr != rrset.addr {
+	if addr != rrset.addr && addr != "" {
 		changed, _ := rrset.buildLocked(addr)
 		return changed
 	}

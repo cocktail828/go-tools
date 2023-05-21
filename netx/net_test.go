@@ -14,11 +14,11 @@ func TestXxx(t *testing.T) {
 	rrs := &netx.RRSet{Logger: logger, CacheFile: "dns.cache"}
 
 	f := func(addr string) {
-		rrs.Refresh(addr)
-		fmt.Printf("%#v\n\n", rrs.Endpoints())
+		fmt.Printf("%v\t%#v\n\n", rrs.Refresh(addr), rrs.Endpoints())
 	}
 
 	f("baidu.com:8080,qq.com:9090,10.1.98.0:888")
+	f("")
 	f("dns://qq.com")
 	f("dns+srv://aliyun.com")
 }
