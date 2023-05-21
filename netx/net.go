@@ -6,7 +6,7 @@
 
 // Read system DNS config from /etc/resolv.conf
 
-package net
+package netx
 
 import (
 	"context"
