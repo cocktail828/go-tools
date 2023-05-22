@@ -117,8 +117,9 @@ func (rrset *RRSet) buildLocked(addr string) (bool, error) {
 
 	rrset.rrSets = make(map[string]*rrSet)
 	rrset.lbPolicy = lbPolicyF(addr)
+	rrset.Logger.Debugf("rrset lbpolicy %v...", rrset.lbPolicy)
 	for _, a := range splitAddr(addr) {
-		rrset.addLocked(a)
+		rrset.Logger.Debugf("rrset add addr %v with error %v", a, rrset.addLocked(a))
 	}
 
 	if len(rrset.rrSets) != 0 {
@@ -244,11 +245,17 @@ type RR struct {
 }
 
 func rrFromA(name string) (*RR, error) {
-	hosts, err := net.LookupHost(name)
+	hosts, err := LookupA(name)
 	if err != nil {
 		return nil, err
 	}
-	return &RR{Hosts: hosts}, nil
+
+	rr := &RR{}
+	for i := 0; i < len(hosts); i++ {
+		rr.Hosts = append(rr.Hosts, hosts[i].String())
+	}
+
+	return rr, nil
 }
 
 // 查询 SRV 记录及所有 target, map[target]...
@@ -327,10 +334,9 @@ func splitHostPort(addr string) (string, string) {
 func escape(name string) string {
 	switch {
 	case dynamicA(name):
-		return strings.Trim(name, DNS_A_PREFIX)
-
+		return name[len(DNS_A_PREFIX):]
 	case dynamicSRV(name):
-		return strings.Trim(name, DNS_SRV_PREFIX)
+		return name[len(DNS_SRV_PREFIX):]
 	default:
 		return name
 	}
