@@ -17,8 +17,8 @@ func TestXxx(t *testing.T) {
 		fmt.Printf("%v\t%#v\n\n", rrs.Refresh(addr), rrs.Endpoints())
 	}
 
-	f("baidu.com:8080,qq.com:9090,10.1.98.0:888")
-	f("")
-	f("dns://qq.com")
-	f("dns+srv://aliyun.com")
+	f("dns://sqzdapiaaaa.te.rdg.net")
+	// f("")
+	// f("dns://qq.com")
+	// f("dns+srv://aliyun.com")
 }
