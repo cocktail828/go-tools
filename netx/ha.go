@@ -1,17 +1,21 @@
 package netx
 
 import (
+	"errors"
 	"io/fs"
-	"io/ioutil"
 	"net"
 	"os"
 	"strconv"
 	"strings"
 	"sync"
 
-	"github.com/cocktail828/go-tools/werror"
+	"github.com/cocktail828/go-tools/diagnostic"
 	"github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v3"
+)
+
+var (
+	errNoRecords = errors.New("no rrset set for the domain")
 )
 
 const (
@@ -154,11 +158,11 @@ func (rrset *RRSet) dump(fname string) error {
 		return err
 	}
 
-	return ioutil.WriteFile(fname, body, os.ModePerm|fs.FileMode(os.O_TRUNC))
+	return os.WriteFile(fname, body, os.ModePerm|fs.FileMode(os.O_TRUNC))
 }
 
 func (rrset *RRSet) load(fname string) error {
-	body, err := ioutil.ReadFile(fname)
+	body, err := os.ReadFile(fname)
 	if err != nil {
 		return err
 	}
@@ -250,6 +254,10 @@ func rrFromA(name string) (*RR, error) {
 		return nil, err
 	}
 
+	if len(hosts) == 0 {
+		return nil, errNoRecords
+	}
+
 	rr := &RR{}
 	for i := 0; i < len(hosts); i++ {
 		rr.Hosts = append(rr.Hosts, hosts[i].String())
@@ -265,12 +273,12 @@ func rrFromSRV(service, proto, name string) (map[string]*RR, error) {
 		return nil, err
 	}
 
-	werr := werror.WrapperError{}
+	diag := diagnostic.New()
 	rrset := map[string]*RR{}
 	for _, srv := range srvs {
 		r, err := rrFromA(srv.Target)
 		if err != nil {
-			werr.Add(err)
+			diag = diag.WithError(err)
 			continue
 		}
 
@@ -282,7 +290,12 @@ func rrFromSRV(service, proto, name string) (map[string]*RR, error) {
 	if len(rrset) != 0 {
 		return rrset, nil
 	}
-	return nil, werr.Error()
+
+	if len(srvs) == 0 {
+		diag = diag.WithError(errNoRecords)
+	}
+
+	return nil, diag.ToError()
 }
 
 // changed?
