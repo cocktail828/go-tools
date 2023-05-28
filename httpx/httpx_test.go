@@ -2,7 +2,6 @@ package httpx_test
 
 import (
 	"context"
-	"io"
 	"testing"
 
 	"github.com/cocktail828/go-tools/httpx"
@@ -14,14 +13,8 @@ func TestHTTPX(t *testing.T) {
 		panic(err)
 	}
 
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		panic(err)
-	}
-	defer resp.Body.Close()
-
-	_, err = httpx.ParseBody[string](body, httpx.Stringfy)
-	if err != nil {
+	var s string
+	if err = httpx.NewResponseParser(httpx.Stringfy).Parse(resp, &s); err != nil {
 		panic(err)
 	}
 }
