@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 )
@@ -18,168 +19,124 @@ var (
 )
 
 type Config struct {
-	InitPostPone      time.Duration // 延迟注册的时间
-	QuitPostPone      time.Duration // 延迟退出的时间
-	OperateTimeout    time.Duration // 回调函数超时时间
-	InterceporSignals []os.Signal   // 优雅启停需要关注的信号, 默认为 syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT, syscall.SIGCHLD
-	PreStart          func(ctx context.Context) error
-	PostStart         func(ctx context.Context) error
-	PreStop           func(ctx context.Context) error
-	PostStop          func(ctx context.Context) error
+	InitPostPone      time.Duration             // 延迟注册的时间
+	QuitPostPone      time.Duration             // 延迟退出的时间
+	OperateTimeout    time.Duration             // 回调函数超时时间
+	InterceporSignals []os.Signal               // 优雅启停需要关注的信号, 默认为 syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT, syscall.SIGCHLD
+	PreStart          func(ctx context.Context) // 准备工作
+	PostStart         func(ctx context.Context) // 注册服务
+	PreStop           func(ctx context.Context) // 服务去注册, 销毁任何 PostStart 创建的资源
+	PostStop          func(ctx context.Context) // 销毁环境, 销毁任何 PreStart 创建的资源
+	OnEvent           func(sig os.Signal)       // 事件回调
+}
+
+func (cfg *Config) normalize() {
+	if cfg.InitPostPone == 0 {
+		cfg.InitPostPone = initPostPone
+	}
+
+	if cfg.QuitPostPone == 0 {
+		cfg.QuitPostPone = quitPostPone
+	}
+
+	if cfg.OperateTimeout == 0 {
+		cfg.OperateTimeout = defaultOperateTimeout
+	}
+
+	if cfg.PreStart == nil {
+		cfg.PreStart = func(ctx context.Context) {}
+	}
+
+	if cfg.PostStart == nil {
+		cfg.PostStart = func(ctx context.Context) {}
+	}
+
+	if cfg.PreStop == nil {
+		cfg.PreStop = func(ctx context.Context) {}
+	}
+
+	if cfg.PostStop == nil {
+		cfg.PostStop = func(ctx context.Context) {}
+	}
+
+	if cfg.OnEvent == nil {
+		cfg.OnEvent = func(sig os.Signal) {}
+	}
+
+	cfg.InterceporSignals = append(cfg.InterceporSignals, gracefulStopSignals...)
 }
 
 type graceful struct {
-	initPostPone      time.Duration
-	quitPostPone      time.Duration
-	operateTimeout    time.Duration
-	interceporSignals []os.Signal
-	preStart          func() error
-	postStart         func() error
-	preStop           func() error
-	postStop          func() error
-	cmdctx            context.Context
-	cancel            context.CancelFunc
-	signalChan        chan os.Signal
-	cmd               *exec.Cmd
-	wg                sync.WaitGroup
-	cancelFuncs       sync.Map
-	once              sync.Once
-	onceErr           error
+	cfg        Config
+	ctx        context.Context
+	cancel     context.CancelFunc
+	signalChan chan os.Signal
+	cmd        *exec.Cmd
+	delayed    sync.Map
 }
 
 func WithContext(ctx context.Context, cfg Config) *graceful {
 	ctx, cancel := context.WithCancel(ctx)
 	g := &graceful{
-		initPostPone:      cfg.InitPostPone,
-		quitPostPone:      cfg.QuitPostPone,
-		operateTimeout:    cfg.OperateTimeout,
-		interceporSignals: cfg.InterceporSignals,
-		cmdctx:            ctx,
-		cancel:            cancel,
-		signalChan:        make(chan os.Signal),
+		cfg:        cfg,
+		ctx:        ctx,
+		cancel:     cancel,
+		signalChan: make(chan os.Signal),
 	}
 
-	if g.operateTimeout == 0 {
-		g.operateTimeout = defaultOperateTimeout
-	}
-
-	if g.initPostPone == 0 {
-		g.initPostPone = initPostPone
-	}
-
-	if g.quitPostPone == 0 {
-		g.quitPostPone = quitPostPone
-	}
-
-	g.interceporSignals = append(g.interceporSignals, gracefulStopSignals...)
-
-	g.preStart = func() error {
-		if f := cfg.PreStart; f != nil {
-			ctx, cancel := context.WithTimeout(g.cmdctx, g.operateTimeout)
-			defer cancel()
-			return f(ctx)
-		}
-		return nil
-	}
-
-	g.postStart = func() error {
-		if f := cfg.PostStart; f != nil {
-			ctx, cancel := context.WithTimeout(g.cmdctx, g.initPostPone)
-			g.cancelFuncs.Store(ctx, cancel)
-
-			select {
-			case <-time.After(g.initPostPone):
-				ctx, cancel := context.WithTimeout(g.cmdctx, g.operateTimeout)
-				defer cancel()
-				return f(ctx)
-
-			case <-ctx.Done():
-				return nil
-			}
-		}
-		return nil
-	}
-
-	g.preStop = func() error {
-		if f := cfg.PreStop; f != nil {
-			ctx, cancel := context.WithTimeout(g.cmdctx, g.operateTimeout)
-			g.cancelFuncs.Store(ctx, cancel)
-			g.once.Do(func() {
-				g.onceErr = f(ctx)
-				<-time.After(g.quitPostPone)
-			})
-			return g.onceErr
-		}
-		return nil
-	}
-
-	g.postStop = func() error {
-		if f := cfg.PostStop; f != nil {
-			ctx, cancel := context.WithTimeout(g.cmdctx, g.operateTimeout)
-			defer cancel()
-			return f(ctx)
-		}
-		return nil
-	}
-
+	g.cfg.normalize()
 	signal.Notify(g.signalChan)
 	signal.Ignore(syscall.SIGURG, syscall.SIGWINCH)
 
 	return g
 }
 
-func (g *graceful) Start(name string, args ...string) error {
-	if err := g.preStart(); err != nil {
-		return err
-	}
-
-	g.cmd = exec.CommandContext(g.cmdctx, name, args...)
-	if err := g.cmd.Start(); err != nil {
-		return err
-	}
-
-	g.wg.Add(1)
-	g.startEventLoop()
-	return g.postStart()
-}
-
-func (g *graceful) Wait() error {
-	var err error
-	if g.cmd != nil {
-		err = g.cmd.Wait()
-	}
-	g.wg.Wait()
-
-	return err
-}
-
 func (g *graceful) Stop() {
 	g.cancel()
 }
 
-func (g *graceful) Signal(sig os.Signal) error {
-	if g.cmd != nil && g.cmd.Process != nil {
-		return g.cmd.Process.Signal(sig)
+func (g *graceful) Spawn(name string, args ...string) error {
+	g.call(g.cfg.PreStart)
+	defer g.call(g.cfg.PostStop)
+
+	g.cmd = exec.CommandContext(g.ctx, name, args...)
+	if err := g.cmd.Start(); err != nil {
+		return err
 	}
-	return nil
+
+	wg := &sync.WaitGroup{}
+	wg.Add(1)
+	g.startEventLoop(wg)
+
+	g.delayedCall(g.cfg.InitPostPone, g.cfg.PostStart)
+	err := g.cmd.Wait()
+	wg.Wait()
+
+	return err
 }
 
-func (g *graceful) startEventLoop() {
-	ch := make(chan struct{}, 1)
+func (g *graceful) startEventLoop(wg *sync.WaitGroup) {
+	ch := make(chan struct{})
 	go func() {
-		defer g.wg.Done()
-		defer g.postStop()
-		ch <- struct{}{}
+		close(ch)
+		defer wg.Done()
+		var preStoppCnt atomic.Bool
 
 		for {
 			select {
 			case sig := <-g.signalChan:
-				g.cancelHooks()
+				g.cfg.OnEvent(sig)
+				g.cancelDelayed()
 				switch sig {
-				case syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT, syscall.SIGCHLD:
-					g.preStop()
-					if sig == syscall.SIGCHLD {
-						return
+				case syscall.SIGCHLD:
+					if preStoppCnt.CompareAndSwap(false, true) {
+						g.delayedCall(g.cfg.QuitPostPone, g.cfg.PreStop)
+					}
+					return
+
+				case syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT:
+					if preStoppCnt.CompareAndSwap(false, true) {
+						g.delayedCall(g.cfg.QuitPostPone, g.cfg.PreStop)
 					}
 				}
 
@@ -189,17 +146,39 @@ func (g *graceful) startEventLoop() {
 					}
 				}
 
-			case <-g.cmdctx.Done():
-				g.preStop()
-				return
+			case <-g.ctx.Done():
+				g.cfg.OnEvent(nil)
+				g.cancelDelayed()
+				if preStoppCnt.CompareAndSwap(false, true) {
+					g.delayedCall(g.cfg.QuitPostPone, g.cfg.PreStop)
+				}
 			}
 		}
 	}()
 	<-ch
 }
 
-func (g *graceful) cancelHooks() {
-	g.cancelFuncs.Range(func(key, value any) bool {
+func (g *graceful) call(f func(context.Context)) {
+	ctx, cancel := context.WithTimeout(g.ctx, g.cfg.OperateTimeout)
+	defer cancel()
+	f(ctx)
+}
+
+func (g *graceful) delayedCall(delay time.Duration, f func(context.Context)) {
+	cancelCtx, cancelF := context.WithCancel(g.ctx)
+	g.delayed.Store(cancelCtx, cancelF)
+
+	select {
+	case <-time.After(delay):
+		ctx, cancel := context.WithTimeout(cancelCtx, g.cfg.OperateTimeout)
+		defer cancel()
+		f(ctx)
+	case <-cancelCtx.Done():
+	}
+}
+
+func (g *graceful) cancelDelayed() {
+	g.delayed.Range(func(key, value any) bool {
 		value.(context.CancelFunc)()
 		return true
 	})
