@@ -6,7 +6,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/cocktail828/go-tools/fasttime"
+	"github.com/cocktail828/go-tools/z/fasttime"
 )
 
 const (

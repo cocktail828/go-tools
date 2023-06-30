@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/cocktail828/go-tools/httpx"
+	"github.com/cocktail828/go-tools/netx/httpx"
 )
 
 func TestHTTPX(t *testing.T) {

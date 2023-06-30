@@ -16,12 +16,13 @@ var r = &random{
 }
 
 func GenerateRandomName() string {
-	r.Lock()
-	defer r.Unlock()
 	chars := "abcdefghijklmnopqrstuvwxyz"
 	bytes := make([]byte, 8)
-	for i := range bytes {
-		bytes[i] = chars[r.R.Intn(len(chars))]
-	}
+
+	WithLock(r, func() {
+		for i := range bytes {
+			bytes[i] = chars[r.R.Intn(len(chars))]
+		}
+	})
 	return string(bytes)
 }

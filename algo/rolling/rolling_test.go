@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cocktail828/go-tools/fasttime"
-	"github.com/cocktail828/go-tools/rolling"
+	"github.com/cocktail828/go-tools/algo/rolling"
+	"github.com/cocktail828/go-tools/z/fasttime"
 )
 
 var (

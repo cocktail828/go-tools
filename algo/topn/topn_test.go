@@ -3,7 +3,7 @@ package topn_test
 import (
 	"testing"
 
-	"github.com/cocktail828/go-tools/topn"
+	"github.com/cocktail828/go-tools/algo/topn"
 	"github.com/stretchr/testify/assert"
 )
 
