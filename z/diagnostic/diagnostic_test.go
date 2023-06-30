@@ -4,7 +4,7 @@ import (
 	"io"
 	"testing"
 
-	"github.com/cocktail828/go-tools/diagnostic"
+	"github.com/cocktail828/go-tools/z/diagnostic"
 	"github.com/stretchr/testify/assert"
 )
 

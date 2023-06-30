@@ -1,4 +1,4 @@
-package locker
+package z
 
 import (
 	"sync"
@@ -11,14 +11,14 @@ type RWLocker interface {
 	RUnlock()
 }
 
-func WithLock[T interface{}](locker Locker, f func() T) T {
+func WithLock(locker Locker, f func()) {
 	locker.Lock()
 	defer locker.Unlock()
-	return f()
+	f()
 }
 
-func WithRLock[T interface{}](locker RWLocker, f func() T) T {
+func WithRLock(locker RWLocker, f func()) {
 	locker.RLock()
 	defer locker.RUnlock()
-	return f()
+	f()
 }

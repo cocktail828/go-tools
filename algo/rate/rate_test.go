@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cocktail828/go-tools/rate"
+	"github.com/cocktail828/go-tools/algo/rate"
 	"github.com/stretchr/testify/assert"
 	// "golang.org/x/time/rate"
 )
