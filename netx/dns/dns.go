@@ -14,8 +14,8 @@ import (
 )
 
 var (
-	defaultLookupInterval = time.Second * 15
-	defaultHealthInterval = time.Second * 3
+	defaultLookupInterval = time.Second * 60
+	defaultProbeInterval  = time.Second * 5
 	defaultProbeTimeout   = time.Second
 )
 
@@ -45,7 +45,7 @@ type RRManager struct {
 	cancel    context.CancelFunc
 	config    Config
 	lb        *loadbalance.RoundRobin
-	eventChan chan string
+	eventChan chan interface{}
 	mu        sync.RWMutex
 	rrSet     *RRSet
 }
@@ -91,7 +91,7 @@ func NewRRManager(cfg Config) *RRManager {
 	}
 
 	if cfg.ProbeInterval == 0 {
-		cfg.ProbeInterval = defaultHealthInterval
+		cfg.ProbeInterval = defaultProbeInterval
 	}
 
 	if cfg.ProbeTimeout == 0 {
@@ -108,7 +108,7 @@ func NewRRManager(cfg Config) *RRManager {
 		cancel:    cancel,
 		config:    cfg,
 		lb:        loadbalance.NewRoundRobin(),
-		eventChan: make(chan string, 100),
+		eventChan: make(chan interface{}, 100),
 	}
 	go mgr.discover()
 
@@ -133,9 +133,19 @@ func (lhs *RRManager) discover() {
 			})
 			timer.Reset(lhs.config.LookupInterval)
 
-		case name := <-lhs.eventChan:
-			if rrset, err := NewRRSet(name); err == nil {
-				z.WithLock(&lhs.mu, func() { lhs.rrSet = rrset.Normalize(lhs.config.Port) })
+		case val := <-lhs.eventChan:
+			switch v := val.(type) {
+			case string:
+				if rrset, err := NewRRSet(v); err == nil {
+					z.WithLock(&lhs.mu, func() { lhs.rrSet = rrset.Normalize(lhs.config.Port) })
+				}
+
+			case *refreshEvent:
+				rrset, err := NewRRSet(v.name)
+				if err == nil {
+					z.WithLock(&lhs.mu, func() { lhs.rrSet = rrset.Normalize(lhs.config.Port) })
+				}
+				v.errChan <- err
 			}
 		}
 	}
@@ -161,10 +171,21 @@ func (lhs *RRManager) Endpoints() []SRV {
 	return lhs.rrSet.Records[:]
 }
 
-func (lhs *RRManager) Reset(name string) {
+type refreshEvent struct {
+	name    string
+	errChan chan error
+}
+
+func (lhs *RRManager) Reset(name string) error {
 	if name != "" {
-		lhs.eventChan <- name
+		e := refreshEvent{
+			name:    name,
+			errChan: make(chan error, 1),
+		}
+		lhs.eventChan <- &e
+		return <-e.errChan
 	}
+	return nil
 }
 
 func lbPolicy(host string) LBPolicy {
