@@ -8,7 +8,7 @@ import (
 type Prober func(addr string, tmo time.Duration) error
 
 func probe(network string, addr string, tmo time.Duration) error {
-	if c, err := net.DialTimeout("tcp", addr, tmo); err != nil {
+	if c, err := net.DialTimeout(network, addr, tmo); err != nil {
 		return err
 	} else {
 		c.Close()
