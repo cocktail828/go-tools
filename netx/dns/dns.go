@@ -39,6 +39,7 @@ func NewRRSet(name string) (*RRSet, error) {
 }
 
 func (lhs *RRSet) Reset(name string) error {
+	rawname := name
 	if name == "" {
 		name = lhs.name
 	}
@@ -62,7 +63,7 @@ func (lhs *RRSet) Reset(name string) error {
 	lhs.mu.Lock()
 	defer lhs.mu.Unlock()
 	lhs.lbPolicy = lbPolicy
-	lhs.name = name
+	lhs.name = rawname
 	lhs.records = records
 	return nil
 }
