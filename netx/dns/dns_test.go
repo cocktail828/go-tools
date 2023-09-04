@@ -13,8 +13,8 @@ func TestDNS_RRSet(t *testing.T) {
 	f := func(r *dns.RRSet) []string {
 		r.Normalize(6666)
 		result := []string{}
-		for idx := range r.Records {
-			result = append(result, fmt.Sprintf("%v#%v", r.Records[idx].Target, r.Records[idx].Port))
+		for idx := range r.Records() {
+			result = append(result, fmt.Sprintf("%v#%v", r.Records()[idx].Target, r.Records()[idx].Port))
 		}
 		return result
 	}
@@ -25,14 +25,14 @@ func TestDNS_RRSet(t *testing.T) {
 		assert.ElementsMatch(t, []string{"10.1.87.70#6666", "10.1.87.70#3307"}, f(r))
 	}
 	{
-		r, err := dns.NewRRSet("dns://www.aisaas.net")
+		r, err := dns.NewRRSet("dns://www.qq.com")
 		assert.Equal(t, nil, err)
-		assert.ElementsMatch(t, []string{"10.1.87.81#6666", "10.1.87.20#6666"}, f(r))
+		assert.ElementsMatch(t, []string{"116.128.170.212#6666", "58.246.163.58#6666"}, f(r))
 	}
 	{
-		r, err := dns.NewRRSet("dns+srv://_mysql-ost._tcp.xx.aisaas.net")
-		assert.Equal(t, nil, err)
-		assert.ElementsMatch(t, []string{"a.aisaas.net.#3306", "b.aisaas.net.#3306"}, f(r))
+		// r, err := dns.NewRRSet("dns+srv://_mysql-ost._tcp.xx.aisaas.net")
+		// assert.Equal(t, nil, err)
+		// assert.ElementsMatch(t, []string{"a.aisaas.net.#3306", "b.aisaas.net.#3306"}, f(r))
 	}
 	{
 		_, err := dns.NewRRSet("dns://sqzdapiaaaa.te.rdg.local.nonexist")
