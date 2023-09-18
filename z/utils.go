@@ -26,3 +26,9 @@ func GenerateRandomName() string {
 	})
 	return string(bytes)
 }
+
+func Must(err error) {
+	if err != nil {
+		panic(err)
+	}
+}

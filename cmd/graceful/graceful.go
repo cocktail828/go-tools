@@ -6,16 +6,10 @@ import (
 	"os/exec"
 	"os/signal"
 	"sync"
-	"sync/atomic"
 	"syscall"
 	"time"
-)
 
-var (
-	gracefulStopSignals   = []os.Signal{syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT, syscall.SIGCHLD}
-	defaultOperateTimeout = time.Second * 3
-	initPostPone          = time.Second * 10
-	quitPostPone          = time.Second * 3
+	"github.com/cocktail828/go-tools/cmd"
 )
 
 type Config struct {
@@ -32,15 +26,15 @@ type Config struct {
 
 func (cfg *Config) normalize() {
 	if cfg.InitPostPone == 0 {
-		cfg.InitPostPone = initPostPone
+		cfg.InitPostPone = time.Second * 10
 	}
 
 	if cfg.QuitPostPone == 0 {
-		cfg.QuitPostPone = quitPostPone
+		cfg.QuitPostPone = time.Second * 3
 	}
 
 	if cfg.OperateTimeout == 0 {
-		cfg.OperateTimeout = defaultOperateTimeout
+		cfg.OperateTimeout = time.Second * 3
 	}
 
 	if cfg.PreStart == nil {
@@ -63,7 +57,7 @@ func (cfg *Config) normalize() {
 		cfg.OnEvent = func(sig os.Signal) {}
 	}
 
-	cfg.InterceporSignals = append(cfg.InterceporSignals, gracefulStopSignals...)
+	cfg.InterceporSignals = append(cfg.InterceporSignals, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT, syscall.SIGCHLD)
 }
 
 type graceful struct {
@@ -72,16 +66,16 @@ type graceful struct {
 	cancel     context.CancelFunc
 	signalChan chan os.Signal
 	cmd        *exec.Cmd
-	delayed    sync.Map
+	once       sync.Once
 }
 
-func WithContext(ctx context.Context, cfg Config) *graceful {
-	ctx, cancel := context.WithCancel(ctx)
+func New(cfg Config) *graceful {
+	ctx, cancel := context.WithCancel(context.Background())
 	g := &graceful{
 		cfg:        cfg,
 		ctx:        ctx,
 		cancel:     cancel,
-		signalChan: make(chan os.Signal),
+		signalChan: make(chan os.Signal, 3),
 	}
 
 	g.cfg.normalize()
@@ -95,51 +89,40 @@ func (g *graceful) Stop() {
 	g.cancel()
 }
 
+// this should only be call once
 func (g *graceful) Spawn(name string, args ...string) error {
-	g.call(g.cfg.PreStart)
-	defer g.call(g.cfg.PostStop)
+	cmd.Timed(g.ctx, g.cfg.OperateTimeout, g.cfg.PreStart)
+	defer func() {
+		cancelCtx, _ := cmd.Delayed(g.ctx, g.cfg.QuitPostPone, func(ctx context.Context) {
+			cmd.Timed(g.ctx, g.cfg.OperateTimeout, g.cfg.PostStop)
+		})
+		<-cancelCtx.Done()
+	}()
+
+	postStartCalled := false
+	defer func() {
+		if !postStartCalled {
+			g.Stop()
+		}
+	}()
 
 	g.cmd = exec.CommandContext(g.ctx, name, args...)
 	if err := g.cmd.Start(); err != nil {
 		return err
 	}
 
-	wg := &sync.WaitGroup{}
-	wg.Add(1)
-	g.startEventLoop(wg)
-
-	g.delayedCall(g.cfg.InitPostPone, g.cfg.PostStart)
-	err := g.cmd.Wait()
-	wg.Wait()
-
-	return err
-}
-
-func (g *graceful) startEventLoop(wg *sync.WaitGroup) {
-	ch := make(chan struct{})
-	go func() {
-		close(ch)
-		defer wg.Done()
-		var preStoppCnt atomic.Bool
-
+	_, delayCancel := cmd.Delayed(g.ctx, g.cfg.InitPostPone, func(ctx context.Context) {
+		postStartCalled = true
+		cmd.Timed(g.ctx, g.cfg.OperateTimeout, g.cfg.PostStart)
+	})
+	cmd.Async(func() {
+		defer delayCancel()
 		for {
 			select {
 			case sig := <-g.signalChan:
+				delayCancel()
 				g.cfg.OnEvent(sig)
-				g.cancelDelayed()
-				switch sig {
-				case syscall.SIGCHLD:
-					if preStoppCnt.CompareAndSwap(false, true) {
-						g.delayedCall(g.cfg.QuitPostPone, g.cfg.PreStop)
-					}
-					return
-
-				case syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT:
-					if preStoppCnt.CompareAndSwap(false, true) {
-						g.delayedCall(g.cfg.QuitPostPone, g.cfg.PreStop)
-					}
-				}
-
+				g.once.Do(func() { cmd.Timed(g.ctx, g.cfg.OperateTimeout, g.cfg.PreStop) })
 				if g.cmd != nil && g.cmd.Process != nil {
 					if err := g.cmd.Process.Signal(sig); err == os.ErrProcessDone {
 						return
@@ -147,39 +130,11 @@ func (g *graceful) startEventLoop(wg *sync.WaitGroup) {
 				}
 
 			case <-g.ctx.Done():
+				delayCancel()
 				g.cfg.OnEvent(nil)
-				g.cancelDelayed()
-				if preStoppCnt.CompareAndSwap(false, true) {
-					g.delayedCall(g.cfg.QuitPostPone, g.cfg.PreStop)
-				}
+				g.once.Do(func() { cmd.Timed(g.ctx, g.cfg.OperateTimeout, g.cfg.PreStop) })
 			}
 		}
-	}()
-	<-ch
-}
-
-func (g *graceful) call(f func(context.Context)) {
-	ctx, cancel := context.WithTimeout(g.ctx, g.cfg.OperateTimeout)
-	defer cancel()
-	f(ctx)
-}
-
-func (g *graceful) delayedCall(delay time.Duration, f func(context.Context)) {
-	cancelCtx, cancelF := context.WithCancel(g.ctx)
-	g.delayed.Store(cancelCtx, cancelF)
-
-	select {
-	case <-time.After(delay):
-		ctx, cancel := context.WithTimeout(cancelCtx, g.cfg.OperateTimeout)
-		defer cancel()
-		f(ctx)
-	case <-cancelCtx.Done():
-	}
-}
-
-func (g *graceful) cancelDelayed() {
-	g.delayed.Range(func(key, value any) bool {
-		value.(context.CancelFunc)()
-		return true
 	})
+	return g.cmd.Wait()
 }
