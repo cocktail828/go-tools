@@ -78,7 +78,7 @@ func (sh *simpleHTTP) Do(opts ...retry.Option) (resp *http.Response, err error) 
 	retry.Do(func() error {
 		resp, err = http.DefaultClient.Do(sh.request)
 		return err
-	}, append([]retry.Option{retry.Attempts(3)}, opts...)...)
+	}, opts...)
 	return
 }
 
