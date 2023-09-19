@@ -91,10 +91,10 @@ func (g *graceful) Stop() {
 
 // this should only be call once
 func (g *graceful) Spawn(name string, args ...string) error {
-	cmd.Timed(g.ctx, g.cfg.OperateTimeout, g.cfg.PreStart)
+	cmd.TimedContext(g.ctx, g.cfg.OperateTimeout, g.cfg.PreStart)
 	defer func() {
-		cancelCtx, _ := cmd.Delayed(g.ctx, g.cfg.QuitPostPone, func(ctx context.Context) {
-			cmd.Timed(g.ctx, g.cfg.OperateTimeout, g.cfg.PostStop)
+		cancelCtx, _ := cmd.DelayedContext(g.ctx, g.cfg.QuitPostPone, func(ctx context.Context) {
+			cmd.TimedContext(g.ctx, g.cfg.OperateTimeout, g.cfg.PostStop)
 		})
 		<-cancelCtx.Done()
 	}()
@@ -111,9 +111,9 @@ func (g *graceful) Spawn(name string, args ...string) error {
 		return err
 	}
 
-	_, delayCancel := cmd.Delayed(g.ctx, g.cfg.InitPostPone, func(ctx context.Context) {
+	_, delayCancel := cmd.DelayedContext(g.ctx, g.cfg.InitPostPone, func(ctx context.Context) {
 		postStartCalled = true
-		cmd.Timed(g.ctx, g.cfg.OperateTimeout, g.cfg.PostStart)
+		cmd.TimedContext(g.ctx, g.cfg.OperateTimeout, g.cfg.PostStart)
 	})
 	cmd.Async(func() {
 		defer delayCancel()
@@ -122,7 +122,7 @@ func (g *graceful) Spawn(name string, args ...string) error {
 			case sig := <-g.signalChan:
 				delayCancel()
 				g.cfg.OnEvent(sig)
-				g.once.Do(func() { cmd.Timed(g.ctx, g.cfg.OperateTimeout, g.cfg.PreStop) })
+				g.once.Do(func() { cmd.TimedContext(g.ctx, g.cfg.OperateTimeout, g.cfg.PreStop) })
 				if g.cmd != nil && g.cmd.Process != nil {
 					if err := g.cmd.Process.Signal(sig); err == os.ErrProcessDone {
 						return
@@ -132,7 +132,7 @@ func (g *graceful) Spawn(name string, args ...string) error {
 			case <-g.ctx.Done():
 				delayCancel()
 				g.cfg.OnEvent(nil)
-				g.once.Do(func() { cmd.Timed(g.ctx, g.cfg.OperateTimeout, g.cfg.PreStop) })
+				g.once.Do(func() { cmd.TimedContext(g.ctx, g.cfg.OperateTimeout, g.cfg.PreStop) })
 			}
 		}
 	})
