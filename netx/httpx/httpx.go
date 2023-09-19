@@ -23,17 +23,23 @@ func Stringfy(b []byte, i interface{}) error {
 	return fmt.Errorf("type assert fail: %T not *string", i)
 }
 
-type simpleHTTP struct {
+type SimpleHTTP struct {
 	body    io.Reader
 	headers map[string]string
 	method  string
 	request *http.Request
 }
 
-type option func(*simpleHTTP)
+type option func(*SimpleHTTP)
+
+func Alter(f func(*http.Request)) option {
+	return func(sh *SimpleHTTP) {
+		f(sh.request)
+	}
+}
 
 func Headers(hs map[string]string) option {
-	return func(sh *simpleHTTP) {
+	return func(sh *SimpleHTTP) {
 		for k, v := range hs {
 			sh.headers[strings.ToLower(k)] = v
 		}
@@ -41,19 +47,19 @@ func Headers(hs map[string]string) option {
 }
 
 func Body(body []byte) option {
-	return func(sh *simpleHTTP) {
+	return func(sh *SimpleHTTP) {
 		sh.body = bytes.NewBuffer(body)
 	}
 }
 
 func Method(m string) option {
-	return func(sh *simpleHTTP) {
+	return func(sh *SimpleHTTP) {
 		sh.method = m
 	}
 }
 
-func NewWithContext(ctx context.Context, url string, options ...option) (*simpleHTTP, error) {
-	sh := &simpleHTTP{
+func NewWithContext(ctx context.Context, url string, options ...option) (*SimpleHTTP, error) {
+	sh := &SimpleHTTP{
 		headers: map[string]string{"content-type": "application/json;charset=utf8"},
 	}
 
@@ -74,7 +80,7 @@ func NewWithContext(ctx context.Context, url string, options ...option) (*simple
 	return sh, nil
 }
 
-func (sh *simpleHTTP) Do(opts ...retry.Option) (resp *http.Response, err error) {
+func (sh *SimpleHTTP) Do(opts ...retry.Option) (resp *http.Response, err error) {
 	retry.Do(func() error {
 		resp, err = http.DefaultClient.Do(sh.request)
 		return err
@@ -82,7 +88,7 @@ func (sh *simpleHTTP) Do(opts ...retry.Option) (resp *http.Response, err error) 
 	return
 }
 
-func (sh *simpleHTTP) ParseWith(parser Unmarshaler, resp *http.Response, i interface{}) error {
+func (sh *SimpleHTTP) ParseWith(parser Unmarshaler, resp *http.Response, i interface{}) error {
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return err
@@ -92,7 +98,7 @@ func (sh *simpleHTTP) ParseWith(parser Unmarshaler, resp *http.Response, i inter
 	return parser(body, i)
 }
 
-func (sh *simpleHTTP) ParseBody(resp *http.Response, i interface{}) error {
+func (sh *SimpleHTTP) ParseBody(resp *http.Response, i interface{}) error {
 	data, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return err
