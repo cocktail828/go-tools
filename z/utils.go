@@ -28,7 +28,7 @@ func GenerateRandomName() string {
 }
 
 func Must(err error) {
-	if err != nil {
+	if !IsNil(err) {
 		panic(err)
 	}
 }
