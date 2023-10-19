@@ -2,9 +2,7 @@ package pool
 
 import (
 	"context"
-	"fmt"
 	"io"
-	"runtime"
 	"sort"
 	"sync"
 	"sync/atomic"
@@ -76,11 +74,10 @@ type DB struct {
 	// goroutine to exit.
 	openerCh          chan struct{}
 	closed            bool
-	lastPut           map[*driverConn]string // stacktrace of last conn's put; debug only
-	maxIdleCount      int                    // zero means defaultMaxIdleConns; negative means 0
-	maxOpen           int                    // <= 0 means unlimited
-	maxLifetime       time.Duration          // maximum amount of time a connection may be reused
-	maxIdleTime       time.Duration          // maximum amount of time a connection may be idle before being closed
+	maxIdleCount      int           // zero means defaultMaxIdleConns; negative means 0
+	maxOpen           int           // <= 0 means unlimited
+	maxLifetime       time.Duration // maximum amount of time a connection may be reused
+	maxIdleTime       time.Duration // maximum amount of time a connection may be idle before being closed
 	cleanerCh         chan struct{}
 	waitCount         int64 // Total number of connections waited for.
 	maxIdleClosed     int64 // Total number of connections closed due to idle count.
@@ -104,8 +101,6 @@ type driverConn struct {
 	// guarded by db.mu
 	inUse      bool
 	returnedAt time.Time // Time the connection was created or returned.
-	onPut      []func()  // code (with db.mu held) run when conn is next returned
-	dbmuClosed bool      // same as closed, but guarded by db.mu, for removeClosedStmtLocked
 }
 
 func (dc *driverConn) releaseConn(err error) {
@@ -151,29 +146,22 @@ func (dc *driverConn) validateConnection(needsReset bool) bool {
 
 // the dc.db's Mutex is held.
 func (dc *driverConn) closeDBLocked() func() error {
-	dc.Lock()
-	defer dc.Unlock()
 	if dc.closed {
-		return func() error { return ErrDupClose }
+		return nil
 	}
-	dc.closed = true
-	return func() error { return nil }
+
+	closer := func() error { return nil }
+	z.WithLock(dc, func() {
+		if !dc.closed {
+			closer = dc.ci.Close
+		}
+		dc.closed = true
+	})
+	return closer
 }
 
 func (dc *driverConn) Close() error {
-	dc.Lock()
-	if dc.closed {
-		dc.Unlock()
-		return ErrDupClose
-	}
-	dc.closed = true
-	dc.Unlock() // not defer; removeDep finalClose calls may need to lock
-
-	// And now updates that require holding dc.mu.Lock.
-	dc.db.mu.Lock()
-	dc.dbmuClosed = true
-	dc.db.mu.Unlock()
-	return nil
+	return dc.closeDBLocked()()
 }
 
 type dsnConnector struct {
@@ -206,7 +194,6 @@ func openDB(c driver.Connector) *DB {
 	db := &DB{
 		connector:    c,
 		openerCh:     make(chan struct{}, connectionRequestQueueSize),
-		lastPut:      make(map[*driverConn]string),
 		connRequests: make(map[uint64]chan connRequest),
 		stop:         cancel,
 	}
@@ -815,18 +802,6 @@ func (db *DB) conn(ctx context.Context, strategy connReuseStrategy) (*driverConn
 	return dc, nil
 }
 
-// putConnHook is a hook for testing.
-var putConnHook func(*DB, *driverConn)
-
-// debugGetPut determines whether getConn & putConn calls' stack traces
-// are returned for more verbose crashes.
-const debugGetPut = false
-
-func stack() string {
-	var buf [2 << 10]byte
-	return string(buf[:runtime.Stack(buf[:], false)])
-}
-
 // putConn adds a connection to the db's free pool.
 // err is optionally the last error that occurred on this connection.
 func (db *DB) putConn(dc *driverConn, err error, needsReset bool) {
@@ -838,9 +813,6 @@ func (db *DB) putConn(dc *driverConn, err error, needsReset bool) {
 	db.mu.Lock()
 	if !dc.inUse {
 		db.mu.Unlock()
-		if debugGetPut {
-			fmt.Printf("putConn(%v) DUPLICATE was: %s\n\nPREVIOUS was: %s", dc, stack(), db.lastPut[dc])
-		}
 		panic("pool: connection returned that was never out")
 	}
 
@@ -848,16 +820,8 @@ func (db *DB) putConn(dc *driverConn, err error, needsReset bool) {
 		db.maxLifetimeClosed++
 		err = driver.ErrBadConn
 	}
-	if debugGetPut {
-		db.lastPut[dc] = stack()
-	}
 	dc.inUse = false
 	dc.returnedAt = time.Now()
-
-	for _, fn := range dc.onPut {
-		fn()
-	}
-	dc.onPut = nil
 
 	if errors.Is(err, driver.ErrBadConn) {
 		// Don't reuse bad connections.
@@ -868,9 +832,6 @@ func (db *DB) putConn(dc *driverConn, err error, needsReset bool) {
 		db.mu.Unlock()
 		dc.Close()
 		return
-	}
-	if putConnHook != nil {
-		putConnHook(db, dc)
 	}
 	added := db.putConnDBLocked(dc, nil)
 	db.mu.Unlock()
@@ -935,8 +896,10 @@ func (db *DB) retry(fn func(strategy connReuseStrategy) error) error {
 	return fn(alwaysNewConn)
 }
 
-// QueryContext executes a query that returns rows, typically a SELECT.
-// The args are for any placeholder parameters in the query.
+func (db *DB) Do(f func(ctx context.Context, ci driver.Conn) error) error {
+	return db.DoContext(context.Background(), f)
+}
+
 func (db *DB) DoContext(ctx context.Context, f func(ctx context.Context, ci driver.Conn) error) error {
 	return db.retry(func(strategy connReuseStrategy) error {
 		return db.do(ctx, f, strategy)
@@ -962,123 +925,4 @@ func (db *DB) doDC(ctx, txctx context.Context, dc *driverConn, releaseConn func(
 	})
 	releaseConn(err)
 	return err
-}
-
-// Conn returns a single connection by either opening a new connection
-// or returning an existing connection from the connection pool. Conn will
-// block until either a connection is returned or ctx is canceled.
-// Queries run on the same Conn will be run in the same database session.
-//
-// Every Conn must be returned to the database pool after use by
-// calling Conn.Close.
-func (db *DB) Conn(ctx context.Context) (*Conn, error) {
-	var dc *driverConn
-	var err error
-
-	err = db.retry(func(strategy connReuseStrategy) error {
-		dc, err = db.conn(ctx, strategy)
-		return err
-	})
-
-	if err != nil {
-		return nil, err
-	}
-
-	conn := &Conn{
-		db: db,
-		dc: dc,
-	}
-	return conn, nil
-}
-
-type releaseConn func(error)
-
-// Conn represents a single database connection rather than a pool of database
-// connections. Prefer running queries from DB unless there is a specific
-// need for a continuous single database connection.
-//
-// A Conn must call Close to return the connection to the database pool
-// and may do so concurrently with a running query.
-//
-// After a call to Close, all operations on the
-// connection fail with ErrConnDone.
-type Conn struct {
-	db *DB
-
-	// closemu prevents the connection from closing while there
-	// is an active query. It is held for read during queries
-	// and exclusively during close.
-	closemu sync.RWMutex
-
-	// dc is owned until close, at which point
-	// it's returned to the connection pool.
-	dc *driverConn
-
-	// done transitions from 0 to 1 exactly once, on close.
-	// Once done, all operations fail with ErrConnDone.
-	// Use atomic operations on value when checking value.
-	done int32
-}
-
-// grabConn takes a context to implement stmtConnGrabber
-// but the context is not used.
-func (c *Conn) grabConn(context.Context) (*driverConn, releaseConn, error) {
-	if atomic.LoadInt32(&c.done) != 0 {
-		return nil, nil, ErrConnDone
-	}
-	c.closemu.RLock()
-	return c.dc, c.closemuRUnlockCondReleaseConn, nil
-}
-
-// PingContext verifies the connection to the database is still alive.
-func (c *Conn) PingContext(ctx context.Context) error {
-	dc, release, err := c.grabConn(ctx)
-	if err != nil {
-		return err
-	}
-	return c.db.pingDC(ctx, dc, release)
-}
-
-// QueryContext executes a query that returns rows, typically a SELECT.
-// The args are for any placeholder parameters in the query.
-func (c *Conn) DoContext(ctx context.Context, f func(ctx context.Context, ci driver.Conn) error) error {
-	dc, release, err := c.grabConn(ctx)
-	if err != nil {
-		return err
-	}
-	return c.db.doDC(ctx, nil, dc, release, f)
-}
-
-// closemuRUnlockCondReleaseConn read unlocks closemu
-// as the sql operation is done with the dc.
-func (c *Conn) closemuRUnlockCondReleaseConn(err error) {
-	c.closemu.RUnlock()
-	if errors.Is(err, driver.ErrBadConn) {
-		c.close(err)
-	}
-}
-
-func (c *Conn) close(err error) error {
-	if !atomic.CompareAndSwapInt32(&c.done, 0, 1) {
-		return ErrConnDone
-	}
-
-	// Lock around releasing the driver connection
-	// to ensure all queries have been stopped before doing so.
-	c.closemu.Lock()
-	defer c.closemu.Unlock()
-
-	c.dc.releaseConn(err)
-	c.dc = nil
-	c.db = nil
-	return err
-}
-
-// Close returns the connection to the connection pool.
-// All operations after a Close will return with ErrConnDone.
-// Close is safe to call concurrently with other operations and will
-// block until all other operations finish. It may be useful to first
-// cancel any used context and then call close directly after.
-func (c *Conn) Close() error {
-	return c.close(nil)
 }

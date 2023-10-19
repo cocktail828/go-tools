@@ -6,7 +6,6 @@ import (
 
 type Locker sync.Locker
 type RWLocker interface {
-	Locker
 	RLock()
 	RUnlock()
 }
