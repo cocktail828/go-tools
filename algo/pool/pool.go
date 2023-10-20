@@ -59,8 +59,9 @@ func Drivers() []string {
 // can be controlled with SetMaxIdleConns.
 type DB struct {
 	// Total time waited for new connections.
-	waitDuration atomic.Int64
-	connector    driver.Connector
+	waitDuration        atomic.Int64
+	connector           driver.Connector
+	disableBadConnRetry bool
 
 	mu           sync.Mutex    // protects following fields
 	freeConn     []*driverConn // free connections ordered by returnedAt oldest to newest
@@ -884,12 +885,19 @@ func (db *DB) putConnDBLocked(dc *driverConn, err error) bool {
 	return false
 }
 
+func (db *DB) DisableBadConnRetry() {
+	db.disableBadConnRetry = true
+}
+
 func (db *DB) retry(fn func(strategy connReuseStrategy) error) error {
-	for i := int64(0); i < maxBadConnRetries; i++ {
+	for i := 0; i < maxBadConnRetries; i++ {
 		err := fn(cachedOrNewConn)
 		// retry if err is driver.ErrBadConn
 		if err == nil || !errors.Is(err, driver.ErrBadConn) {
 			return err
+		}
+		if db.disableBadConnRetry {
+			break
 		}
 	}
 
