@@ -3,7 +3,7 @@ package stringx_test
 import (
 	"testing"
 
-	"github.com/cocktail828/go-tools/stringx"
+	"github.com/cocktail828/go-tools/z/stringx"
 	"github.com/stretchr/testify/assert"
 )
 

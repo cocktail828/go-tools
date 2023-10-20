@@ -1,7 +1,7 @@
 //go:build go1.18
 // +build go1.18
 
-package z
+package locker
 
 func WithGenericsLock[T interface{}](locker Locker, f func() T) T {
 	locker.Lock()

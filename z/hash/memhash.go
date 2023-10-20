@@ -1,4 +1,4 @@
-package z
+package hash
 
 import "unsafe"
 

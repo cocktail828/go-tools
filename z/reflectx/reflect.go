@@ -1,4 +1,4 @@
-package z
+package reflectx
 
 import (
 	"fmt"

@@ -1,10 +1,10 @@
-package z_test
+package reflectx_test
 
 import (
 	"io"
 	"testing"
 
-	"github.com/cocktail828/go-tools/z"
+	"github.com/cocktail828/go-tools/z/reflectx"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -17,5 +17,5 @@ func TestIsNil(t *testing.T) {
 		return nil
 	}()
 	assert.Equal(t, false, k == nil)
-	assert.Equal(t, true, z.IsNil(k))
+	assert.Equal(t, true, reflectx.IsNil(k))
 }

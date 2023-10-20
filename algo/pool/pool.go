@@ -8,8 +8,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/cocktail828/go-tools/pool/driver"
-	"github.com/cocktail828/go-tools/z"
+	"github.com/cocktail828/go-tools/algo/pool/driver"
+	"github.com/cocktail828/go-tools/z/locker"
 	"github.com/pkg/errors"
 )
 
@@ -151,7 +151,7 @@ func (dc *driverConn) closeDBLocked() func() error {
 	}
 
 	closer := func() error { return nil }
-	z.WithLock(dc, func() {
+	locker.WithLock(dc, func() {
 		if !dc.closed {
 			closer = dc.ci.Close
 		}
@@ -234,7 +234,7 @@ func Open(driverName, dataSourceName string) (*DB, error) {
 func (db *DB) pingDC(ctx context.Context, dc *driverConn, release func(error)) error {
 	var err error
 	if pinger, ok := dc.ci.(driver.Pinger); ok {
-		z.WithLock(dc, func() {
+		locker.WithLock(dc, func() {
 			err = pinger.Ping(ctx)
 		})
 	}
@@ -920,7 +920,7 @@ func (db *DB) do(ctx context.Context, f func(ctx context.Context, ci driver.Conn
 // optional transaction context.
 func (db *DB) doDC(ctx, txctx context.Context, dc *driverConn, releaseConn func(error), f func(ctx context.Context, ci driver.Conn) error) error {
 	var err error
-	z.WithLock(dc, func() {
+	locker.WithLock(dc, func() {
 		err = f(ctx, dc.ci)
 	})
 	releaseConn(err)

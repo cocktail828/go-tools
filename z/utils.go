@@ -4,6 +4,9 @@ import (
 	"math/rand"
 	"sync"
 	"time"
+
+	"github.com/cocktail828/go-tools/z/locker"
+	"github.com/cocktail828/go-tools/z/reflectx"
 )
 
 type random struct {
@@ -19,7 +22,7 @@ func GenerateRandomName() string {
 	chars := "abcdefghijklmnopqrstuvwxyz"
 	bytes := make([]byte, 8)
 
-	WithLock(r, func() {
+	locker.WithLock(r, func() {
 		for i := range bytes {
 			bytes[i] = chars[r.R.Intn(len(chars))]
 		}
@@ -28,7 +31,7 @@ func GenerateRandomName() string {
 }
 
 func Must(err error) {
-	if !IsNil(err) {
+	if !reflectx.IsNil(err) {
 		panic(err)
 	}
 }

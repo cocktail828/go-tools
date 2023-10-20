@@ -47,25 +47,22 @@ func (d diagnostic) Is(target error) bool {
 }
 
 func (d diagnostic) Error() string {
-	count := len(d)
-	switch {
-	case count == 0:
+	err := d.ToError()
+	if err == nil {
 		return ""
-	case count == 1:
-		return d[0].Error()
-	default:
-		return fmt.Sprintf("%s, and %d other diagnostic(s)", d[0].Error(), count-1)
 	}
+	return err.Error()
 }
 
 func (d diagnostic) ToError() error {
-	count := len(d)
-	switch {
-	case count == 0:
+	switch len(d) {
+	case 0:
 		return nil
-	case count == 1:
-		return d[0]
 	default:
-		return fmt.Errorf("%v, and %d other diagnostic(s)", d[0], count-1)
+		err := d[0]
+		for i := 1; i < len(d); i++ {
+			err = errors.WithMessage(err, d[i].Error())
+		}
+		return err
 	}
 }

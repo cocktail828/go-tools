@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cocktail828/go-tools/pool"
-	"github.com/cocktail828/go-tools/pool/driver"
+	"github.com/cocktail828/go-tools/algo/pool"
+	"github.com/cocktail828/go-tools/algo/pool/driver"
 	"github.com/cocktail828/go-tools/z"
 	"github.com/pkg/errors"
 )

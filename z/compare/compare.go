@@ -1,4 +1,4 @@
-package z
+package compare
 
 import (
 	"bytes"

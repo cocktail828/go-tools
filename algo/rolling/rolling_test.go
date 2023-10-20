@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/cocktail828/go-tools/algo/rolling"
-	"github.com/cocktail828/go-tools/z/fasttime"
 )
 
 var (
@@ -18,24 +17,24 @@ func TestRolling(t *testing.T) {
 		r.Incr()
 	}
 	time.Sleep(time.Second)
-	fmt.Println("result", r.Rate(fasttime.Now(), 1))
+	fmt.Println("result", r.Calc(time.Now()))
 
 	for i := 0; i < 2000; i++ {
 		r.Incr()
 	}
 	time.Sleep(time.Second)
-	fmt.Println("result", r.Rate(fasttime.Now(), 1))
+	fmt.Println("result", r.Calc(time.Now()))
 
 	for i := 0; i < 3000; i++ {
 		r.Incr()
 	}
 	time.Sleep(time.Second)
-	fmt.Println("result", r.Rate(fasttime.Now(), 1))
+	fmt.Println("result", r.Calc(time.Now()))
 
-	now := fasttime.Now()
+	now := time.Now()
 	fmt.Printf("%v\n", r)
 	fmt.Println("end at:", now.String())
-	fmt.Println("result", r.Rate(now, 3))
+	fmt.Println("result", r.Calc(now))
 }
 
 func BenchmarkRolling(b *testing.B) {
@@ -53,12 +52,12 @@ func BenchmarkRolling(b *testing.B) {
 		r.Incr()
 	}
 
-	now := fasttime.Now()
+	now := time.Now()
 	b.ResetTimer()
 	b.ReportAllocs()
 	b.RunParallel(func(p *testing.PB) {
 		for p.Next() {
-			r.Rate(now, 3)
+			r.Calc(now)
 		}
 	})
 }
