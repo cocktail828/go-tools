@@ -4,7 +4,6 @@ import (
 	"net"
 	"strconv"
 	"strings"
-	"sync"
 )
 
 const (
@@ -24,76 +23,63 @@ const (
 // 域名可以拥有多个 A 记录
 // 域名只允许设置一个 CNAME 记录, 但是每个记录的 target 必须是 A 地址
 type RRSet struct {
-	mu       sync.RWMutex
-	name     string
-	lbPolicy LBPolicy
-	records  []net.SRV
+	name        string
+	defaultPort int
+	lbPolicy    LBPolicy
+	records     []net.SRV
 }
 
-func NewRRSet(name string) (*RRSet, error) {
-	lhs := &RRSet{name: name}
-	if err := lhs.Reset(name); err != nil {
-		return nil, err
+type Option func(*RRSet)
+
+func WithPort(port int) Option {
+	return func(r *RRSet) {
+		r.defaultPort = port
 	}
-	return lhs, nil
 }
 
-func (lhs *RRSet) Reset(name string) error {
-	rawname := name
-	if name == "" {
-		name = lhs.name
+func NewRRSet(name string, opts ...Option) (*RRSet, error) {
+	lhs := &RRSet{
+		name:     name,
+		lbPolicy: StaticRoundRobin,
+	}
+	for _, o := range opts {
+		o(lhs)
 	}
 
-	lbPolicy := StaticRoundRobin
 	switch {
 	case strings.HasPrefix(name, DNS_A_PREFIX):
-		lbPolicy = DynamicRoundRobin
+		lhs.lbPolicy = DynamicRoundRobin
 		name = name[len(DNS_A_PREFIX):]
 
 	case strings.HasPrefix(name, DNS_SRV_PREFIX):
-		lbPolicy = DynamicWeightRoundRobin
+		lhs.lbPolicy = DynamicWeightRoundRobin
 		name = name[len(DNS_SRV_PREFIX):]
 	}
 
-	records, err := lhs.lookup(name, lbPolicy)
+	records, err := lhs.lookup(name, lhs.lbPolicy)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	lhs.mu.Lock()
-	defer lhs.mu.Unlock()
-	lhs.lbPolicy = lbPolicy
-	lhs.name = rawname
 	lhs.records = records
-	return nil
-}
-
-func (lhs *RRSet) Normalize(port int) *RRSet {
-	lhs.mu.Lock()
-	defer lhs.mu.Unlock()
 	for i := 0; i < len(lhs.records); i++ {
 		if lhs.records[i].Port == 0 {
-			lhs.records[i].Port = uint16(port)
+			lhs.records[i].Port = uint16(lhs.defaultPort)
 		}
 	}
-	return lhs
+
+	return lhs, nil
 }
 
 func (lhs *RRSet) Name() string {
-	lhs.mu.RLock()
-	defer lhs.mu.RUnlock()
 	return lhs.name
 }
 
 func (lhs *RRSet) LBPolicy() LBPolicy {
-	lhs.mu.RLock()
-	defer lhs.mu.RUnlock()
 	return lhs.lbPolicy
 }
 
 func (lhs *RRSet) Records() []net.SRV {
-	lhs.mu.RLock()
-	defer lhs.mu.RUnlock()
 	return lhs.records[:]
 }
 

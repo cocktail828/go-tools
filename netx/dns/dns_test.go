@@ -11,7 +11,6 @@ import (
 
 func TestDNS_RRSet(t *testing.T) {
 	f := func(r *dns.RRSet) []string {
-		r.Normalize(6666)
 		result := []string{}
 		for idx := range r.Records() {
 			result = append(result, fmt.Sprintf("%v#%v", r.Records()[idx].Target, r.Records()[idx].Port))
@@ -20,22 +19,22 @@ func TestDNS_RRSet(t *testing.T) {
 	}
 
 	{
-		r, err := dns.NewRRSet("10.1.87.70,10.1.87.70:3307")
+		r, err := dns.NewRRSet("10.1.87.70,10.1.87.70:3307", dns.WithPort(6666))
 		assert.Equal(t, nil, err)
 		assert.ElementsMatch(t, []string{"10.1.87.70#6666", "10.1.87.70#3307"}, f(r))
 	}
 	{
-		r, err := dns.NewRRSet("dns://www.qq.com")
+		r, err := dns.NewRRSet("dns://www.qq.com", dns.WithPort(6666))
 		assert.Equal(t, nil, err)
 		assert.ElementsMatch(t, []string{"116.128.170.212#6666", "58.246.163.58#6666"}, f(r))
 	}
 	{
-		// r, err := dns.NewRRSet("dns+srv://_mysql-ost._tcp.xx.aisaas.net")
+		// r, err := dns.NewRRSet("dns+srv://_mysql-ost._tcp.xx.aisaas.net", dns.WithPort(6666))
 		// assert.Equal(t, nil, err)
 		// assert.ElementsMatch(t, []string{"a.aisaas.net.#3306", "b.aisaas.net.#3306"}, f(r))
 	}
 	{
-		_, err := dns.NewRRSet("dns://sqzdapiaaaa.te.rdg.local.nonexist")
+		_, err := dns.NewRRSet("dns://sqzdapiaaaa.te.rdg.local.nonexist", dns.WithPort(6666))
 		if err == nil {
 			panic("invalid, should err here")
 		}
