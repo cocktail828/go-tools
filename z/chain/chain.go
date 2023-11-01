@@ -59,12 +59,16 @@ func (rc *ResponsibeChain) Length() int {
 	return len(rc.handlers)
 }
 
+func (rc *ResponsibeChain) Exists(name string) bool {
+	rc.mu.RLock()
+	defer rc.mu.RUnlock()
+	_, ok := rc.handlerMap[name]
+	return ok
+}
+
 func (rc *ResponsibeChain) Traverse(f func(h Handler) bool) {
 	rc.mu.RLock()
 	defer rc.mu.RUnlock()
-	if f == nil {
-		return
-	}
 	for _, h := range rc.handlers {
 		if !f(h) {
 			break
