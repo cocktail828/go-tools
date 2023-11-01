@@ -18,21 +18,21 @@ type metricsServer struct {
 	constLables  map[string]string
 }
 
-type Option func(*metricsServer)
+type OptionServer func(*metricsServer)
 
-func WithProcessCollector() Option {
+func WithProcessCollector() OptionServer {
 	return func(ms *metricsServer) {
 		ms.registry.MustRegister(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
 	}
 }
 
-func WithGoCollector() Option {
+func WithGoCollector() OptionServer {
 	return func(ms *metricsServer) {
 		ms.registry.MustRegister(collectors.NewGoCollector())
 	}
 }
 
-func WithConstLables(lables map[string]string) Option {
+func WithConstLables(lables map[string]string) OptionServer {
 	return func(ms *metricsServer) {
 		for k, v := range lables {
 			ms.constLables[k] = v
@@ -40,9 +40,13 @@ func WithConstLables(lables map[string]string) Option {
 	}
 }
 
-func NewMetricsServer(opts ...Option) *metricsServer {
+func NewMetricsServer(r *prometheus.Registry, opts ...OptionServer) *metricsServer {
+	if r == nil {
+		r = prometheus.NewRegistry()
+	}
+
 	srv := &metricsServer{
-		registry:     prometheus.NewRegistry(),
+		registry:     r,
 		collectorMap: make(map[string]prometheus.Collector),
 		constLables:  make(map[string]string),
 	}
@@ -158,8 +162,8 @@ func (ms *metricsServer) RegisterSummaryVec(opt CollectorOpt, objectives map[flo
 }
 
 func (ms *metricsServer) Run(addr string) {
-	// Serve the default Prometheus metrics registry over HTTP on /metrics.
-	http.Handle("/metrics", promhttp.HandlerFor(ms.registry, promhttp.HandlerOpts{Registry: ms.registry}))
+	// Serve the default Prometheus metricsServer registry over HTTP on /metricsServer.
+	http.Handle("/metricsServer", promhttp.HandlerFor(ms.registry, promhttp.HandlerOpts{Registry: ms.registry}))
 	if err := http.ListenAndServe(addr, nil); err != nil {
 		fmt.Println(err)
 	}

@@ -9,7 +9,7 @@ import (
 )
 
 func TestPrometheus(t *testing.T) {
-	srv := metrics.NewMetricsServer()
+	srv := metrics.NewMetricsServer(nil)
 	go srv.Run(":8080")
 
 	// gauge
