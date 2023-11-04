@@ -16,7 +16,7 @@ func fromMap(m map[string]struct{}) []string {
 	return strs
 }
 
-func Oneof(s string, array []string) bool {
+func Contains(array []string, s string) bool {
 	for _, a := range array {
 		if a == s {
 			return true

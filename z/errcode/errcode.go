@@ -2,15 +2,13 @@ package errcode
 
 import (
 	"fmt"
-	"sync"
-
-	"github.com/pkg/errors"
+	"strings"
 )
 
 type Error struct {
-	mu   sync.Mutex
-	err  error
-	code int
+	code   int
+	desc   string
+	errMsg []string
 }
 
 func New() *Error {
@@ -22,33 +20,41 @@ func (e *Error) WithCode(c int) *Error {
 	return e
 }
 
+func (e *Error) WithDesc(s string) *Error {
+	e.desc = s
+	return e
+}
+
 func (e *Error) WithError(err error) *Error {
-	e.WithMessagef(err.Error())
+	e.errMsg = append(e.errMsg, err.Error())
 	return e
 }
 
 func (e *Error) WithMessage(msg string) *Error {
-	e.WithMessagef(msg)
+	e.errMsg = append(e.errMsg, msg)
 	return e
 }
 
 func (e *Error) WithMessagef(format string, args ...string) *Error {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	if e.err == nil {
-		e.err = errors.Errorf(format, args)
-	} else {
-		e.err = errors.WithMessagef(e.err, format, args)
-	}
+	e.errMsg = append(e.errMsg, fmt.Sprintf(format, args))
 	return e
 }
 
 func (e *Error) Error() string {
 	if e.IsNil() {
 		return ""
-	} else {
-		return fmt.Sprintf("Code: %v, Msg: %v", e.code, e.err)
 	}
+
+	errmsg := []string{}
+	if e.desc == "" {
+		errmsg = append(errmsg, fmt.Sprintf("code: %v", e.code))
+	} else {
+		errmsg = append(errmsg, fmt.Sprintf("code: %v, desc: %v", e.code, e.desc))
+	}
+	for pos, msg := range e.errMsg {
+		errmsg = append(errmsg, fmt.Sprintf("error#%v: %v", pos, msg))
+	}
+	return strings.Join(errmsg, "\n")
 }
 
 func (e *Error) Code() int {
@@ -56,5 +62,5 @@ func (e *Error) Code() int {
 }
 
 func (e *Error) IsNil() bool {
-	return e.code == 0 && e.err == nil
+	return e.code == 0 && len(e.errMsg) == 0
 }

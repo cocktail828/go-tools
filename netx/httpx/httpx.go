@@ -23,72 +23,72 @@ func Stringfy(b []byte, i interface{}) error {
 	return fmt.Errorf("type assert fail: %T not *string", i)
 }
 
-type SimpleHTTP struct {
+type Client struct {
 	body    io.Reader
 	headers map[string]string
 	method  string
 	request *http.Request
 }
 
-type option func(*SimpleHTTP)
+type Option func(*Client)
 
-func Alter(f func(*http.Request)) option {
-	return func(sh *SimpleHTTP) {
-		f(sh.request)
-	}
-}
-
-func Headers(hs map[string]string) option {
-	return func(sh *SimpleHTTP) {
+func WithHeaders(hs map[string]string) Option {
+	return func(c *Client) {
 		for k, v := range hs {
-			sh.headers[strings.ToLower(k)] = v
+			c.headers[strings.ToLower(k)] = v
 		}
 	}
 }
 
-func Body(body []byte) option {
-	return func(sh *SimpleHTTP) {
-		sh.body = bytes.NewBuffer(body)
+func WithBody(body []byte) Option {
+	return func(c *Client) {
+		c.body = bytes.NewBuffer(body)
 	}
 }
 
-func Method(m string) option {
-	return func(sh *SimpleHTTP) {
-		sh.method = m
+func WithMethod(m string) Option {
+	return func(c *Client) {
+		c.method = m
 	}
 }
 
-func NewWithContext(ctx context.Context, url string, options ...option) (*SimpleHTTP, error) {
-	sh := &SimpleHTTP{
+func NewWithContext(ctx context.Context, url string, options ...Option) (*Client, error) {
+	c := &Client{
 		headers: map[string]string{"content-type": "application/json;charset=utf8"},
 	}
 
 	for _, f := range options {
-		f(sh)
+		f(c)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, sh.method, url, sh.body)
+	req, err := http.NewRequestWithContext(ctx, c.method, url, c.body)
 	if err != nil {
 		return nil, err
 	}
 
-	for k, v := range sh.headers {
+	for k, v := range c.headers {
 		req.Header.Set(k, v)
 	}
-	sh.request = req
+	c.request = req
 
-	return sh, nil
+	return c, nil
 }
 
-func (sh *SimpleHTTP) Do(opts ...retry.Option) (resp *http.Response, err error) {
+func (c *Client) Alter(f func(*http.Request)) {
+	if f != nil {
+		f(c.request)
+	}
+}
+
+func (c *Client) Do(opts ...retry.Option) (resp *http.Response, err error) {
 	retry.Do(func() error {
-		resp, err = http.DefaultClient.Do(sh.request)
+		resp, err = http.DefaultClient.Do(c.request)
 		return err
 	}, opts...)
 	return
 }
 
-func (sh *SimpleHTTP) ParseWith(parser Unmarshaler, resp *http.Response, i interface{}) error {
+func (c *Client) ParseWith(parser Unmarshaler, resp *http.Response, i interface{}) error {
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return err
@@ -98,42 +98,42 @@ func (sh *SimpleHTTP) ParseWith(parser Unmarshaler, resp *http.Response, i inter
 	return parser(body, i)
 }
 
-func (sh *SimpleHTTP) ParseBody(resp *http.Response, i interface{}) error {
-	data, err := io.ReadAll(resp.Body)
+func (c *Client) ParseBody(resp *http.Response, i interface{}) error {
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
 
-	return json.Unmarshal(data, i)
+	return json.Unmarshal(body, i)
 }
 
-func Get(ctx context.Context, url string, options ...option) (*http.Response, error) {
-	req, err := NewWithContext(ctx, url, append(options, Method("GET"))...)
+func Get(ctx context.Context, url string, options ...Option) (*http.Response, error) {
+	req, err := NewWithContext(ctx, url, append(options, WithMethod("GET"))...)
 	if err != nil {
 		return nil, err
 	}
 	return req.Do()
 }
 
-func Put(ctx context.Context, url string, options ...option) (*http.Response, error) {
-	req, err := NewWithContext(ctx, url, append(options, Method("PUT"))...)
+func Put(ctx context.Context, url string, options ...Option) (*http.Response, error) {
+	req, err := NewWithContext(ctx, url, append(options, WithMethod("PUT"))...)
 	if err != nil {
 		return nil, err
 	}
 	return req.Do()
 }
 
-func Post(ctx context.Context, url string, options ...option) (*http.Response, error) {
-	req, err := NewWithContext(ctx, url, append(options, Method("POST"))...)
+func Post(ctx context.Context, url string, options ...Option) (*http.Response, error) {
+	req, err := NewWithContext(ctx, url, append(options, WithMethod("POST"))...)
 	if err != nil {
 		return nil, err
 	}
 	return req.Do()
 }
 
-func Delete(ctx context.Context, url string, options ...option) (*http.Response, error) {
-	req, err := NewWithContext(ctx, url, append(options, Method("DELETE"))...)
+func Delete(ctx context.Context, url string, options ...Option) (*http.Response, error) {
+	req, err := NewWithContext(ctx, url, append(options, WithMethod("DELETE"))...)
 	if err != nil {
 		return nil, err
 	}

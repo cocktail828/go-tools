@@ -24,12 +24,11 @@ type nopEntry struct{}
 
 func (e nopEntry) WithFields(fields Fields) Entry                 { return nopEntry{} }
 func (e nopEntry) WithField(name string, value interface{}) Entry { return nopEntry{} }
-
-func (e nopEntry) Debug(args ...interface{})                 {}
-func (e nopEntry) Info(args ...interface{})                  {}
-func (e nopEntry) Warn(args ...interface{})                  {}
-func (e nopEntry) Error(args ...interface{})                 {}
-func (e nopEntry) Debugf(format string, args ...interface{}) {}
-func (e nopEntry) Infof(format string, args ...interface{})  {}
-func (e nopEntry) Warnf(format string, args ...interface{})  {}
-func (e nopEntry) Errorf(format string, args ...interface{}) {}
+func (e nopEntry) Debug(args ...interface{})                      {}
+func (e nopEntry) Info(args ...interface{})                       {}
+func (e nopEntry) Warn(args ...interface{})                       {}
+func (e nopEntry) Error(args ...interface{})                      {}
+func (e nopEntry) Debugf(format string, args ...interface{})      {}
+func (e nopEntry) Infof(format string, args ...interface{})       {}
+func (e nopEntry) Warnf(format string, args ...interface{})       {}
+func (e nopEntry) Errorf(format string, args ...interface{})      {}
