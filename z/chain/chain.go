@@ -79,9 +79,18 @@ func (rc *Chain) Get(name string) Handler {
 }
 
 func (rc *Chain) Len() int {
+	return rc.handlers.Len()
+}
+
+func (rc *Chain) Handlers() []Handler {
 	rc.mu.RLock()
 	defer rc.mu.RUnlock()
-	return rc.handlers.Len()
+
+	handlers := make([]Handler, 0, rc.handlers.Len())
+	for h := rc.handlers.Front(); h != nil; h = h.Next() {
+		handlers = append(handlers, h.Value.(Handler))
+	}
+	return handlers
 }
 
 func (rc *Chain) Traverse(e *list.Element, f func(h Handler) bool) *list.Element {
