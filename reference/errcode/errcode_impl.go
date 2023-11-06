@@ -3,24 +3,25 @@ package errcode
 //go:generate stringer -type errCode -linecomment
 type errCode int
 
-func (ec errCode) Code() int { return int(ec) }
-
-func (errCode) String() string { return "" }
-
 const (
 	GeneralErr errCode = -1 // unknow error
 )
 
+func (ec errCode) Code() int      { return int(ec) }
+func (ec errCode) String() string { return "unknow error" }
+
+func (ec errCode) ToError() *Error {
+	return New(ec.Code(), ec.String())
+}
+
 func (ec errCode) WithError(err error) *Error {
-	return &Error{ecode: ec, cause: err}
+	return New(ec.Code(), ec.String())
 }
 
 func (ec errCode) WithMessage(msg string) *Error {
-	e := &Error{ecode: ec}
-	return e.WithMessage(msg)
+	return New(ec.Code(), ec.String()).WithMessage(msg)
 }
 
 func (ec errCode) WithMessagef(format string, args ...interface{}) *Error {
-	e := &Error{ecode: ec}
-	return e.WithMessagef(format, args...)
+	return New(ec.Code(), ec.String()).WithMessagef(format, args...)
 }

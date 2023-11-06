@@ -7,8 +7,13 @@ import (
 )
 
 type Error struct {
-	ecode errCode
+	code  int
+	desc  string
 	cause error
+}
+
+func New(code int, desc string) *Error {
+	return &Error{code: code, desc: desc}
 }
 
 func (e *Error) WithError(err error) *Error {
@@ -40,9 +45,9 @@ func (e *Error) WithMessagef(format string, args ...interface{}) *Error {
 
 func (e *Error) Error() string {
 	if e.cause == nil {
-		return ""
+		return fmt.Sprintf("[Code:%v, Desc:'%v']", e.code, e.desc)
 	}
-	return fmt.Sprintf("[Code:%d, Msg:'%v']", int(e.ecode), e.ecode.String()) + ": " + e.cause.Error()
+	return fmt.Sprintf("[Code:%v, Msg:'%v']", e.code, e.desc) + ": " + e.cause.Error()
 }
 
 func (e *Error) Cause() error {
@@ -50,9 +55,9 @@ func (e *Error) Cause() error {
 }
 
 func (e *Error) Code() int {
-	return int(e.ecode)
+	return e.code
 }
 
 func (e *Error) Desc() string {
-	return e.ecode.String()
+	return e.desc
 }
