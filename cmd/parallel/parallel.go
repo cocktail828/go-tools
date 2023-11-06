@@ -22,21 +22,18 @@ func Attempts(v int) Option {
 	}
 }
 
-func StopOnError() Option {
-	return func(g *Group) {
-		g.stopOnError = true
-	}
-}
+type Event int
 
-func StopOnSuccess() Option {
-	return func(g *Group) {
-		g.stopOnSuccess = true
-	}
-}
+const (
+	None Event = iota
+	Error
+	Success
+)
 
-func CancelPending() Option {
+func AbortWhen(event Event, cancelPending bool) Option {
 	return func(g *Group) {
-		g.cancelPending = true
+		g.event = event
+		g.cancelPending = cancelPending
 	}
 }
 
@@ -51,8 +48,7 @@ type Group struct {
 	cancel         context.CancelFunc
 	attempts       int // try attempts for every func
 	maxConcurrency int // run concurrency
-	stopOnError    bool
-	stopOnSuccess  bool
+	event          Event
 	cancelPending  bool
 }
 
@@ -63,8 +59,7 @@ func WithContext(opt ...Option) Group {
 		cancel:         cancel,
 		attempts:       defaultAttempts,
 		maxConcurrency: defaultConcurrency,
-		stopOnError:    false,
-		stopOnSuccess:  false,
+		event:          None,
 		cancelPending:  false,
 	}
 	for _, f := range opt {
@@ -101,7 +96,7 @@ func (g *Group) RunParallel(fns ...func(context.Context) error) error {
 				if err := retry.Do(func() error {
 					return f(g.ctx)
 				}, retry.Attempts(uint(g.attempts))); err == nil {
-					if g.stopOnSuccess {
+					if g.event == Success {
 						onFinish()
 						if g.cancelPending {
 							g.cancel()
@@ -111,7 +106,7 @@ func (g *Group) RunParallel(fns ...func(context.Context) error) error {
 					}
 				} else {
 					errslice = append(errslice, err)
-					if g.stopOnError {
+					if g.event == Error {
 						onFinish()
 						if g.cancelPending {
 							g.cancel()
