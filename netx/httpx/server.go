@@ -14,13 +14,14 @@ func (s *Server) ListenAndServe() error {
 	return ((*http.Server)(s)).ListenAndServe()
 }
 
-func (s *Server) WaitForSignal(timeout time.Duration, sigs ...os.Signal) (os.Signal, error) {
-	sigChan := make(chan os.Signal, 5)
-	signal.Notify(sigChan, sigs...)
-	defer signal.Stop(sigChan)
+func (s *Server) WaitForSignal(timeout time.Duration, sigs ...os.Signal) error {
+	func() {
+		ctx, cancel := signal.NotifyContext(context.Background(), sigs...)
+		defer cancel()
+		<-ctx.Done()
+	}()
 
-	sig := <-sigChan
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
-	return sig, ((*http.Server)(s)).Shutdown(ctx)
+	return ((*http.Server)(s)).Shutdown(ctx)
 }
