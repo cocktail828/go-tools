@@ -2,6 +2,7 @@ package watchdog
 
 import (
 	"context"
+	"errors"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -31,12 +32,6 @@ func (g *Watchdog) normalize() {
 	if g.OperateTimeout == 0 {
 		g.OperateTimeout = time.Second * 3
 	}
-	if g.Register == nil {
-		g.Register = func(ctx context.Context) error { return nil }
-	}
-	if g.DeRegister == nil {
-		g.DeRegister = func(ctx context.Context) error { return nil }
-	}
 	if g.OnEvent == nil {
 		g.OnEvent = func(sig os.Signal) {}
 	}
@@ -59,7 +54,12 @@ func (g *Watchdog) Spawn(name string, args ...string) error {
 
 	regCancel, regErrChan := call.Delayed(
 		g.InitPostPone,
-		func(ctx context.Context) error { return call.Timed(g.OperateTimeout, g.Register) },
+		func(ctx context.Context) error {
+			if g.Register == nil {
+				return errors.New("missing 'Register' func")
+			}
+			return call.Timed(g.OperateTimeout, g.Register)
+		},
 	)
 
 	for {
@@ -78,7 +78,12 @@ func (g *Watchdog) Spawn(name string, args ...string) error {
 
 	if err := <-regErrChan; err == nil {
 		_, postStopErrChan := call.Delayed(g.QuitPostPone,
-			func(ctx context.Context) error { return call.Timed(g.OperateTimeout, g.DeRegister) },
+			func(ctx context.Context) error {
+				if g.DeRegister == nil {
+					return errors.New("missing 'DeRegister' func")
+				}
+				return call.Timed(g.OperateTimeout, g.DeRegister)
+			},
 		)
 		<-postStopErrChan
 	}
