@@ -5,7 +5,6 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
-	"sync"
 	"syscall"
 	"time"
 
@@ -17,10 +16,8 @@ type Watchdog struct {
 	QuitPostPone       time.Duration                   // 延迟退出的时间
 	OperateTimeout     time.Duration                   // 回调函数超时时间
 	InterceptorSignals []os.Signal                     // 优雅启停需要关注的信号, 默认为 syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT, syscall.SIGCHLD
-	PreStart           func(ctx context.Context) error // 准备工作
-	PostStart          func(ctx context.Context) error // 注册服务
-	PreStop            func(ctx context.Context) error // 服务去注册, 销毁任何 PostStart 创建的资源
-	PostStop           func(ctx context.Context) error // 销毁环境, 销毁任何 PreStart 创建的资源
+	Register           func(ctx context.Context) error // 注册服务
+	DeRegister         func(ctx context.Context) error // 服务去注册
 	OnEvent            func(sig os.Signal)             // 事件回调
 }
 
@@ -34,17 +31,11 @@ func (g *Watchdog) normalize() {
 	if g.OperateTimeout == 0 {
 		g.OperateTimeout = time.Second * 3
 	}
-	if g.PreStart == nil {
-		g.PreStart = func(ctx context.Context) error { return nil }
+	if g.Register == nil {
+		g.Register = func(ctx context.Context) error { return nil }
 	}
-	if g.PostStart == nil {
-		g.PostStart = func(ctx context.Context) error { return nil }
-	}
-	if g.PreStop == nil {
-		g.PreStop = func(ctx context.Context) error { return nil }
-	}
-	if g.PostStop == nil {
-		g.PostStop = func(ctx context.Context) error { return nil }
+	if g.DeRegister == nil {
+		g.DeRegister = func(ctx context.Context) error { return nil }
 	}
 	if g.OnEvent == nil {
 		g.OnEvent = func(sig os.Signal) {}
@@ -66,43 +57,30 @@ func (g *Watchdog) Spawn(name string, args ...string) error {
 		return err
 	}
 
-	if err := call.Timed(g.OperateTimeout, g.PreStart); err != nil {
-		return err
-	}
-
-	poststartCancel, poststartErrChan := call.Delayed(
+	regCancel, regErrChan := call.Delayed(
 		g.InitPostPone,
-		func(ctx context.Context) error { return call.Timed(g.OperateTimeout, g.PostStart) },
+		func(ctx context.Context) error { return call.Timed(g.OperateTimeout, g.Register) },
 	)
 
-	waitCtx, waitCancel := context.WithCancel(context.Background())
-	go func() {
-		defer func() {
-			if err := <-poststartErrChan; err == nil {
-				_, postStopErrChan := call.Delayed(g.QuitPostPone,
-					func(ctx context.Context) error { return call.Timed(g.OperateTimeout, g.PostStop) },
-				)
-				<-postStopErrChan
-			}
-			waitCancel()
-		}()
-
-		once := sync.Once{}
-		for {
-			sig := <-signalChan
-			poststartCancel()
-			g.OnEvent(sig)
-			once.Do(func() { call.Timed(g.OperateTimeout, g.PreStop) })
-			if sig != syscall.SIGCHLD && cmd != nil && cmd.Process != nil {
-				if err := cmd.Process.Signal(sig); err == os.ErrProcessDone {
-					return
-				}
-			}
-			if sig == syscall.SIGCHLD {
-				return
+	for {
+		sig := <-signalChan
+		regCancel()
+		g.OnEvent(sig)
+		if sig != syscall.SIGCHLD && cmd != nil && cmd.Process != nil {
+			if err := cmd.Process.Signal(sig); err == os.ErrProcessDone {
+				break
 			}
 		}
-	}()
-	<-waitCtx.Done()
+		if sig == syscall.SIGCHLD {
+			break
+		}
+	}
+
+	if err := <-regErrChan; err == nil {
+		_, postStopErrChan := call.Delayed(g.QuitPostPone,
+			func(ctx context.Context) error { return call.Timed(g.OperateTimeout, g.DeRegister) },
+		)
+		<-postStopErrChan
+	}
 	return cmd.Wait()
 }

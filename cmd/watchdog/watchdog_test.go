@@ -13,10 +13,9 @@ import (
 func TestGraceful(t *testing.T) {
 	w := watchdog.Watchdog{
 		InitPostPone: time.Second * 5,
-		PreStart:     func(ctx context.Context) error { log.Println("prestart"); return nil },
-		PostStart:    func(ctx context.Context) error { log.Println("poststart"); return nil },
-		PreStop:      func(ctx context.Context) error { log.Println("prestop"); return nil },
-		PostStop:     func(ctx context.Context) error { log.Println("poststop"); return nil },
+		QuitPostPone: time.Second * 3,
+		Register:     func(ctx context.Context) error { log.Println("Register"); return nil },
+		DeRegister:   func(ctx context.Context) error { log.Println("DeRegister"); return nil },
 		OnEvent:      func(sig os.Signal) { log.Println("signal", sig) },
 	}
 	log.Println("cmd", w.Spawn("sleep", "10"))
