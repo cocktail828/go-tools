@@ -1,138 +1,232 @@
 package dns
 
 import (
+	"context"
+	"errors"
+	"fmt"
 	"net"
-	"strconv"
 	"strings"
+	"sync"
+	"sync/atomic"
+	"time"
 )
 
-const (
-	DNS_A_PREFIX   = "dns://"
-	DNS_SRV_PREFIX = "dns+srv://"
+var (
+	ErrNoSuchHost = errors.New("no such host")
 )
 
-type LBPolicy string
-
-const (
-	StaticRoundRobin        LBPolicy = "static_rr"   // 静态地址列表, 不检查地址有效性
-	DynamicRoundRobin       LBPolicy = "dynamic_rr"  // DNS A 记录
-	DynamicWeightRoundRobin LBPolicy = "dynamic_wrr" // DNS SRV 记录
-)
-
-// NOTICE:
-// 域名可以拥有多个 A 记录
-// 域名只允许设置一个 CNAME 记录, 但是每个记录的 target 必须是 A 地址
-type RRSet struct {
-	name        string
-	defaultPort int
-	lbPolicy    LBPolicy
-	records     []net.SRV
+type SRVSet struct {
+	ips      []*net.SRV // SRV 解析结果
+	accessAt time.Time  // 记录使用的时间
 }
 
-type Option func(*RRSet)
-
-func WithPort(port int) Option {
-	return func(r *RRSet) {
-		r.defaultPort = port
+func (r *SRVSet) SetPort(port int) {
+	for _, v := range r.ips {
+		if v.Port == 0 {
+			v.Port = uint16(port)
+		}
 	}
 }
 
-func NewRRSet(name string, opts ...Option) (*RRSet, error) {
-	lhs := &RRSet{
-		name:     name,
-		lbPolicy: StaticRoundRobin,
+func (r *SRVSet) Equal(peer *SRVSet) bool {
+	if len(r.ips) != len(peer.ips) {
+		return false
 	}
-	for _, o := range opts {
-		o(lhs)
+	oldMap := map[string]struct{}{}
+	for _, v := range r.ips {
+		oldMap[fmt.Sprintf("%v%v%v", v.Target, v.Port, v.Weight)] = struct{}{}
+	}
+	for _, v := range peer.ips {
+		delete(oldMap, fmt.Sprintf("%v%v%v", v.Target, v.Port, v.Weight))
+	}
+	return len(oldMap) == 0
+}
+
+func (r *SRVSet) ToSrv() []*net.SRV {
+	r.accessAt = time.Now()
+	return r.ips
+}
+
+func (r *SRVSet) ToHostPort() []string {
+	r.accessAt = time.Now()
+	ips := make([]string, 0, len(r.ips))
+	for _, ip := range r.ips {
+		ips = append(ips, fmt.Sprintf("%v:%v", ip.Target, ip.Port))
+	}
+	return ips
+}
+
+type IPSet struct {
+	ips      []net.IP  // 解析结果
+	accessAt time.Time // 记录使用的时间
+}
+
+func (r *IPSet) Equal(peer *IPSet) bool {
+	if len(r.ips) != len(peer.ips) {
+		return false
+	}
+	oldMap := map[string]struct{}{}
+	for _, v := range r.ips {
+		oldMap[v.String()] = struct{}{}
+	}
+	for _, v := range peer.ips {
+		delete(oldMap, v.String())
+	}
+	return len(oldMap) == 0
+}
+
+func (r *IPSet) To4() []string {
+	r.accessAt = time.Now()
+	ips := make([]string, 0, len(r.ips))
+	for _, ip := range r.ips {
+		ips = append(ips, ip.To4().String())
+	}
+	return ips
+}
+
+func (r *IPSet) To16() []string {
+	r.accessAt = time.Now()
+	ips := make([]string, 0, len(r.ips))
+	for _, ip := range r.ips {
+		ips = append(ips, ip.To16().String())
+	}
+	return ips
+}
+
+func (r *IPSet) ToIP() []string {
+	r.accessAt = time.Now()
+	ips := make([]string, 0, len(r.ips))
+	for _, ip := range r.ips {
+		ips = append(ips, ip.String())
+	}
+	return ips
+}
+
+// DNS Resolver with cache
+type Resolver struct {
+	inited  atomic.Bool
+	cache   sync.Map
+	Timeout time.Duration // DNS 解析超时时间
+	Refresh time.Duration // DNS 解析刷新间隔
+	TTL     time.Duration // DNS 记录缓存最长时间
+}
+
+func (r *Resolver) startRefresher(refresh time.Duration) {
+	if !r.inited.CompareAndSwap(false, true) {
+		return
 	}
 
-	switch {
-	case strings.HasPrefix(name, DNS_A_PREFIX):
-		lhs.lbPolicy = DynamicRoundRobin
-		name = name[len(DNS_A_PREFIX):]
-
-	case strings.HasPrefix(name, DNS_SRV_PREFIX):
-		lhs.lbPolicy = DynamicWeightRoundRobin
-		name = name[len(DNS_SRV_PREFIX):]
+	if r.Timeout == 0 {
+		r.Timeout = time.Second * 3
+	}
+	if r.Refresh == 0 {
+		r.Refresh = time.Second * 15
+	}
+	if r.TTL == 0 {
+		r.Timeout = time.Hour
 	}
 
-	records, err := lhs.lookup(name, lhs.lbPolicy)
+	go func() {
+		for {
+			now := time.Now()
+			addrMap := make(map[string]time.Time)
+			r.cache.Range(func(key, value any) bool {
+				if v, ok := value.(*IPSet); ok {
+					addrMap[key.(string)] = v.accessAt
+				}
+				if v, ok := value.(*SRVSet); ok {
+					addrMap[key.(string)] = v.accessAt
+				}
+				return true
+			})
+
+			for key, accessAt := range addrMap {
+				if !accessAt.IsZero() && accessAt.Add(r.TTL).After(now) {
+					r.cache.Delete(key)
+				}
+
+				arr := strings.Split(key, "#")
+				switch len(arr) {
+				case 2:
+					r.lookupIP(arr[0], arr[1])
+				case 3:
+					r.lookupSRV(arr[0], arr[1], arr[2])
+				default:
+					r.cache.Delete(key)
+				}
+			}
+			time.Sleep(r.Refresh)
+		}
+	}()
+}
+
+// Lookup IPv4 address
+func (r *Resolver) LookupA(host string) (*IPSet, error) {
+	r.startRefresher(r.Refresh)
+	rr, ok := r.cache.Load("ip4#" + host)
+	if ok {
+		return rr.(*IPSet), nil
+	}
+	return r.lookupIP("ip4", host)
+}
+
+// Lookup IPv6 address
+func (r *Resolver) LookupAAAA(host string) (*IPSet, error) {
+	r.startRefresher(r.Refresh)
+	rr, ok := r.cache.Load("ip6#" + host)
+	if ok {
+		return rr.(*IPSet), nil
+	}
+	return r.lookupIP("ip6", host)
+}
+
+// Lookup IPv4&IPv6 address
+func (r *Resolver) LookupIP(host string) (*IPSet, error) {
+	r.startRefresher(r.Refresh)
+	rr, ok := r.cache.Load("ip#" + host)
+	if ok {
+		return rr.(*IPSet), nil
+	}
+	return r.lookupIP("ip", host)
+}
+
+func (r *Resolver) lookupIP(network, host string) (*IPSet, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), r.Timeout)
+	defer cancel()
+	rr, err := net.DefaultResolver.LookupIP(ctx, network, host)
 	if err != nil {
 		return nil, err
 	}
-
-	lhs.records = records
-	for i := 0; i < len(lhs.records); i++ {
-		if lhs.records[i].Port == 0 {
-			lhs.records[i].Port = uint16(lhs.defaultPort)
-		}
+	if len(rr) == 0 {
+		return nil, ErrNoSuchHost
 	}
 
-	return lhs, nil
+	rlt := &IPSet{ips: rr}
+	r.cache.Store(network+"#"+host, rlt)
+	return rlt, nil
 }
 
-func (lhs *RRSet) Name() string {
-	return lhs.name
-}
-
-func (lhs *RRSet) LBPolicy() LBPolicy {
-	return lhs.lbPolicy
-}
-
-func (lhs *RRSet) Records() []net.SRV {
-	return lhs.records[:]
-}
-
-func (lhs *RRSet) lookup(name string, lbPolicy LBPolicy) ([]net.SRV, error) {
-	records := []net.SRV{}
-
-	switch lbPolicy {
-	case DynamicRoundRobin:
-		{
-			host, port := splitHostPort(name)
-			ips, err := LookupA(host)
-			if err != nil {
-				return nil, err
-			}
-
-			for i := 0; i < len(ips); i++ {
-				records = append(records, net.SRV{
-					Target: ips[i].String(),
-					Port:   uint16(port),
-				})
-			}
-		}
-
-	case DynamicWeightRoundRobin:
-		{
-			_, addrs, err := net.LookupSRV("", "", name)
-			for i := 0; i < len(addrs); i++ {
-				if addrs[i] != nil {
-					records = append(records, *(addrs[i]))
-				}
-			}
-			return nil, err
-		}
-
-	default:
-		{
-			for _, subname := range strings.Split(name, ",") {
-				host, port := splitHostPort(subname)
-				records = append(records, net.SRV{
-					Target: host,
-					Port:   uint16(port),
-				})
-			}
-		}
+func (r *Resolver) LookupSRV(service, proto, name string) (*SRVSet, error) {
+	r.startRefresher(r.Refresh)
+	rr, ok := r.cache.Load(service + "#" + proto + "#" + name)
+	if ok {
+		return rr.(*SRVSet), nil
 	}
-	return records, nil
+	return r.lookupSRV(service, proto, name)
 }
 
-func splitHostPort(host string) (string, int) {
-	h, p, err := net.SplitHostPort(host)
+func (r *Resolver) lookupSRV(service, proto, name string) (*SRVSet, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), r.Timeout)
+	defer cancel()
+	_, rr, err := net.DefaultResolver.LookupSRV(ctx, service, proto, name)
 	if err != nil {
-		return host, 0
+		return nil, err
 	}
-	pi, _ := strconv.Atoi(p)
-	return h, pi
+	if len(rr) == 0 {
+		return nil, ErrNoSuchHost
+	}
+
+	rlt := &SRVSet{ips: rr}
+	r.cache.Store(service+"#"+proto+"#"+name, rlt)
+	return rlt, nil
 }
