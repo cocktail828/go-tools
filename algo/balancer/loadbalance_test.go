@@ -1,9 +1,9 @@
-package loadbalance_test
+package balancer_test
 
 import (
 	"testing"
 
-	"github.com/cocktail828/go-tools/algo/loadbalance"
+	"github.com/cocktail828/go-tools/algo/balancer"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -18,16 +18,12 @@ func (n NNN) Len() int {
 	return len(n)
 }
 
-func (n NNN) Validate(idx int) bool {
-	return n[idx].M < 5
-}
-
 func (n NNN) Weight(idx int) int {
 	return n[idx].W
 }
 
 func TestRR(t *testing.T) {
-	lb := loadbalance.NewRoundRobin()
+	lb := balancer.NewRoundRobin()
 	assert.Equal(t, -1, lb.Get(NNN{}))
 	assert.ElementsMatch(t, []int{1, 2, 3, 1, 2, 3}, func() []int {
 		arr := NNN{X{5, 5}, X{3, 3}, X{2, 2}, X{1, 1}}
@@ -40,7 +36,7 @@ func TestRR(t *testing.T) {
 }
 
 func TestWRR(t *testing.T) {
-	lb := loadbalance.NewWeightRoundRobin()
+	lb := balancer.NewWeightRoundRobin()
 	assert.Equal(t, -1, lb.Get(NNN{}))
 	assert.ElementsMatch(t, []int{3, 2, 1}, func() []int {
 		arr := NNN{X{5, 5}, X{3, 3}, X{2, 2}, X{1, 1}}

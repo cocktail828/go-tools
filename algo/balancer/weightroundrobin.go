@@ -1,12 +1,10 @@
-package loadbalance
+package balancer
 
 import (
 	"sync"
 )
 
 type WeightCollection interface {
-	// Validate will varify validity of element.
-	Validate(int) bool
 	// Len is the number of elements in the collection.
 	Len() int
 	// Weight is the weight of element.
@@ -37,7 +35,7 @@ func (lhs *WeightRoundRobin) Get(c WeightCollection) int {
 	allWeight := 0
 	pos := -1
 	for i := 0; i < c.Len(); i++ {
-		if !c.Validate(i) {
+		if f, ok := c.(Validator); ok && !f.Validate(i) {
 			continue
 		}
 
