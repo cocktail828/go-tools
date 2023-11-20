@@ -30,7 +30,7 @@ const (
 	Success
 )
 
-func AbortWhen(event Event, cancelPending bool) Option {
+func AbortEvent(event Event, cancelPending bool) Option {
 	return func(g *Group) {
 		g.event = event
 		g.cancelPending = cancelPending

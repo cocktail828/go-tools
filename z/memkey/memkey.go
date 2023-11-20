@@ -117,10 +117,9 @@ func (m *Memkey) consumeAndEvict(now time.Time) bool {
 		}
 
 		ec := make(chan event, 2)
-		go func() {
+		func() {
 			w.busy.Store(true)
 			defer w.busy.Store(false)
-
 			select {
 			case ec <- event{w.cb(), now}:
 			case t := <-time.After(time.Millisecond * 50):

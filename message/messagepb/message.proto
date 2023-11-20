@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+package message;
+option go_package="./;messagepb";
+
+message Message {
+    int32 type               = 1; // 消息类型
+    string upStream          = 2; // 上游ip
+    string sid               = 3; // sid
+    string table             = 4;
+    string sub               = 5;
+    bytes data               = 6;
+    repeated string tags     = 7;
+    map<string, bytes> meta  = 8;
+}
+
+service GDK {
+    rpc Call(Message) returns (Message);
+}
