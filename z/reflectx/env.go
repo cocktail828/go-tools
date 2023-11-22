@@ -117,7 +117,7 @@ func BindEnv(target interface{}) error {
 	rtype := reflect.TypeOf(target)
 	rvalue := reflect.ValueOf(target)
 	if rvalue.Kind() != reflect.Pointer || rvalue.IsNil() {
-		return errors.New("target should be a non-nil struct pointer")
+		return errors.New("target should be a non-nil pointer")
 	}
 	rtype = rtype.Elem()
 	rvalue = rvalue.Elem()
@@ -144,9 +144,8 @@ func BindEnv(target interface{}) error {
 			return errors.Errorf("env '%v' is required but not found", key)
 		}
 
-		dval := rtype.Field(pos).Tag.Get("default")
 		if eval == "" {
-			eval = dval
+			eval = rtype.Field(pos).Tag.Get("default")
 		}
 		if eval != "" {
 			if err := reflectSetVal(rvalue.Field(pos), eval); err != nil {
