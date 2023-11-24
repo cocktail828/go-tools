@@ -154,7 +154,7 @@ func (dc *driverConn) closeDBLocked() func() error {
 	closer := func() error { return nil }
 	locker.WithLock(dc, func() {
 		if !dc.closed {
-			closer = dc.ci.Close
+			closer = dc.db.removeConnLocked(dc)
 		}
 		dc.closed = true
 	})
@@ -268,6 +268,15 @@ func (db *DB) PingContext(ctx context.Context) error {
 // PingContext.
 func (db *DB) Ping() error {
 	return db.PingContext(context.Background())
+}
+
+func (db *DB) removeConnLocked(dc *driverConn) func() error {
+	return func() error {
+		locker.WithLock(&db.mu, func() {
+			dc.db.numOpen--
+		})
+		return dc.ci.Close()
+	}
 }
 
 // Close closes the database and prevents new queries from starting.
