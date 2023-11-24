@@ -105,6 +105,8 @@ func (w *Watchdog) runWithRegistry(cmd *exec.Cmd) {
 func (w *Watchdog) Spawn(name string, args ...string) error {
 	w.normalize()
 	cmd := exec.Command(name, args...)
+	cmd.Stderr = os.Stderr
+	cmd.Stdout = os.Stdout
 	if err := cmd.Start(); err != nil {
 		return err
 	}
