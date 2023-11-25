@@ -1,63 +1,58 @@
-package rolling_test
+package rolling
 
 import (
 	"fmt"
+	"sync/atomic"
 	"testing"
 	"time"
-
-	"github.com/cocktail828/go-tools/algo/rolling"
 )
 
-var (
-	r = rolling.New()
-)
-
-func TestRolling(t *testing.T) {
-	for i := 0; i < 1000; i++ {
-		r.Incr()
+func TestCalc(t *testing.T) {
+	r := &Rolling{
+		calcWnSize:    1,  // 1s
+		slotPerBucket: 10, // 100ms
+		slots:         make([]atomic.Int64, 640),
+		bucketNum:     640,
+		bucketSize:    100,
 	}
-	time.Sleep(time.Second)
-	fmt.Println("result", r.Calc(time.Now()))
-
-	for i := 0; i < 2000; i++ {
-		r.Incr()
+	for i := 0; i < 10; i++ {
+		r.slots[i].Add(100)
 	}
-	time.Sleep(time.Second)
-	fmt.Println("result", r.Calc(time.Now()))
-
-	for i := 0; i < 3000; i++ {
-		r.Incr()
+	for i := 0; i < 10; i++ {
+		r.slots[i+10].Add(200)
 	}
-	time.Sleep(time.Second)
-	fmt.Println("result", r.Calc(time.Now()))
-
-	now := time.Now()
-	fmt.Printf("%v\n", r)
-	fmt.Println("end at:", now.String())
-	fmt.Println("result", r.Calc(now))
+	for i := 0; i < 10; i++ {
+		r.slots[i+20].Add(300)
+	}
+	fmt.Println(r.calc(640, 110))
+	fmt.Println(r.calc(641, 110))
+	fmt.Println(r.calc(642, 110))
+	r.reset(320, 100)
+	fmt.Println(r.slots[:30])
 }
 
 func BenchmarkRolling(b *testing.B) {
-	for i := 0; i < 1000; i++ {
-		r.Incr()
-	}
-
+	r := New(CalcWnSize(1))
+	r.IncrBy(1000)
 	time.Sleep(time.Second)
-	for i := 0; i < 2000; i++ {
-		r.Incr()
-	}
-
+	r.IncrBy(2000)
 	time.Sleep(time.Second)
-	for i := 0; i < 3000; i++ {
-		r.Incr()
-	}
+	r.IncrBy(3000)
+	time.Sleep(time.Second)
 
-	now := time.Now()
 	b.ResetTimer()
 	b.ReportAllocs()
 	b.RunParallel(func(p *testing.PB) {
 		for p.Next() {
-			r.Calc(now)
+			<-r.RateChan()
 		}
 	})
+}
+
+// 1700914515 508867500 221728552607000
+// 1700914515 1700914515508 1700914515508875900
+func TestXXX(t *testing.T) {
+	fmt.Println(now())
+	n := time.Now()
+	fmt.Println(n.Unix(), n.UnixMilli(), n.UnixNano())
 }
