@@ -36,18 +36,18 @@ func (zlibProvider) CompressMaxSize(originalSize int) int {
 		((originalSize + 7) >> 3) + ((originalSize + 63) >> 6) + 11
 }
 
-func (zlibProvider) Compress(dst, src []byte) []byte {
+func (zlibProvider) Compress(dst, src []byte) ([]byte, error) {
 	var b = bytes.NewBuffer(dst[:0])
 	w := zlib.NewWriter(b)
 
 	if _, err := w.Write(src); err != nil {
-		return nil
+		return nil, err
 	}
 	if err := w.Close(); err != nil {
-		return nil
+		return nil, err
 	}
 
-	return b.Bytes()
+	return b.Bytes(), nil
 }
 
 func (zlibProvider) Decompress(dst, src []byte, originalSize int) ([]byte, error) {

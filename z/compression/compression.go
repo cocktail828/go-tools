@@ -35,7 +35,7 @@ type Provider interface {
 	// Compress a []byte, the param is a []byte with the uncompressed content.
 	// The reader/writer indexes will not be modified. The return is a []byte
 	// with the compressed content.
-	Compress(dst, src []byte) []byte
+	Compress(dst, src []byte) ([]byte, error)
 
 	// Decompress a []byte. The buffer needs to have been compressed with the matching Encoder.
 	// The src is compressed content. If dst is passed, the decompressed data will be written there

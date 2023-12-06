@@ -54,8 +54,8 @@ func (p *zstdProvider) CompressMaxSize(srcSize int) int {
 	return srcSize + (srcSize >> 8) + margin
 }
 
-func (p *zstdProvider) Compress(dst, src []byte) []byte {
-	return p.encoder.EncodeAll(src, dst)
+func (p *zstdProvider) Compress(dst, src []byte) ([]byte, error) {
+	return p.encoder.EncodeAll(src, dst), nil
 }
 
 func (p *zstdProvider) Decompress(dst, src []byte, originalSize int) ([]byte, error) {

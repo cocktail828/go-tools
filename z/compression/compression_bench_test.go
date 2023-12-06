@@ -50,7 +50,7 @@ func testDecompression(b *testing.B, provider Provider) {
 		b.Error(err)
 	}
 
-	dataCompressed := provider.Compress(nil, data)
+	dataCompressed, _ := provider.Compress(nil, data)
 	dataDecompressed := make([]byte, 1024*1024)
 
 	dataLen := int64(len(data))

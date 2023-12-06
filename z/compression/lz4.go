@@ -32,7 +32,6 @@ type lz4Provider struct {
 // NewLz4Provider return a interface of Provider.
 func NewLz4Provider() Provider {
 	const tableSize = 1 << 16
-
 	return &lz4Provider{
 		hashTable: make([]int, tableSize),
 	}
@@ -47,7 +46,7 @@ func (l *lz4Provider) CompressMaxSize(originalSize int) int {
 	return s
 }
 
-func (l *lz4Provider) Compress(dst, data []byte) []byte {
+func (l *lz4Provider) Compress(dst, data []byte) ([]byte, error) {
 	maxSize := lz4.CompressBlockBound(len(data))
 	if cap(dst) >= maxSize {
 		dst = dst[0:maxSize] // Reuse dst buffer
@@ -56,7 +55,7 @@ func (l *lz4Provider) Compress(dst, data []byte) []byte {
 	}
 	size, err := lz4.CompressBlock(data, dst, l.hashTable)
 	if err != nil {
-		panic("Failed to compress")
+		return nil, err
 	}
 
 	if size == 0 {
@@ -64,9 +63,9 @@ func (l *lz4Provider) Compress(dst, data []byte) []byte {
 		// the block header flag to signal it's not compressed
 		headerSize := writeSize(len(data), dst)
 		copy(dst[headerSize:], data)
-		return dst[:len(data)+headerSize]
+		return dst[:len(data)+headerSize], nil
 	}
-	return dst[:size]
+	return dst[:size], nil
 }
 
 // Write the encoded size for the uncompressed payload

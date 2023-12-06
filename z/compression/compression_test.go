@@ -44,7 +44,7 @@ func TestCompression(t *testing.T) {
 		t.Run(p.name, func(t *testing.T) {
 			hello := []byte("test compression data")
 			compressed := make([]byte, 1024)
-			compressed = p.provider.Compress(compressed, hello)
+			compressed, _ = p.provider.Compress(compressed, hello)
 
 			uncompressed := make([]byte, 1024)
 			uncompressed, err := p.provider.Decompress(uncompressed, compressed, len(hello))
@@ -59,7 +59,7 @@ func TestCompressionNoBuffers(t *testing.T) {
 		p := provider
 		t.Run(p.name, func(t *testing.T) {
 			hello := []byte("test compression data")
-			compressed := p.provider.Compress(nil, hello)
+			compressed, _ := p.provider.Compress(nil, hello)
 			uncompressed, err := p.provider.Decompress(nil, compressed, len(hello))
 			assert.Nil(t, err)
 			assert.ElementsMatch(t, hello, uncompressed)
