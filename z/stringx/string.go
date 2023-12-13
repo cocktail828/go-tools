@@ -27,7 +27,7 @@ func Contains(array []string, s string) bool {
 }
 
 // report whether 's' is a member of 'array'
-func Oneof(s string, array []string) bool {
+func Oneof(s string, array ...string) bool {
 	for _, a := range array {
 		if a == s {
 			return true
