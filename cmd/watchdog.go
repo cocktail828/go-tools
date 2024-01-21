@@ -90,11 +90,8 @@ func (w *Watchdog) runWithRegistry(cmd *exec.Cmd) {
 				return
 			} else {
 				once.Do(func() { w.syncDeReg() })
-				go func() {
-					// 等待指定时间强制退出
-					<-time.After(w.QuitPostPone)
-					quitCancel()
-				}()
+				// 等待指定时间强制退出
+				time.AfterFunc(w.QuitPostPone, quitCancel)
 			}
 		case <-quitCtx.Done():
 			return

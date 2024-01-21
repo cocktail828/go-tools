@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-func Inet(validater ...func(*net.IPNet) bool) ([]net.Addr, error) {
+func Inet(validator ...func(*net.IPNet) bool) ([]net.Addr, error) {
 	inters, err := net.Interfaces()
 	if err != nil {
 		return nil, err
@@ -22,7 +22,7 @@ func Inet(validater ...func(*net.IPNet) bool) ([]net.Addr, error) {
 			for _, addr := range iaddrs {
 				if ipnet, ok := addr.(*net.IPNet); ok {
 					if func() bool {
-						for _, f := range validater {
+						for _, f := range validator {
 							if !f(ipnet) {
 								return false
 							}

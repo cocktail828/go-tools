@@ -5,7 +5,6 @@ go 1.19
 require (
 	github.com/BurntSushi/toml v1.3.2
 	github.com/DataDog/zstd v1.5.5
-	github.com/avast/retry-go/v4 v4.5.0
 	github.com/go-playground/validator v9.31.0+incompatible
 	github.com/klauspost/compress v1.17.2
 	github.com/pierrec/lz4 v2.6.1+incompatible

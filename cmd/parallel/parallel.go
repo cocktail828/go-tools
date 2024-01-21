@@ -9,6 +9,7 @@ import (
 type Event int
 
 const (
+	None    Event = iota
 	Failure Event = iota
 	Success Event = iota
 )

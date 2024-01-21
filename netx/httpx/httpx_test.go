@@ -8,23 +8,18 @@ import (
 	"time"
 
 	"github.com/cocktail828/go-tools/netx/httpx"
+	"github.com/cocktail828/go-tools/z"
 )
 
 func TestHTTPX(t *testing.T) {
 	c, err := httpx.NewWithContext(context.Background(), "https://baidu.com", httpx.WithMethod("GET"))
-	if err != nil {
-		panic(err)
-	}
+	z.Must(err)
 
-	resp, err := c.Do()
-	if err != nil {
-		panic(err)
-	}
+	_, err = c.Fire()
+	z.Must(err)
 
 	var s string
-	if err := c.ParseWith(httpx.Stringfy, resp, &s); err != nil {
-		panic(err)
-	}
+	z.Must(c.ParseWith(httpx.Stringfy, &s))
 	fmt.Println(s)
 }
 

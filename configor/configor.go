@@ -1,108 +1,126 @@
 package configor
 
 import (
+	"encoding/json"
+	stderr "errors"
+	"fmt"
 	"os"
+	"path"
 	"reflect"
 	"strings"
 
 	"github.com/pkg/errors"
-	yaml "gopkg.in/yaml.v2"
 )
 
-func Load(dst interface{}, files ...string) error {
-	return newConfigor().Load(dst, files...)
+func LoadFile(dst any, files ...string) error {
+	return newConfigor().LoadFile(dst, files...)
 }
 
-func LoadContents(dst interface{}, data ...string) error {
-	return newConfigor().LoadContent(dst, data...)
+func Load(dst any, data ...[]byte) error {
+	return newConfigor().Load(dst, data...)
 }
 
-type configor struct {
-	ENVPrefix string
-	// In case of json files, this field will be used only when compiled with
-	// go 1.10 or later.
-	// This field will be ignored when compiled with go versions lower than 1.10.
-	ErrorOnUnmatchedKeys bool
+type Configor struct {
+	// default unmarshaler for raw data
+	Unmarshaler func([]byte, any) error
 }
 
-func newConfigor() *configor {
-	return &configor{}
-}
-
-// GetErrorOnUnmatchedKeys returns a boolean indicating if an error should be
-// thrown if there are keys in the dst file that do not correspond to the
-// dst struct
-func (c *configor) GetErrorOnUnmatchedKeys() bool {
-	return c.ErrorOnUnmatchedKeys
+func newConfigor() *Configor {
+	return &Configor{
+		Unmarshaler: defaultUnmarshaler,
+	}
 }
 
 // Load will unmarshal configurations to struct from files that you provide
-func (c *configor) Load(dst interface{}, files ...string) error {
-	for _, file := range files {
-		if fileInfo, err := os.Stat(file); err != nil || fileInfo.Mode().IsRegular() {
-			return errors.Errorf("Failed to find configuration %v", file)
+func (c *Configor) LoadFile(dst any, files ...string) error {
+	for _, fname := range files {
+		if fileInfo, err := os.Stat(fname); err != nil || fileInfo.Mode().IsRegular() {
+			return errors.Errorf("no such fname: %v", fname)
 		}
-		if err := processFile(dst, file, c.GetErrorOnUnmatchedKeys()); err != nil {
+
+		data, err := os.ReadFile(fname)
+		if err != nil {
+			return err
+		}
+
+		f, ok := unmarshalers[path.Ext(fname)]
+		if !ok {
+			return errors.Errorf("no such unmarshaler for:%v", path.Ext(fname))
+		}
+		if err := f(data, dst); err != nil {
 			return err
 		}
 	}
 	return c.processTags(dst)
 }
 
-// LoadContent will unmarshal configurations to struct from data that you provide
-func (c *configor) LoadContent(dst interface{}, data ...string) error {
-	for _, content := range data {
-		if err := unmarshalTomlString(content, dst, c.GetErrorOnUnmatchedKeys()); err != nil {
+func (c *Configor) Load(dst any, data ...[]byte) error {
+	for _, d := range data {
+		if err := c.Unmarshaler(d, dst); err != nil {
 			return err
 		}
 	}
 	return c.processTags(dst)
 }
 
-func (c *configor) processTags(config interface{}) error {
-	configValue := reflect.Indirect(reflect.ValueOf(config))
-	if configValue.Kind() != reflect.Struct {
-		return errors.New("invalid config, should be struct")
+type handler = func(fieldStruct reflect.StructField, field reflect.Value) error
+
+func handleEnv(fieldStruct reflect.StructField, field reflect.Value) error {
+	envNames := []string{fieldStruct.Name, strings.ToUpper(fieldStruct.Name)}
+	if envName := fieldStruct.Tag.Get("env"); envName != "" {
+		envNames = []string{envName}
 	}
 
-	configType := configValue.Type()
-	for i := 0; i < configType.NumField(); i++ {
-		var (
-			envNames    []string
-			fieldStruct = configType.Field(i)
-			field       = configValue.Field(i)
-			envName     = fieldStruct.Tag.Get("env") // read configuration from shell env
-		)
+	errs := []error{}
+	for _, env := range envNames {
+		if eval := os.Getenv(env); eval != "" {
+			if err := json.Unmarshal([]byte(eval), field.Addr().Interface()); err == nil {
+				return nil
+			} else {
+				fmt.Println(err)
+				errs = append(errs, err)
+			}
+		}
+	}
+	return stderr.Join(errs...)
+}
 
+func handleDefault(fieldStruct reflect.StructField, field reflect.Value) error {
+	if dflt := fieldStruct.Tag.Get("default"); dflt != "" {
+		if err := json.Unmarshal([]byte(dflt), field.Addr().Interface()); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (c *Configor) processTags(dst any) error {
+	rval := reflect.Indirect(reflect.ValueOf(dst))
+	if rval.Kind() != reflect.Struct {
+		return errors.New("invalid arg, should be struct")
+	}
+
+	funcs := []handler{handleEnv, handleDefault}
+	types := rval.Type()
+	for i := 0; i < types.NumField(); i++ {
+		fieldStruct := types.Field(i)
+		field := rval.Field(i)
 		if !field.CanAddr() || !field.CanInterface() {
 			continue
 		}
 
-		if envName == "" {
-			envNames = append(envNames, fieldStruct.Name, strings.ToUpper(fieldStruct.Name))
-		} else {
-			envNames = []string{envName}
-		}
-
-		// Load From Shell ENV
-		for _, env := range envNames {
-			if value := os.Getenv(env); value != "" {
-				if err := yaml.Unmarshal([]byte(value), field.Addr().Interface()); err != nil {
-					return err
-				}
+		for _, f := range funcs {
+			if !reflect.DeepEqual(field.Interface(), reflect.Zero(field.Type()).Interface()) {
 				break
+			}
+			if err := f(fieldStruct, field); err != nil {
+				return err
 			}
 		}
 
 		if isBlank := reflect.DeepEqual(field.Interface(), reflect.Zero(field.Type()).Interface()); isBlank {
-			// Set default configuration if blank
-			if value := fieldStruct.Tag.Get("default"); value != "" {
-				if err := yaml.Unmarshal([]byte(value), field.Addr().Interface()); err != nil {
-					return err
-				}
-			} else if fieldStruct.Tag.Get("required") == "true" {
-				// return error if it is required but blank
-				return errors.New(fieldStruct.Name + " is required, but blank")
+			if strings.ToLower(fieldStruct.Tag.Get("required")) == "true" {
+				return errors.Errorf("Field %v is required, but blank", fieldStruct.Name)
 			}
 		}
 
@@ -110,13 +128,13 @@ func (c *configor) processTags(config interface{}) error {
 			field = field.Elem()
 		}
 
-		if field.Kind() == reflect.Struct {
+		switch field.Kind() {
+		case reflect.Struct:
 			if err := c.processTags(field.Addr().Interface()); err != nil {
 				return err
 			}
-		}
 
-		if field.Kind() == reflect.Slice {
+		case reflect.Slice:
 			for i := 0; i < field.Len(); i++ {
 				if reflect.Indirect(field.Index(i)).Kind() == reflect.Struct {
 					if err := c.processTags(field.Index(i).Addr().Interface()); err != nil {
