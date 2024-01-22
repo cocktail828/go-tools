@@ -2,52 +2,80 @@ package balancer
 
 import (
 	"sync"
+
+	"github.com/pkg/errors"
 )
 
-type WeightCollection interface {
-	// Len is the number of elements in the collection.
-	Len() int
-	// Weight is the weight of element.
-	Weight(int) int
+type weightRoundRobinBuilder struct{}
+
+func (weightRoundRobinBuilder) Build() Balancer {
+	return NewWeightRoundRobin()
 }
 
-type WeightRoundRobin struct {
+type Weight interface {
+	Weight() int
+}
+
+var _ Balancer = &weightRoundRobin{}
+
+func init() {
+	Register("weight-round-robin", weightRoundRobinBuilder{})
+	Register("wrr", weightRoundRobinBuilder{})
+}
+
+type weightRoundRobin struct {
+	array     []Weight
 	mu        sync.Mutex
-	len       int
-	curWeight []int
+	busyArray []int
 }
 
-func NewWeightRoundRobin() *WeightRoundRobin {
-	return &WeightRoundRobin{}
+func NewWeightRoundRobin() *weightRoundRobin {
+	return &weightRoundRobin{}
+}
+
+func (b *weightRoundRobin) Update(array []any) error {
+	_array := make([]Weight, 0, len(array))
+	for pos, mem := range array {
+		if v, ok := mem.(Weight); !ok {
+			return errors.Errorf("'Weight' interface not implemented, pos:%v", pos)
+		} else {
+			_array = append(_array, v)
+		}
+	}
+	b.array = _array
+	return nil
 }
 
 // nginx weighted round-robin balancing
 // view: https://github.com/phusion/nginx/commit/27e94984486058d73157038f7950a0a36ecc6e35
-func (lhs *WeightRoundRobin) Get(c WeightCollection) int {
-	lhs.mu.Lock()
-	defer lhs.mu.Unlock()
+func (b *weightRoundRobin) Pick() any {
+	if len(b.array) == 0 {
+		return nil
+	}
 
-	if lhs.len != c.Len() {
-		lhs.len = c.Len()
-		lhs.curWeight = make([]int, c.Len())
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if len(b.busyArray) != len(b.array) {
+		b.busyArray = make([]int, len(b.array))
 	}
 
 	allWeight := 0
 	pos := -1
-	for i := 0; i < c.Len(); i++ {
-		if f, ok := c.(Validator); ok && !f.Validate(i) {
+	for i := 0; i < len(b.array); i++ {
+		c := b.array[i]
+		if f, ok := c.(Validator); ok && !f.IsOK() {
 			continue
 		}
 
-		allWeight += c.Weight(i)                                // 计算总权重
-		lhs.curWeight[i] += c.Weight(i)                         // 当前权重加上权重
-		if pos == -1 || lhs.curWeight[i] > lhs.curWeight[pos] { // 如果最优节点不存在或者当前节点由于最优节点，则赋值或者替换
+		allWeight += c.Weight()                             // 计算总权重
+		b.busyArray[i] += c.Weight()                        // 当前权重加上权重
+		if pos == -1 || b.busyArray[i] > b.busyArray[pos] { // 如果最优节点不存在或者当前节点由于最优节点，则赋值或者替换
 			pos = i
 		}
 	}
 
 	if pos != -1 {
-		lhs.curWeight[pos] -= allWeight
+		b.busyArray[pos] -= allWeight
 	}
-	return pos
+	return b.array[pos]
 }

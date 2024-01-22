@@ -7,29 +7,22 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-type X struct {
-	W int
-	M int
-}
+type X int
 
-type NNN []X
+func (x X) IsOK() bool { return x <= 3 }
 
-func (n NNN) Len() int {
-	return len(n)
-}
-
-func (n NNN) Weight(idx int) int {
-	return n[idx].W
+func (x X) Weight() int {
+	return int(x)
 }
 
 func TestRR(t *testing.T) {
 	lb := balancer.NewRoundRobin()
-	assert.Equal(t, -1, lb.Get(NNN{}))
-	assert.ElementsMatch(t, []int{1, 2, 3, 1, 2, 3}, func() []int {
-		arr := NNN{X{5, 5}, X{3, 3}, X{2, 2}, X{1, 1}}
-		res := []int{}
+	assert.Equal(t, nil, lb.Pick())
+	assert.Equal(t, nil, lb.Update([]any{X(5), X(3), X(2), X(1)}))
+	assert.ElementsMatch(t, []any{X(3), X(2), X(1), X(3), X(2), X(1)}, func() []any {
+		res := []any{}
 		for i := 0; i < 6; i++ {
-			res = append(res, lb.Get(arr))
+			res = append(res, lb.Pick())
 		}
 		return res
 	}())
@@ -37,13 +30,17 @@ func TestRR(t *testing.T) {
 
 func TestWRR(t *testing.T) {
 	lb := balancer.NewWeightRoundRobin()
-	assert.Equal(t, -1, lb.Get(NNN{}))
-	assert.ElementsMatch(t, []int{3, 2, 1}, func() []int {
-		arr := NNN{X{5, 5}, X{3, 3}, X{2, 2}, X{1, 1}}
+	assert.Equal(t, nil, lb.Pick())
+	assert.Equal(t, nil, lb.Update([]any{X(5), X(3), X(2), X(1)}))
+	assert.ElementsMatch(t, []any{3, 2, 1}, func() []any {
 		m := map[int]int{-1: 0, 5: 0, 3: 0, 2: 0, 1: 0}
 		for i := 0; i < 6; i++ {
-			m[lb.Get(arr)]++
+			if v := lb.Pick(); v != nil {
+				m[v.(balancer.Weight).Weight()]++
+			} else {
+				m[-1]++
+			}
 		}
-		return []int{m[3], m[2], m[1]}
+		return []any{m[3], m[2], m[1]}
 	}())
 }

@@ -4,32 +4,43 @@ import (
 	"sync/atomic"
 )
 
-type Validator interface {
-	// Validate will varify validity of element.
-	Validate(int) bool
+type roundRobinBuilder struct{}
+
+func (roundRobinBuilder) Build() Balancer {
+	return NewRoundRobin()
 }
 
-type Collection interface {
-	// Len is the number of elements in the collection.
-	Len() int
+type roundRobin struct {
+	pos   uint64
+	array []any
 }
 
-type RoundRobin struct {
-	pos uint64
+var _ Balancer = &roundRobin{}
+
+func init() {
+	Register("round-robin", roundRobinBuilder{})
+	Register("rr", roundRobinBuilder{})
 }
 
-func NewRoundRobin() *RoundRobin {
-	return &RoundRobin{}
+func NewRoundRobin() *roundRobin {
+	return &roundRobin{}
 }
 
-func (lhs *RoundRobin) Get(c Collection) int {
-	length := c.Len()
+func (b *roundRobin) Update(array []any) error {
+	b.array = array
+	return nil
+}
+
+func (b *roundRobin) Pick() any {
+	array := b.array
+	length := len(array)
 	for i := 0; i < length; i++ {
-		pos := atomic.AddUint64(&lhs.pos, 1) % uint64(length)
-		if f, ok := c.(Validator); ok && !f.Validate(int(pos)) {
+		pos := atomic.AddUint64(&b.pos, 1) % uint64(length)
+		c := array[pos]
+		if f, ok := c.(Validator); ok && !f.IsOK() {
 			continue
 		}
-		return int(pos)
+		return c
 	}
-	return -1
+	return nil
 }
