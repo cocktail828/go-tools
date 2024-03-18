@@ -58,9 +58,8 @@ func (r *Router) Register(path string, handle Handle) {
 // Lookup allows the manual lookup of a path combo.
 // This is e.g. useful to build a framework around this router.
 // If the path was found, it returns the handle function and the path parameter
-// values. Otherwise the third return value indicates whether a redirection to
-// the same path with an extra / without the trailing slash should be performed.
-func (r *Router) Lookup(path string) (Handle, Params, bool) {
+// values.
+func (r *Router) Lookup(path string) (Handle, Params) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	return r.root.getValue(path)

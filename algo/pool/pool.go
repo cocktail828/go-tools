@@ -62,6 +62,7 @@ type DB struct {
 	waitDuration        atomic.Int64
 	connector           driver.Connector
 	disableBadConnRetry bool
+	closeOnDeadline     bool
 
 	mu           sync.Mutex    // protects following fields
 	freeConn     []*driverConn // free connections ordered by returnedAt oldest to newest
@@ -105,6 +106,9 @@ type driverConn struct {
 }
 
 func (dc *driverConn) releaseConn(err error) {
+	if err == context.DeadlineExceeded && dc.db.closeOnDeadline {
+		err = driver.ErrBadConn
+	}
 	dc.db.putConn(dc, err, true)
 }
 
@@ -898,11 +902,14 @@ func (db *DB) DisableBadConnRetry() {
 	db.disableBadConnRetry = true
 }
 
+func (db *DB) CloseOnDeadline() {
+	db.closeOnDeadline = true
+}
+
 func (db *DB) retry(fn func(strategy connReuseStrategy) error) error {
 	for i := 0; i < maxBadConnRetries; i++ {
-		err := fn(cachedOrNewConn)
 		// retry if err is driver.ErrBadConn
-		if err == nil || !errors.Is(err, driver.ErrBadConn) {
+		if err := fn(cachedOrNewConn); err == nil || !errors.Is(err, driver.ErrBadConn) {
 			return err
 		}
 		if db.disableBadConnRetry {
@@ -913,32 +920,36 @@ func (db *DB) retry(fn func(strategy connReuseStrategy) error) error {
 	return fn(alwaysNewConn)
 }
 
-func (db *DB) Do(f func(ctx context.Context, ci driver.Conn) error) error {
+func (db *DB) Do(f func(ci driver.Conn) error) error {
 	return db.DoContext(context.Background(), f)
 }
 
-func (db *DB) DoContext(ctx context.Context, f func(ctx context.Context, ci driver.Conn) error) error {
+func (db *DB) DoContext(ctx context.Context, f func(ci driver.Conn) error) error {
 	return db.retry(func(strategy connReuseStrategy) error {
 		return db.do(ctx, f, strategy)
 	})
 }
 
-func (db *DB) do(ctx context.Context, f func(ctx context.Context, ci driver.Conn) error, strategy connReuseStrategy) error {
+func (db *DB) do(ctx context.Context, f func(ci driver.Conn) error, strategy connReuseStrategy) error {
 	dc, err := db.conn(ctx, strategy)
 	if err != nil {
 		return err
 	}
-	return db.doDC(ctx, nil, dc, dc.releaseConn, f)
+	return db.doDC(ctx, dc, dc.releaseConn, f)
 }
 
 // doDC executes a query on the given connection.
 // The connection gets released by the releaseConn function.
-// The ctx context is from a query method and the txctx context is from an
-// optional transaction context.
-func (db *DB) doDC(ctx, txctx context.Context, dc *driverConn, releaseConn func(error), f func(ctx context.Context, ci driver.Conn) error) error {
+func (db *DB) doDC(ctx context.Context, dc *driverConn, releaseConn func(error), f func(ci driver.Conn) error) error {
 	var err error
 	locker.WithLock(dc, func() {
-		err = f(ctx, dc.ci)
+		errchan := make(chan error, 1)
+		go func() { errchan <- f(dc.ci) }()
+		select {
+		case <-ctx.Done():
+			err = context.DeadlineExceeded
+		case err = <-errchan:
+		}
 	})
 	releaseConn(err)
 	return err

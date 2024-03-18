@@ -59,7 +59,7 @@ func TestPool(t *testing.T) {
 	z.Must(db.Ping())
 
 	for i := 0; i < 10; i++ {
-		z.Must(db.DoContext(context.Background(), func(ctx context.Context, ci driver.Conn) error {
+		z.Must(db.DoContext(context.Background(), func(ci driver.Conn) error {
 			if ci == nil {
 				return errors.Errorf("unknow ci")
 			}
@@ -77,7 +77,7 @@ func BenchmarkPool(b *testing.B) {
 	db.SetConnMaxLifetime(time.Second)
 	b.RunParallel(func(p *testing.PB) {
 		for p.Next() {
-			z.Must(db.DoContext(context.Background(), func(ctx context.Context, ci driver.Conn) error {
+			z.Must(db.DoContext(context.Background(), func(ci driver.Conn) error {
 				if ci == nil {
 					panic("unknow ci")
 				}

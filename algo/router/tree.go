@@ -327,7 +327,7 @@ func (n *node) insertChild(numParams uint8, path, fullPath string, handle Handle
 
 // Returns the handle registered with the given path (key). The values of
 // wildcards are saved to a map.
-func (n *node) getValue(path string) (handle Handle, p Params, found bool) {
+func (n *node) getValue(path string) (handle Handle, p Params) {
 walk: // outer loop for walking the tree
 	for {
 		if len(path) > len(n.path) {
@@ -357,9 +357,8 @@ walk: // outer loop for walking the tree
 						end++
 					}
 
-					// save param value
+					// save param value, lazy allocation
 					if p == nil {
-						// lazy allocation
 						p = make(Params, 0, n.maxParams)
 					}
 					i := len(p)
@@ -374,13 +373,13 @@ walk: // outer loop for walking the tree
 							n = n.children[0]
 							continue walk
 						}
+						return
 					}
-					return
+					handle = n.handle
 
 				case catchAll:
-					// save param value
+					// save param value, lazy allocation
 					if p == nil {
-						// lazy allocation
 						p = make(Params, 0, n.maxParams)
 					}
 					i := len(p)
@@ -388,24 +387,17 @@ walk: // outer loop for walking the tree
 					p[i].Key = n.path[2:]
 					p[i].Value = path
 					handle = n.handle
-					found = true
-					return
 
 				default:
 					panic("invalid node type")
 				}
+				return
 			}
 		} else if path == n.path {
 			// We should have reached the node containing the handle.
 			// Check if this node has a handle registered.
-			if handle = n.handle; handle != nil {
-				found = true
-				return
-			}
-
-			if path == "/" && n.wildChild && n.nType != root {
-				return
-			}
+			handle = n.handle
+			return
 		}
 		return
 	}
