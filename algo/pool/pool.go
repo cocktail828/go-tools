@@ -925,16 +925,18 @@ func (db *DB) Do(f func(ci driver.Conn) error) error {
 }
 
 func (db *DB) DoContext(ctx context.Context, f func(ci driver.Conn) error) error {
-	return db.retry(func(strategy connReuseStrategy) error {
-		return db.do(ctx, f, strategy)
-	})
-}
+	var dc *driverConn
+	var err error
 
-func (db *DB) do(ctx context.Context, f func(ci driver.Conn) error, strategy connReuseStrategy) error {
-	dc, err := db.conn(ctx, strategy)
+	err = db.retry(func(strategy connReuseStrategy) error {
+		dc, err = db.conn(ctx, strategy)
+		return err
+	})
+
 	if err != nil {
 		return err
 	}
+
 	return db.doDC(ctx, dc, dc.releaseConn, f)
 }
 
