@@ -3,6 +3,7 @@ package pool_test
 import (
 	"context"
 	"fmt"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -18,7 +19,7 @@ var (
 	gOpenCount = atomic.Int64{}
 )
 
-type Conn struct{}
+type Conn struct{ isOpen bool }
 
 func (c *Conn) Ping(ctx context.Context) error {
 	fmt.Println("conn Ping")
@@ -27,6 +28,7 @@ func (c *Conn) Ping(ctx context.Context) error {
 
 func (c *Conn) Close() error {
 	fmt.Println("conn Close")
+	c.isOpen = false
 	gOpenCount.Add(-1)
 	return nil
 }
@@ -44,9 +46,9 @@ func (c *Conn) IsValid() bool {
 type FakeDriver struct{}
 
 func (d *FakeDriver) Open(ctx context.Context, name string) (driver.Conn, error) {
-	// fmt.Println("driver Open", name)
+	fmt.Println("driver Open", name)
 	gOpenCount.Add(1)
-	return &Conn{}, nil
+	return &Conn{isOpen: true}, nil
 }
 
 func init() {
@@ -59,12 +61,9 @@ func TestPool(t *testing.T) {
 	defer db.Close()
 	z.Must(db.Ping())
 
-	for i := 0; i < 1; i++ {
+	for i := 0; i < 3; i++ {
 		z.Must(db.DoContext(context.Background(), func(ci driver.Conn) error {
 			fmt.Printf("inner %#v\n", db.Stats())
-			if ci == nil {
-				return errors.Errorf("unknow ci")
-			}
 			return nil
 		}))
 		fmt.Printf("outer %#v\n", db.Stats())
@@ -79,15 +78,50 @@ func TestPoolDeadline(t *testing.T) {
 	z.Must(db.Ping())
 
 	ctx, _ := context.WithTimeout(context.Background(), time.Second)
+	var c *Conn
 	assert.Equal(t, context.DeadlineExceeded, db.DoContext(ctx, func(ci driver.Conn) error {
 		if ci == nil {
 			return errors.Errorf("unknow ci")
 		}
+		c = ci.(*Conn)
 		time.Sleep(time.Hour)
 		return nil
 	}))
+	assert.Equal(t, false, c.isOpen)
 	assert.Equal(t, 0, db.Stats().OpenCount)
 	assert.Equal(t, 0, db.Stats().IdleCount)
+}
+
+func TestPoolMaxConn(t *testing.T) {
+	db, err := pool.Open("fake", "10.1.87.70:1337")
+	z.Must(err)
+	defer db.Close()
+
+	db.SetMaxOpenConns(3)
+	wg := sync.WaitGroup{}
+	wg.Add(3)
+	wgc := sync.WaitGroup{}
+	wgc.Add(3)
+
+	for i := 0; i < 3; i++ {
+		ctx, _ := context.WithTimeout(context.Background(), time.Second*5)
+		go func() {
+			defer wgc.Done()
+			assert.Equal(t, nil, db.DoContext(ctx, func(ci driver.Conn) error {
+				wg.Done()
+				time.Sleep(time.Second * 2)
+				return nil
+			}))
+		}()
+	}
+	wg.Wait()
+
+	fmt.Printf("%#v\n", db.Stats())
+	assert.Equal(t, nil, db.Do(func(ci driver.Conn) error {
+		return nil
+	}))
+	wgc.Wait()
+	fmt.Printf("%#v\n", db.Stats())
 }
 
 func BenchmarkPool(b *testing.B) {
