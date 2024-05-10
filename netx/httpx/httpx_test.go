@@ -2,8 +2,8 @@ package httpx_test
 
 import (
 	"context"
-	"fmt"
-	"syscall"
+	"log"
+	"net/http"
 	"testing"
 	"time"
 
@@ -11,25 +11,26 @@ import (
 	"github.com/cocktail828/go-tools/z"
 )
 
+func TestGracefulServer(t *testing.T) {
+	gs := httpx.GracefulServer{
+		Server: &http.Server{
+			Addr:           ":8080",
+			ReadTimeout:    10 * time.Second,
+			WriteTimeout:   10 * time.Second,
+			MaxHeaderBytes: 1 << 20,
+		},
+	}
+	log.Println(gs.ListenAndServe())
+}
+
 func TestHTTPX(t *testing.T) {
-	c, err := httpx.NewWithContext(context.Background(), "https://baidu.com", httpx.WithMethod("GET"))
+	req, err := httpx.NewRequestWithContext(context.Background(), "GET", "https://baidu.com", nil)
 	z.Must(err)
 
-	_, err = c.Fire()
+	resp, err := http.DefaultClient.Do(req)
 	z.Must(err)
 
 	var s string
-	z.Must(c.ParseWith(httpx.Stringfy, &s))
-	fmt.Println(s)
-}
-
-func TestGracefulServer(t *testing.T) {
-	gs := &httpx.Server{
-		Addr:           ":8080",
-		ReadTimeout:    10 * time.Second,
-		WriteTimeout:   10 * time.Second,
-		MaxHeaderBytes: 1 << 20,
-	}
-	go gs.ListenAndServe()
-	fmt.Println(gs.WaitForSignal(time.Second, syscall.SIGQUIT, syscall.SIGTERM, syscall.SIGINT))
+	z.Must(httpx.ParseWith(resp, httpx.Stringfy, &s))
+	log.Println(s)
 }
