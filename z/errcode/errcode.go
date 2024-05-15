@@ -1,9 +1,8 @@
 package errcode
 
 import (
+	"errors"
 	"fmt"
-
-	"github.com/pkg/errors"
 )
 
 // //go:generate stringer -type errCode -linecomment
@@ -37,7 +36,7 @@ func (e *Error) WithErrorf(format string, args ...interface{}) *Error {
 	if e == nil {
 		return nil
 	}
-	e.cause = append(e.cause, errors.Errorf(format, args...))
+	e.cause = append(e.cause, Errorf(format, args...))
 	return e
 }
 
