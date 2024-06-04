@@ -14,7 +14,7 @@ type ErrCode interface {
 
 type Error struct {
 	ErrCode
-	cause []error
+	extra error
 }
 
 func New(ec ErrCode) *Error {
@@ -28,7 +28,7 @@ func (e *Error) WithError(err error) *Error {
 	if e == nil {
 		return nil
 	}
-	e.cause = append(e.cause, err)
+	e.extra = err
 	return e
 }
 
@@ -36,7 +36,7 @@ func (e *Error) WithErrorf(format string, args ...interface{}) *Error {
 	if e == nil {
 		return nil
 	}
-	e.cause = append(e.cause, Errorf(format, args...))
+	e.extra = Errorf(format, args...)
 	return e
 }
 
@@ -44,7 +44,7 @@ func (e *Error) WithMessage(msg string) *Error {
 	if e == nil {
 		return nil
 	}
-	e.cause = append(e.cause, errors.New(msg))
+	e.extra = errors.New(msg)
 	return e
 }
 
@@ -52,12 +52,12 @@ func (e *Error) Error() string {
 	if e == nil {
 		return ""
 	}
-	return fmt.Sprintf("[%v#%v]@(%v)", e.Code(), e.String(), Join(e.cause...))
+	return fmt.Sprintf("[%v#%v]@(%v)", e.Code(), e.String(), e.extra)
 }
 
-func (e *Error) Cause() error {
+func (e *Error) Extra() error {
 	if e == nil {
 		return nil
 	}
-	return Join(e.cause...)
+	return e.extra
 }
