@@ -11,26 +11,29 @@ import (
 	"github.com/cocktail828/go-tools/z"
 )
 
+type Mock struct{}
+
+func (Mock) Register()   { log.Println("reg") }
+func (Mock) DeRegister() { log.Println("dereg") }
 func TestGracefulServer(t *testing.T) {
-	srv := &httpx.GoHTTPServer{
+	ctx, cancel := context.WithCancel(context.Background())
+	gs := httpx.Server{
+		Context: ctx,
+		Cancel:  cancel,
 		Server: http.Server{
-			Addr:           ":0",
+			Addr:           ":8080",
 			ReadTimeout:    10 * time.Second,
 			WriteTimeout:   10 * time.Second,
 			MaxHeaderBytes: 1 << 20,
 		},
 	}
-
-	gs := httpx.GracefulServer{
-		Server:  srv,
-		Signals: httpx.DefaultSignals,
-		Timeout: time.Second * 3,
-	}
 	go func() {
-		<-time.After(time.Second)
-		log.Println("port", srv.Port())
+		log.Println(gs.ListenAndServe())
 	}()
-	log.Println(gs.ListenAndServe())
+
+	<-time.After(time.Second)
+	log.Println("port", gs.Port())
+	gs.WaitForSignal(Mock{}, time.Second, httpx.DefaultSignals...)
 }
 
 func TestHTTPX(t *testing.T) {
