@@ -6,8 +6,13 @@ import (
 	"os/exec"
 	"os/signal"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
+)
+
+var (
+	DefaultSignals = []os.Signal{syscall.SIGQUIT, syscall.SIGTERM, syscall.SIGINT}
 )
 
 /*
@@ -16,99 +21,79 @@ watchdog 用来作为服务的启动进程存在, 他会再延迟时间后注册
 如果收到信号退出, 则需要等待指定时间(非SIGCHLD)
 */
 type Watchdog struct {
-	InitPostPone       time.Duration             // 延迟注册的时间
-	QuitPostPone       time.Duration             // 延迟退出的时间
-	OperateTimeout     time.Duration             // 回调函数超时时间
-	InterceptorSignals []os.Signal               // 优雅启停需要关注的信号, 默认为 syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT, syscall.SIGCHLD
-	Register           func(ctx context.Context) // 注册服务
-	DeRegister         func(ctx context.Context) // 服务去注册
-	OnEvent            func(sig os.Signal)       // 事件回调
-}
-
-func (w *Watchdog) normalize() {
-	if w.InitPostPone == 0 {
-		w.InitPostPone = time.Second * 10
-	}
-	if w.QuitPostPone == 0 {
-		w.QuitPostPone = time.Second * 5
-	}
-	if w.OperateTimeout == 0 {
-		w.OperateTimeout = time.Second * 3
-	}
-	if w.OnEvent == nil {
-		w.OnEvent = func(sig os.Signal) {}
-	}
-	if len(w.InterceptorSignals) == 0 {
-		w.InterceptorSignals = []os.Signal{syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT, syscall.SIGCHLD}
-	}
-}
-
-func (w *Watchdog) asyncReg() context.CancelFunc {
-	regCtx, regCancel := context.WithTimeout(context.Background(), w.OperateTimeout+w.InitPostPone)
-	go func() {
-		defer regCancel()
-		select {
-		case <-time.After(w.InitPostPone):
-			w.Register(regCtx)
-		case <-regCtx.Done():
-		}
-	}()
-	return regCancel
-}
-
-func (w *Watchdog) syncDeReg() {
-	deRegCtx, deRegCancel := context.WithTimeout(context.Background(), w.OperateTimeout)
-	defer deRegCancel()
-	if w.DeRegister != nil {
-		w.DeRegister(deRegCtx)
-	}
-}
-
-func (w *Watchdog) runWithRegistry(cmd *exec.Cmd) {
-	signalChan := make(chan os.Signal, 10)
-	signal.Notify(signalChan, w.InterceptorSignals...)
-	signal.Ignore(syscall.SIGURG, syscall.SIGWINCH)
-	defer signal.Stop(signalChan)
-
-	regCancel := w.asyncReg()
-	once := sync.Once{}
-	quitCtx, quitCancel := context.WithCancel(context.Background())
-	defer quitCancel()
-	for {
-		select {
-		case sig := <-signalChan:
-			regCancel()
-			w.OnEvent(sig)
-			if sig != syscall.SIGCHLD && cmd != nil && cmd.Process != nil {
-				if err := cmd.Process.Signal(sig); err == os.ErrProcessDone {
-					once.Do(func() { w.syncDeReg() })
-					return
-				}
-			}
-			if sig == syscall.SIGCHLD {
-				once.Do(func() { w.syncDeReg() })
-				return
-			} else {
-				once.Do(func() { w.syncDeReg() })
-				// 等待指定时间强制退出
-				time.AfterFunc(w.QuitPostPone, quitCancel)
-			}
-		case <-quitCtx.Done():
-			return
-		}
-	}
+	OnEvent    func(sig os.Signal) // 事件回调
+	Register   func()
+	DeRegister func()
+	inited     atomic.Bool
+	cmd        *exec.Cmd
+	ctx        context.Context
+	cancel     context.CancelFunc
 }
 
 func (w *Watchdog) Spawn(name string, args ...string) error {
-	w.normalize()
-	cmd := exec.Command(name, args...)
-	cmd.Stderr = os.Stderr
-	cmd.Stdout = os.Stdout
-	if err := cmd.Start(); err != nil {
+	w.ctx, w.cancel = context.WithCancel(context.Background())
+	w.cmd = exec.CommandContext(w.ctx, name, args...)
+	w.cmd.Stderr = os.Stderr
+	w.cmd.Stdout = os.Stdout
+	defer w.cancel()
+	w.inited.Store(true)
+	if err := w.cmd.Start(); err != nil {
 		return err
 	}
-	if w.Register != nil {
-		w.runWithRegistry(cmd)
+	return w.cmd.Wait()
+}
+
+func (w *Watchdog) WaitForSignal(tmo time.Duration, signals ...os.Signal) {
+	if len(signals) == 0 {
+		signals = DefaultSignals
 	}
-	return cmd.Wait()
+
+	for !w.inited.Load() {
+		time.Sleep(time.Millisecond * 10)
+	}
+
+	select {
+	case <-w.ctx.Done(): // already quit
+		return
+	default:
+	}
+
+	// register service
+	if w.Register != nil {
+		w.Register()
+	}
+
+	signalChan := make(chan os.Signal, 10)
+	signal.Notify(signalChan, signals...)
+	defer signal.Stop(signalChan)
+
+	once := sync.Once{}
+	f := func() {
+		once.Do(func() {
+			if w.DeRegister != nil {
+				w.DeRegister()
+			}
+		})
+	}
+	defer f()
+
+	for {
+		select {
+		case <-w.ctx.Done(): // child exit?
+			return
+
+		case sig := <-signalChan: // wait for signals
+			w.OnEvent(sig)
+			// SIGCHLD does not mean child is exited
+			// however, w.ctx.Done() will return if child exit
+			if sig != syscall.SIGCHLD {
+				f()
+				if w.cmd.Process == nil {
+					return
+				}
+				w.cmd.Process.Signal(sig)
+				time.AfterFunc(tmo, func() { w.cmd.Process.Kill() })
+			}
+		}
+	}
 }

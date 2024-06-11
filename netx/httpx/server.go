@@ -90,6 +90,12 @@ func (srv *Server) WaitForSignal(r Registry, tmo time.Duration, signals ...os.Si
 		signals = DefaultSignals
 	}
 
+	select {
+	case <-srv.Context.Done(): // already quit
+		return
+	default:
+	}
+
 	// register service
 	if r != nil {
 		r.Register()
