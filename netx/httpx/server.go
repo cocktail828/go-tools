@@ -4,51 +4,73 @@ import (
 	"context"
 	"errors"
 	"net"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 )
 
+var (
+	DefaultSignals = []os.Signal{syscall.SIGQUIT, syscall.SIGTERM, syscall.SIGINT}
+)
+
 type Server interface {
-	Close() error
 	ListenAndServe() error
-	ListenAndServeTLS(certFile string, keyFile string) error
-	RegisterOnShutdown(f func())
-	Serve(l net.Listener) error
-	ServeTLS(l net.Listener, certFile string, keyFile string) error
-	SetKeepAlivesEnabled(v bool)
 	Shutdown(ctx context.Context) error
 }
 
-var _ Server = &GracefulServer{}
-
 type GracefulServer struct {
-	Server  // canonical go http server
-	Signals []os.Signal
+	Server                // canonical go http server
+	Signals []os.Signal   // should not be nil
 	Timeout time.Duration // graceful time
 }
 
-func (srv *GracefulServer) normalize() {
-	if len(srv.Signals) == 0 {
-		srv.Signals = append(srv.Signals, syscall.SIGQUIT, syscall.SIGTERM, syscall.SIGINT)
-	}
-
-	if srv.Timeout == 0 {
-		srv.Timeout = time.Second * 3
-	}
-}
-
-func (srv *GracefulServer) ListenAndServe() error {
-	srv.normalize()
+func (srv GracefulServer) ListenAndServe() error {
 	var srverr error
-	ctx, cancel := signal.NotifyContext(context.Background(), srv.Signals...)
+	signals := srv.Signals
+	if len(srv.Signals) == 0 {
+		signals = DefaultSignals
+	}
+
+	timeout := srv.Timeout
+	if srv.Timeout == 0 {
+		timeout = time.Second * 3
+	}
+
+	ctx, cancel := signal.NotifyContext(context.Background(), signals...)
 	go func() {
 		defer cancel()
 		srverr = srv.Server.ListenAndServe()
 	}()
 	<-ctx.Done()
 
-	tmoctx, _ := context.WithTimeout(context.Background(), srv.Timeout)
+	tmoctx, _ := context.WithTimeout(context.Background(), timeout)
 	return errors.Join(srverr, srv.Server.Shutdown(tmoctx))
+}
+
+// 针对随机端口做处理
+type GoHTTPServer struct {
+	http.Server
+	listener net.Listener
+}
+
+func (srv *GoHTTPServer) Port() int {
+	if srv.listener == nil {
+		return 0
+	}
+	return srv.listener.Addr().(*net.TCPAddr).Port
+}
+
+func (srv *GoHTTPServer) ListenAndServe() error {
+	addr := srv.Server.Addr
+	if addr == "" {
+		addr = ":http"
+	}
+	ln, err := net.Listen("tcp", addr)
+	if err != nil {
+		return err
+	}
+	srv.listener = ln
+	return srv.Server.Serve(ln)
 }

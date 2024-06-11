@@ -12,14 +12,24 @@ import (
 )
 
 func TestGracefulServer(t *testing.T) {
-	gs := httpx.GracefulServer{
-		Server: &http.Server{
-			Addr:           ":8080",
+	srv := &httpx.GoHTTPServer{
+		Server: http.Server{
+			Addr:           ":0",
 			ReadTimeout:    10 * time.Second,
 			WriteTimeout:   10 * time.Second,
 			MaxHeaderBytes: 1 << 20,
 		},
 	}
+
+	gs := httpx.GracefulServer{
+		Server:  srv,
+		Signals: httpx.DefaultSignals,
+		Timeout: time.Second * 3,
+	}
+	go func() {
+		<-time.After(time.Second)
+		log.Println("port", srv.Port())
+	}()
 	log.Println(gs.ListenAndServe())
 }
 
