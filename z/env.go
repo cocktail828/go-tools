@@ -19,25 +19,16 @@ func init() {
 	if testRegexp.MatchString(os.Args[0]) {
 		mode = "test"
 	} else {
-		loadEnv("MODE")
-	}
-}
-
-func loadEnv(name string) {
-	if e := strings.ToLower(os.Getenv(name)); e != "" {
-		if !stringx.Oneof(e, "debug", "release", "test") {
-			log.Fatalf("env '%v' should be oneof [debug|release|test]", name)
+		name := "MODE"
+		if val := strings.ToLower(os.Getenv(name)); val != "" {
+			if !stringx.Oneof(val, "debug", "release", "test") {
+				log.Fatalf("env '%v' should be oneof [debug|release|test]", name)
+			}
+			mode = val
 		}
-		mode = e
 	}
 }
 
 func DebugMode() bool   { return mode == "debug" }
 func ReleaseMode() bool { return mode == "release" }
 func TestMode() bool    { return mode == "test" }
-
-func SetModeName(n string) {
-	if n != "" {
-		loadEnv(n)
-	}
-}
