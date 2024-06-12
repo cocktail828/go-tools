@@ -572,3 +572,11 @@ func TestLoad_FS(t *testing.T) {
 		t.Error("expected to have foo: bar in config")
 	}
 }
+
+func TestValidateDefault(t *testing.T) {
+	type Obj struct {
+		V bool `toml:"v" default:"false" validate:"required"`
+	}
+	o := Obj{}
+	assert.Equal(t, nil, configor.Load(&o, []byte(`v=false`)).Error())
+}
