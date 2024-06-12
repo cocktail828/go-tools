@@ -16,13 +16,16 @@ var (
 
 type Server struct {
 	http.Server // canonical go http server
-	Context     context.Context
-	Cancel      context.CancelFunc // called on server exit, should not be nil
+	srvCtx      context.Context
+	srvCancel   context.CancelFunc // called on server exit, should not be nil
 	listener    net.Listener
 }
 
+func (srv *Server) normalize() { srv.srvCtx, srv.srvCancel = context.WithCancel(context.Background()) }
+
 // go will server on a random port if Addr is ":0", we can get the port via listener
 func (srv *Server) Port() net.Addr {
+	srv.normalize()
 	if srv.listener == nil {
 		return nil
 	}
@@ -30,7 +33,8 @@ func (srv *Server) Port() net.Addr {
 }
 
 func (srv *Server) ListenAndServe() error {
-	defer srv.Cancel()
+	srv.normalize()
+	defer srv.srvCancel()
 
 	addr := srv.Server.Addr
 	if addr == "" {
@@ -48,7 +52,8 @@ func (srv *Server) ListenAndServe() error {
 }
 
 func (srv *Server) ListenAndServeTLS(certFile string, keyFile string) error {
-	defer srv.Cancel()
+	srv.normalize()
+	defer srv.srvCancel()
 
 	addr := srv.Addr
 	if addr == "" {
@@ -66,14 +71,16 @@ func (srv *Server) ListenAndServeTLS(certFile string, keyFile string) error {
 }
 
 func (srv *Server) Serve(ln net.Listener) error {
-	defer srv.Cancel()
+	srv.normalize()
+	defer srv.srvCancel()
 
 	srv.listener = ln
 	return srv.Server.Serve(ln)
 }
 
 func (srv *Server) ServeTLS(ln net.Listener, certFile string, keyFile string) error {
-	defer srv.Cancel()
+	srv.normalize()
+	defer srv.srvCancel()
 
 	srv.listener = ln
 	return srv.Server.ServeTLS(ln, certFile, keyFile)
@@ -86,12 +93,13 @@ type Registry interface {
 
 // block until server quit, then wait gracelful time and exit
 func (srv *Server) WaitForSignal(r Registry, tmo time.Duration, signals ...os.Signal) {
+	srv.normalize()
 	if len(signals) == 0 {
 		signals = DefaultSignals
 	}
 
 	select {
-	case <-srv.Context.Done(): // already quit
+	case <-srv.srvCtx.Done(): // already quit
 		return
 	default:
 	}
@@ -102,7 +110,7 @@ func (srv *Server) WaitForSignal(r Registry, tmo time.Duration, signals ...os.Si
 	}
 
 	// wait for signals or server quit
-	sigctx, _ := signal.NotifyContext(srv.Context, signals...)
+	sigctx, _ := signal.NotifyContext(srv.srvCtx, signals...)
 	<-sigctx.Done()
 
 	// deregister service
@@ -113,6 +121,6 @@ func (srv *Server) WaitForSignal(r Registry, tmo time.Duration, signals ...os.Si
 	select {
 	case <-time.After(tmo): // graceful time
 		srv.Server.Shutdown(context.Background())
-	case <-srv.Context.Done(): // already quit, no need to be graceful
+	case <-srv.srvCtx.Done(): // already quit, no need to be graceful
 	}
 }

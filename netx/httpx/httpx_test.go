@@ -16,10 +16,7 @@ type Mock struct{}
 func (Mock) Register()   { log.Println("reg") }
 func (Mock) DeRegister() { log.Println("dereg") }
 func TestGracefulServer(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
 	gs := httpx.Server{
-		Context: ctx,
-		Cancel:  cancel,
 		Server: http.Server{
 			Addr:           ":8080",
 			ReadTimeout:    10 * time.Second,
