@@ -3,7 +3,6 @@ package httpx
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
 )
@@ -31,18 +30,7 @@ func NewRequestWithContext(ctx context.Context, method string, url string, body 
 	return req, nil
 }
 
-type Unmarshaler func([]byte, interface{}) error
-
-func Stringfy(b []byte, i interface{}) error {
-	if s, ok := i.(*string); ok {
-		*s = string(b)
-		return nil
-	}
-
-	return fmt.Errorf("type assert fail: %T not *string", i)
-}
-
-func ParseWith(resp *http.Response, parser Unmarshaler, dst interface{}) error {
+func ParseWith(resp *http.Response, parser func([]byte, interface{}) error, dst interface{}) error {
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return err

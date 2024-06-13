@@ -37,10 +37,6 @@ func TestHTTPX(t *testing.T) {
 	req, err := httpx.NewRequestWithContext(context.Background(), "GET", "https://baidu.com", nil)
 	z.Must(err)
 
-	resp, err := http.DefaultClient.Do(req)
+	_, err = http.DefaultClient.Do(req)
 	z.Must(err)
-
-	var s string
-	z.Must(httpx.ParseWith(resp, httpx.Stringfy, &s))
-	log.Println(s)
 }

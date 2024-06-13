@@ -23,7 +23,7 @@ type Server struct {
 
 func (srv *Server) normalize() { srv.srvCtx, srv.srvCancel = context.WithCancel(context.Background()) }
 
-// go will server on a random port if Addr is ":0", we can get the port via listener
+// get the net.Addr the server used
 func (srv *Server) Port() net.Addr {
 	srv.normalize()
 	if srv.listener == nil {
