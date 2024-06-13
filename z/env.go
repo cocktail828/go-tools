@@ -5,8 +5,6 @@ import (
 	"os"
 	"regexp"
 	"strings"
-
-	"github.com/cocktail828/go-tools/z/stringx"
 )
 
 var (
@@ -21,10 +19,12 @@ func init() {
 	} else {
 		name := "MODE"
 		if val := strings.ToLower(os.Getenv(name)); val != "" {
-			if !stringx.Oneof(val, "debug", "release", "test") {
+			switch val {
+			case "debug", "release", "test":
+				mode = val
+			default:
 				log.Fatalf("env '%v' should be oneof [debug|release|test]", name)
 			}
-			mode = val
 		}
 	}
 }
