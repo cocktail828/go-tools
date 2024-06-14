@@ -1,6 +1,7 @@
 package retry
 
 import (
+	"context"
 	"time"
 )
 
@@ -13,10 +14,11 @@ func Do(f func() error, opts ...Option) error {
 
 func DoWithData[T any](f func() (T, error), opts ...Option) (T, error) {
 	cfg := &Config{
-		attempts: uint(10),
+		attempts: uint(3),
 		delay:    FixedDelay(time.Millisecond * 10),
 		onRetry:  func(attempt uint, err error) {},
 		retryIf:  nil,
+		context:  context.Background(),
 	}
 
 	for _, opt := range opts {
