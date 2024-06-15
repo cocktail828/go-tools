@@ -17,6 +17,19 @@ func WithHeaders(hs map[string]string) Option {
 	}
 }
 
+func NewRequest(ctx context.Context, method string, url string, body io.Reader, opts ...Option) (*http.Request, error) {
+	req, err := http.NewRequest(method, url, body)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, f := range opts {
+		f(req)
+	}
+
+	return req, nil
+}
+
 func NewRequestWithContext(ctx context.Context, method string, url string, body io.Reader, opts ...Option) (*http.Request, error) {
 	req, err := http.NewRequestWithContext(ctx, method, url, body)
 	if err != nil {
