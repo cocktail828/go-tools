@@ -3,32 +3,30 @@ package z
 import (
 	"log"
 	"os"
-	"regexp"
 	"strings"
 )
 
+type Mode string
+
+const (
+	Development = Mode("develop")
+	Release     = Mode("release")
+)
+
 var (
-	testRegexp = regexp.MustCompile(`_test|(\\.test$)`)
 	// indicates environment name for work mode
-	mode = "debug"
+	mode = Development
 )
 
 func init() {
-	if testRegexp.MatchString(os.Args[0]) {
-		mode = "test"
-	} else {
-		name := "MODE"
-		if val := strings.ToLower(os.Getenv(name)); val != "" {
-			switch val {
-			case "debug", "release", "test":
-				mode = val
-			default:
-				log.Fatalf("env '%v' should be oneof [debug|release|test]", name)
-			}
-		}
+	switch val := strings.ToLower(os.Getenv("MODE")); val {
+	case "develop", "release":
+		mode = Mode(val)
+	default:
+		log.Fatalf("env '%v' should be oneof [develop|release]", val)
 	}
 }
 
-func DebugMode() bool   { return mode == "debug" }
+func DevelopMode() bool { return mode == "debug" }
 func ReleaseMode() bool { return mode == "release" }
-func TestMode() bool    { return mode == "test" }
+func SetMode(m Mode)    { mode = m }
