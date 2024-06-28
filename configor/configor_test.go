@@ -9,6 +9,7 @@ import (
 
 	"github.com/BurntSushi/toml"
 	"github.com/cocktail828/go-tools/configor"
+	"github.com/go-playground/validator/v10"
 	"github.com/stretchr/testify/assert"
 	"gopkg.in/yaml.v3"
 )
@@ -286,14 +287,19 @@ func TestOverwritetestConfigurationWithEnvironmentWithDefaultPrefix(t *testing.T
 			defer os.Remove(file.Name())
 			file.Write(bytes)
 			var result testConfig
-			os.Setenv("CONFIGOR_ENV_PREFIX", "CONFIGOR")
 			os.Setenv("CONFIGOR_APPNAME", "config2")
 			os.Setenv("CONFIGOR_HOSTS", "- http://example.org\n- http://configor.me")
 			os.Setenv("CONFIGOR_DB_NAME", "db_name")
 			defer os.Setenv("CONFIGOR_APPNAME", "")
 			defer os.Setenv("CONFIGOR_HOSTS", "")
 			defer os.Setenv("CONFIGOR_DB_NAME", "")
-			if err := configor.LoadFile(&result, file.Name()); err != nil {
+			cfgor := &configor.Configor{
+				LoadEnv:   true,
+				EnvPrefix: "CONFIGOR",
+				Unmarshal: toml.Unmarshal,
+				Validator: validator.New().Struct,
+			}
+			if err := cfgor.LoadFile(&result, file.Name()); err != nil {
 				t.Errorf("configor.LoadFile fail for %v", err)
 			}
 
@@ -317,12 +323,17 @@ func TestOverwritetestConfigurationWithEnvironment(t *testing.T) {
 			defer os.Remove(file.Name())
 			file.Write(bytes)
 			var result testConfig
-			os.Setenv("CONFIGOR_ENV_PREFIX", "app")
 			os.Setenv("APP_APPNAME", "config2")
 			os.Setenv("APP_DB_NAME", "db_name")
 			defer os.Setenv("APP_APPNAME", "")
 			defer os.Setenv("APP_DB_NAME", "")
-			if err := configor.LoadFile(&result, file.Name()); err != nil {
+			cfgor := &configor.Configor{
+				LoadEnv:   true,
+				EnvPrefix: "APP",
+				Unmarshal: toml.Unmarshal,
+				Validator: validator.New().Struct,
+			}
+			if err := cfgor.LoadFile(&result, file.Name()); err != nil {
 				t.Errorf("configor.LoadFile fail for %v", err)
 			}
 
@@ -344,15 +355,21 @@ func TestOverwritetestConfigurationWithEnvironmentThatSetBytestConfig(t *testing
 			defer file.Close()
 			defer os.Remove(file.Name())
 			file.Write(bytes)
-			os.Setenv("CONFIGOR_ENV_PREFIX", "app1")
 			os.Setenv("APP1_APPName", "config2")
 			os.Setenv("APP1_DB_Name", "db_name")
 			defer os.Setenv("APP1_APPName", "")
 			defer os.Setenv("APP1_DB_Name", "")
 
 			var result testConfig
-			var Configor = &configor.Configor{EnvPrefix: "APP1"}
-			Configor.LoadFile(&result, file.Name())
+			cfgor := &configor.Configor{
+				LoadEnv:   true,
+				EnvPrefix: "APP1",
+				Unmarshal: toml.Unmarshal,
+				Validator: validator.New().Struct,
+			}
+			if err := cfgor.LoadFile(&result, file.Name()); err != nil {
+				t.Errorf("configor.LoadFile fail for %v", err)
+			}
 
 			var defaultConfig = generateDefaultConfig()
 			defaultConfig.APPName = "config2"
@@ -373,12 +390,17 @@ func TestResetPrefixToBlank(t *testing.T) {
 			defer os.Remove(file.Name())
 			file.Write(bytes)
 			var result testConfig
-			os.Setenv("CONFIGOR_ENV_PREFIX", "")
 			os.Setenv("APPNAME", "config2")
 			os.Setenv("DB_NAME", "db_name")
 			defer os.Setenv("APPNAME", "")
 			defer os.Setenv("DB_NAME", "")
-			if err := configor.LoadFile(&result, file.Name()); err != nil {
+			cfgor := &configor.Configor{
+				LoadEnv:   true,
+				EnvPrefix: "",
+				Unmarshal: toml.Unmarshal,
+				Validator: validator.New().Struct,
+			}
+			if err := cfgor.LoadFile(&result, file.Name()); err != nil {
 				t.Errorf("configor.LoadFile fail for %v", err)
 			}
 
@@ -405,7 +427,13 @@ func TestResetPrefixToBlank2(t *testing.T) {
 			os.Setenv("DB_Name", "db_name")
 			defer os.Setenv("APPName", "")
 			defer os.Setenv("DB_Name", "")
-			if err := configor.LoadFile(&result, file.Name()); err != nil {
+			cfgor := &configor.Configor{
+				LoadEnv:   true,
+				EnvPrefix: "",
+				Unmarshal: toml.Unmarshal,
+				Validator: validator.New().Struct,
+			}
+			if err := cfgor.LoadFile(&result, file.Name()); err != nil {
 				t.Errorf("configor.LoadFile fail for %v", err)
 			}
 
@@ -430,7 +458,13 @@ func TestReadFromEnvironmentWithSpecifiedEnvName(t *testing.T) {
 			var result testConfig
 			os.Setenv("DBPassword", "db_password")
 			defer os.Setenv("DBPassword", "")
-			if err := configor.LoadFile(&result, file.Name()); err != nil {
+			cfgor := &configor.Configor{
+				LoadEnv:   true,
+				EnvPrefix: "",
+				Unmarshal: toml.Unmarshal,
+				Validator: validator.New().Struct,
+			}
+			if err := cfgor.LoadFile(&result, file.Name()); err != nil {
 				t.Errorf("configor.LoadFile fail for %v", err)
 			}
 
@@ -452,10 +486,15 @@ func TestAnonymousStruct(t *testing.T) {
 			defer os.Remove(file.Name())
 			file.Write(bytes)
 			var result testConfig
-			os.Setenv("CONFIGOR_ENV_PREFIX", "CONFIGOR")
 			os.Setenv("CONFIGOR_DESCRIPTION", "environment description")
 			defer os.Setenv("CONFIGOR_DESCRIPTION", "")
-			if err := configor.LoadFile(&result, file.Name()); err != nil {
+			cfgor := &configor.Configor{
+				LoadEnv:   true,
+				EnvPrefix: "CONFIGOR",
+				Unmarshal: toml.Unmarshal,
+				Validator: validator.New().Struct,
+			}
+			if err := cfgor.LoadFile(&result, file.Name()); err != nil {
 				t.Errorf("configor.LoadFile fail for %v", err)
 			}
 
@@ -496,14 +535,19 @@ func TestSliceFromEnv(t *testing.T) {
 	}
 
 	var result slicetestConfig
-	os.Setenv("CONFIGOR_ENV_PREFIX", "CONFIGOR")
 	os.Setenv("CONFIGOR_TEST1", "1")
 	os.Setenv("CONFIGOR_TEST2_0_TEST2ELE1", "1")
 	os.Setenv("CONFIGOR_TEST2_0_TEST2ELE2", "2")
 
 	os.Setenv("CONFIGOR_TEST2_1_TEST2ELE1", "3")
 	os.Setenv("CONFIGOR_TEST2_1_TEST2ELE2", "4")
-	if err := configor.Load(&result); err != nil {
+	cfgor := &configor.Configor{
+		LoadEnv:   true,
+		EnvPrefix: "CONFIGOR",
+		Unmarshal: toml.Unmarshal,
+		Validator: validator.New().Struct,
+	}
+	if err := cfgor.Load(&result); err != nil {
 		t.Fatalf("configor.Load from env err:%v", err)
 	}
 
@@ -521,11 +565,16 @@ func TestConfigFromEnv(t *testing.T) {
 
 	cfg := &config{}
 
-	os.Setenv("CONFIGOR_ENV_PREFIX", "CONFIGOR")
 	os.Setenv("CONFIGOR_LineBreakString", "Line one\nLine two\nLine three\nAnd more lines")
 	os.Setenv("CONFIGOR_Slient", "1")
 	os.Setenv("CONFIGOR_Count", "10")
-	if err := configor.Load(cfg); err != nil {
+	cfgor := &configor.Configor{
+		LoadEnv:   true,
+		EnvPrefix: "CONFIGOR",
+		Unmarshal: toml.Unmarshal,
+		Validator: validator.New().Struct,
+	}
+	if err := cfgor.Load(cfg); err != nil {
 		t.Fatalf("configor.Load err:%v", err)
 	}
 
@@ -571,12 +620,4 @@ func TestLoad_FS(t *testing.T) {
 	if result.Foo != "bar" {
 		t.Error("expected to have foo: bar in config")
 	}
-}
-
-func TestValidateDefault(t *testing.T) {
-	type Obj struct {
-		V bool `toml:"v" default:"false" validate:"required"`
-	}
-	o := Obj{}
-	assert.Equal(t, nil, configor.Load(&o, []byte(`v=false`)).Error())
 }

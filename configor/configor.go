@@ -1,26 +1,22 @@
 package configor
 
 import (
-	"os"
-	"strings"
-
 	"github.com/BurntSushi/toml"
 	"github.com/go-playground/validator/v10"
 )
 
 type Configor struct {
-	EnvPrefix   string
-	Unmarshaler func([]byte, any) error
-	Validator   func(any) error
+	LoadEnv   bool            // 是否读取环境变量
+	EnvPrefix string          // 环境变量前缀
+	Unmarshal Unmarshal       // 解析器
+	Validator func(any) error // 校验器
 }
 
-// New initialize a Configor
-func newConfigor() *Configor {
-	return &Configor{
-		EnvPrefix:   strings.ToUpper(os.Getenv("CONFIGOR_ENV_PREFIX")),
-		Unmarshaler: toml.Unmarshal,
-		Validator:   validator.New().Struct,
-	}
+var defaultConfigor = &Configor{
+	LoadEnv:   false,
+	EnvPrefix: "",
+	Unmarshal: toml.Unmarshal,
+	Validator: validator.New().Struct,
 }
 
 func (c *Configor) Load(dst any, payload ...[]byte) (err error) {
@@ -46,10 +42,10 @@ func (c *Configor) LoadFile(dst any, files ...string) error {
 
 // Load will unmarshal configurations to struct from files that you provide
 func Load(dst any, payload ...[]byte) error {
-	return newConfigor().Load(dst, payload...)
+	return defaultConfigor.Load(dst, payload...)
 }
 
 // Load will unmarshal configurations to struct from files that you provide
 func LoadFile(dst any, files ...string) error {
-	return newConfigor().LoadFile(dst, files...)
+	return defaultConfigor.LoadFile(dst, files...)
 }

@@ -2,12 +2,25 @@ package z
 
 import (
 	"fmt"
-	"log"
-	"os"
 
 	"github.com/cocktail828/go-tools/z/reflectx"
-	"github.com/stretchr/testify/assert"
 )
+
+type Mode string
+
+const (
+	Development = Mode("develop")
+	Release     = Mode("release")
+)
+
+var (
+	// indicates environment name for work mode
+	mode = Development
+)
+
+func DevelopMode() bool { return mode == "debug" }
+func ReleaseMode() bool { return mode == "release" }
+func SetMode(m Mode)    { mode = m }
 
 func Must(err error) {
 	if !reflectx.IsNil(err) {
@@ -18,27 +31,5 @@ func Must(err error) {
 func Mustf(err error, format string, args ...any) {
 	if !reflectx.IsNil(err) {
 		panic(fmt.Sprintf(format, args...))
-	}
-}
-
-type errorf struct{}
-
-func (e errorf) Errorf(format string, args ...interface{}) { log.Fatalf(format, args...) }
-
-func Assert(cond bool) {
-	if ReleaseMode() {
-		return
-	}
-	if !assert.True(errorf{}, cond) {
-		os.Exit(1)
-	}
-}
-
-func Assertf(cond bool, format string, args ...interface{}) {
-	if ReleaseMode() {
-		return
-	}
-	if !assert.Truef(errorf{}, cond, format, args...) {
-		os.Exit(1)
 	}
 }

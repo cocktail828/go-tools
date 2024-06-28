@@ -88,37 +88,40 @@ func (c *Configor) processTags(config interface{}, prefixes ...string) error {
 		}
 
 		if envName == "" {
-			envNames = append(envNames, strings.Join(append(prefixes, fieldStruct.Name), "_"))                  // Configor_DB_Name
-			envNames = append(envNames, strings.ToUpper(strings.Join(append(prefixes, fieldStruct.Name), "_"))) // CONFIGOR_DB_NAME
+			envNames = append(envNames, strings.Join(append(prefixes, fieldStruct.Name), "_"))
+			envNames = append(envNames, strings.ToUpper(strings.Join(append(prefixes, fieldStruct.Name), "_")))
 		} else {
 			envNames = []string{envName}
 		}
 
 		// Load From Shell ENV
-	loop:
-		for _, env := range envNames {
-			name := env
-			if c.EnvPrefix != "" {
-				name = c.EnvPrefix + "_" + env
+		if err := func() error {
+			if !c.LoadEnv {
+				return nil
 			}
-			if value := os.Getenv(name); value != "" {
-				switch reflect.Indirect(field).Kind() {
-				case reflect.Bool:
-					if val, err := strconv.ParseBool(strings.ToLower(value)); err == nil {
-						field.Set(reflect.ValueOf(val))
-					}
-					break loop
-				case reflect.String:
-					field.Set(reflect.ValueOf(value))
-					break loop
-				default:
-					if err := yaml.Unmarshal([]byte(value), field.Addr().Interface()); err != nil {
-						return err
-					} else {
-						break loop
+			for _, env := range envNames {
+				name := env
+				if c.EnvPrefix != "" {
+					name = c.EnvPrefix + "_" + env
+				}
+				if value := os.Getenv(name); value != "" {
+					switch reflect.Indirect(field).Kind() {
+					case reflect.Bool:
+						if val, err := strconv.ParseBool(strings.ToLower(value)); err == nil {
+							field.Set(reflect.ValueOf(val))
+						}
+						return nil
+					case reflect.String:
+						field.Set(reflect.ValueOf(value))
+						return nil
+					default:
+						return yaml.Unmarshal([]byte(value), field.Addr().Interface())
 					}
 				}
 			}
+			return nil
+		}(); err != nil {
+			return err
 		}
 
 		for field.Kind() == reflect.Ptr {
@@ -168,8 +171,8 @@ func (c *Configor) processTags(config interface{}, prefixes ...string) error {
 }
 
 type pair struct {
-	payload     []byte
-	unmarshaler func([]byte, any) error
+	payload   []byte
+	unmarshal Unmarshal
 }
 
 func (c *Configor) loadFile(dst any, files ...string) error {
@@ -179,10 +182,10 @@ func (c *Configor) loadFile(dst any, files ...string) error {
 		if err != nil {
 			return err
 		}
-		if f, ok := unmarshalers[path.Ext(fname)]; ok {
+		if f, ok := unmarshals[path.Ext(fname)]; ok {
 			pairs = append(pairs, pair{data, f})
 		} else {
-			pairs = append(pairs, pair{data, c.Unmarshaler})
+			pairs = append(pairs, pair{data, c.Unmarshal})
 		}
 	}
 	return c.internalLoad(dst, pairs...)
@@ -191,7 +194,7 @@ func (c *Configor) loadFile(dst any, files ...string) error {
 func (c *Configor) load(dst any, payloads ...[]byte) error {
 	pairs := make([]pair, 0, len(payloads))
 	for _, body := range payloads {
-		pairs = append(pairs, pair{body, c.Unmarshaler})
+		pairs = append(pairs, pair{body, c.Unmarshal})
 	}
 	return c.internalLoad(dst, pairs...)
 }
@@ -205,7 +208,7 @@ func (c *Configor) internalLoad(dst any, pairs ...pair) error {
 		return err
 	}
 	for _, val := range pairs {
-		if err := val.unmarshaler(val.payload, dst); err != nil {
+		if err := val.unmarshal(val.payload, dst); err != nil {
 			return err
 		}
 	}
