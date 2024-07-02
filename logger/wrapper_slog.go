@@ -2,8 +2,7 @@ package logger
 
 import (
 	"fmt"
-
-	"golang.org/x/exp/slog"
+	"log/slog"
 )
 
 // slogWrapper implements Logger interface

@@ -1,9 +1,9 @@
 package logger
 
 import (
+	"log/slog"
 	"strings"
 
-	"golang.org/x/exp/slog"
 	"gopkg.in/natefinch/lumberjack.v2"
 )
 
