@@ -16,6 +16,9 @@ type ValidateFunc func() bool
 var (
 	AlwaysTrue = func() bool { return true }
 	ExpireFunc = func(v time.Duration) ValidateFunc {
+		if v <= 0 {
+			return AlwaysTrue
+		}
 		now := time.Now()
 		return func() bool {
 			return time.Since(now) < v
