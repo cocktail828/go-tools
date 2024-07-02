@@ -12,7 +12,7 @@ type Configor struct {
 	Validator func(any) error // 校验器
 }
 
-var defaultConfigor = &Configor{
+var Default = &Configor{
 	LoadEnv:   false,
 	EnvPrefix: "",
 	Unmarshal: toml.Unmarshal,
@@ -42,10 +42,10 @@ func (c *Configor) LoadFile(dst any, files ...string) error {
 
 // Load will unmarshal configurations to struct from files that you provide
 func Load(dst any, payload ...[]byte) error {
-	return defaultConfigor.Load(dst, payload...)
+	return Default.Load(dst, payload...)
 }
 
 // Load will unmarshal configurations to struct from files that you provide
 func LoadFile(dst any, files ...string) error {
-	return defaultConfigor.LoadFile(dst, files...)
+	return Default.LoadFile(dst, files...)
 }

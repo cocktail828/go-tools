@@ -4,7 +4,7 @@ import (
 	"log/slog"
 	"strings"
 
-	"gopkg.in/natefinch/lumberjack.v2"
+	"github.com/cocktail828/go-tools/pkg/lumberjack.v2"
 )
 
 func NewLoggerWithLumberjack(cfg Config) Logger {

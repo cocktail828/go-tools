@@ -21,8 +21,8 @@ func DoWithData[T any](f func() (T, error), opts ...Option) (T, error) {
 		context:  context.Background(),
 	}
 
-	for _, opt := range opts {
-		opt(cfg)
+	for _, f := range opts {
+		f(cfg)
 	}
 
 	var n uint = 0
