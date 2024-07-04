@@ -1,10 +1,10 @@
 package logger
 
 import (
-	"log/slog"
 	"strings"
 
 	"github.com/cocktail828/go-tools/pkg/lumberjack.v2"
+	"github.com/cocktail828/go-tools/pkg/slog"
 )
 
 func NewLoggerWithLumberjack(cfg Config) Logger {
@@ -28,8 +28,8 @@ func NewLoggerWithLumberjack(cfg Config) Logger {
 		&lumberjack.Logger{
 			Filename:   cfg.Filename,
 			MaxSize:    cfg.MaxSize,
-			MaxBackups: cfg.MaxCount,
 			MaxAge:     cfg.MaxAge,
+			MaxBackups: cfg.MaxCount,
 			Compress:   cfg.Compress,
 		}, &slog.HandlerOptions{
 			AddSource: cfg.AddSource,

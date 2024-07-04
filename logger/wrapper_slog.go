@@ -2,7 +2,8 @@ package logger
 
 import (
 	"fmt"
-	"log/slog"
+
+	"github.com/cocktail828/go-tools/pkg/slog"
 )
 
 // slogWrapper implements Logger interface

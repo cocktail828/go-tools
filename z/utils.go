@@ -9,17 +9,19 @@ import (
 type Mode string
 
 const (
-	Development = Mode("develop")
-	Release     = Mode("release")
+	Debug   = Mode("debug")
+	Test    = Mode("test")
+	Release = Mode("release")
 )
 
 var (
 	// indicates environment name for work mode
-	mode = Development
+	mode = Debug
 )
 
-func DevelopMode() bool { return mode == "debug" }
-func ReleaseMode() bool { return mode == "release" }
+func DebugMode() bool   { return mode == Debug }
+func TestMode() bool    { return mode == Test }
+func ReleaseMode() bool { return mode == Release }
 func SetMode(m Mode)    { mode = m }
 
 func Must(err error) {
