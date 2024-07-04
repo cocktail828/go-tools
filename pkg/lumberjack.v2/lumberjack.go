@@ -22,6 +22,7 @@
 package lumberjack
 
 import (
+	"bytes"
 	"compress/gzip"
 	"errors"
 	"fmt"
@@ -85,6 +86,12 @@ type Logger struct {
 	// rotated. It defaults to 100 megabytes.
 	MaxSize int `json:"maxsize" yaml:"maxsize"`
 
+	// Async will cache log and flush on need(30s timeout or buffer is full)
+	Async bool `json:"async" yaml:"async"`
+
+	// bufsize define the buffer size, default size 5Mb
+	BufSize int `json:"bufsize" yaml:"bufsize"`
+
 	// MaxAge is the maximum number of days to retain old log files based on the
 	// timestamp encoded in their filename.  Note that a day is defined as 24
 	// hours and may not exactly correspond to calendar days due to daylight
@@ -106,9 +113,11 @@ type Logger struct {
 	// using gzip. The default is not to perform compression.
 	Compress bool `json:"compress" yaml:"compress"`
 
-	size int64
-	file *os.File
-	mu   sync.Mutex
+	size        int64
+	file        *os.File
+	mu          sync.Mutex
+	buffer      *bytes.Buffer
+	lastFlushAt int64
 
 	millCh    chan bool
 	startMill sync.Once
@@ -125,6 +134,8 @@ var (
 	// variable so tests can mock it out and not need to write megabytes of data
 	// to disk.
 	megabyte = 1024 * 1024
+
+	forceFlushInterval = int64(time.Second * 30)
 )
 
 // Write implements io.Writer.  If a write would cause the log file to be larger
@@ -135,6 +146,24 @@ func (l *Logger) Write(p []byte) (n int, err error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
+	if l.Async {
+		if l.buffer == nil {
+			l.buffer = bytes.NewBuffer(make([]byte, l.BufSize))
+		}
+
+		now := time.Now().Unix()
+		if l.buffer.Available() > len(p) && l.lastFlushAt+forceFlushInterval > now {
+			return l.buffer.Write(p)
+		}
+
+		l.lastFlushAt = now
+		defer l.buffer.Reset()
+		l.writeLocked(l.buffer.Bytes())
+	}
+	return l.writeLocked(p)
+}
+
+func (l *Logger) writeLocked(p []byte) (n int, err error) {
 	writeLen := int64(len(p))
 	if writeLen > l.max() {
 		return 0, fmt.Errorf(

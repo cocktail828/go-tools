@@ -26,8 +26,8 @@ type Config struct {
 	// MaxAge may still cause them to get deleted.)
 	MaxCount int `json:"maxcount" toml:"maxcount" yaml:"maxcount" default:"5"`
 
-	// AddSource determain whether add file:line to log file.  The default is true
-	AddSource bool `json:"addsource" toml:"addsource" yaml:"addsource" default:"true"`
+	// AddSource determain whether add file:line to log file.
+	AddSource bool `json:"addsource" toml:"addsource" yaml:"addsource"`
 
 	// Compress determines if the rotated log files should be compressed using gzip.
 	Compress bool `json:"compress" toml:"compress" yaml:"compress"`

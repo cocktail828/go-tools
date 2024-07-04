@@ -28,6 +28,8 @@ func NewLoggerWithLumberjack(cfg Config) Logger {
 		&lumberjack.Logger{
 			Filename:   cfg.Filename,
 			MaxSize:    cfg.MaxSize,
+			Async:      cfg.Async,
+			BufSize:    cfg.BufSize,
 			MaxAge:     cfg.MaxAge,
 			MaxBackups: cfg.MaxCount,
 			Compress:   cfg.Compress,
