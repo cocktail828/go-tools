@@ -1,4 +1,4 @@
-package etcd_test
+package etcdkv_test
 
 import (
 	"context"
@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/cocktail828/go-tools/pkg/kvstore"
-	"github.com/cocktail828/go-tools/pkg/kvstore/etcd"
+	"github.com/cocktail828/go-tools/pkg/kvstore/etcdkv"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -16,9 +16,9 @@ var (
 )
 
 func TestEtcd(t *testing.T) {
-	src, err := etcd.NewSource(etcd.WithAddress(endpoint),
-		etcd.WithPrefix("/caesar/"),
-		etcd.WithDialTimeout(time.Second*3))
+	src, err := etcdkv.New(etcdkv.WithAddress(endpoint),
+		etcdkv.WithPrefix("/caesar/"),
+		etcdkv.WithDialTimeout(time.Second*3))
 	assert.Nil(t, err)
 	defer src.Close()
 
@@ -32,21 +32,21 @@ func TestEtcd(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		assert.Equal(t, nil, src.Write(context.Background(), c.Key, c.Val))
+		assert.Equal(t, nil, src.Set(c.Key, c.Val))
 	}
 
 	for _, c := range cases {
 		t.Run(c.Name, func(t *testing.T) {
-			kv, err := src.Read(context.Background(), c.Key)
+			kv, err := src.Get(c.Key)
 			assert.Nil(t, err)
 			assert.ElementsMatch(t, []kvstore.KVPair{{Key: c.Key, Val: c.Val}}, kv)
 		})
 	}
 
-	kv, err := src.Read(context.Background(), "a", etcd.MatchPrefix())
+	kv, err := src.Get("a", etcdkv.MatchPrefix())
 	assert.Nil(t, err)
 	assert.Equal(t, []kvstore.KVPair{{Key: "a", Val: []byte("aaa")}, {Key: "a/123", Val: []byte("a/123")}}, kv)
-	assert.Equal(t, nil, src.Delete(context.Background(), "a", etcd.MatchPrefix()))
+	assert.Equal(t, nil, src.Del("a", etcdkv.MatchPrefix()))
 }
 
 func TestEtcdWatch(t *testing.T) {
@@ -58,19 +58,19 @@ func TestEtcdWatch(t *testing.T) {
 	}{
 		{"watchkv", "a", []byte("aaa"), nil},
 		{"watchkv-del", "a", []byte(""), nil},
-		{"watchkv-tree", "a/123", []byte("a/123"), []kvstore.Option{etcd.MatchPrefix()}},
-		{"watchkv-tree-del", "a/123", []byte(""), []kvstore.Option{etcd.MatchPrefix()}},
+		{"watchkv-tree", "a/123", []byte("a/123"), []kvstore.Option{etcdkv.MatchPrefix()}},
+		{"watchkv-tree-del", "a/123", []byte(""), []kvstore.Option{etcdkv.MatchPrefix()}},
 	}
 
 	for _, c := range cases {
 		t.Run(c.Name, func(t *testing.T) {
-			src, err := etcd.NewSource(etcd.WithAddress(endpoint),
-				etcd.WithPrefix("/caesar/"),
-				etcd.WithDialTimeout(time.Second*3))
+			src, err := etcdkv.New(etcdkv.WithAddress(endpoint),
+				etcdkv.WithPrefix("/caesar/"),
+				etcdkv.WithDialTimeout(time.Second*3))
 			assert.Nil(t, err)
 			defer src.Close()
 
-			w := src.Watch(context.Background(), c.Key, c.Opts...)
+			w := src.Watch(append(c.Opts, etcdkv.WatchKey(c.Key))...)
 			ctx, cancel := context.WithCancel(context.Background())
 			go func() {
 				defer cancel()
@@ -94,9 +94,9 @@ func TestEtcdWatch(t *testing.T) {
 			for i := 0; i < 2; i++ {
 				<-time.After(time.Millisecond * 100)
 				if len(c.Val) == 0 {
-					assert.Equal(t, nil, src.Delete(context.Background(), c.Key))
+					assert.Equal(t, nil, src.Del(c.Key))
 				} else {
-					assert.Equal(t, nil, src.Write(context.Background(), c.Key, c.Val))
+					assert.Equal(t, nil, src.Set(c.Key, c.Val))
 				}
 			}
 			w.Stop()

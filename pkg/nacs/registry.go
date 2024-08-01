@@ -11,10 +11,10 @@ type Service struct {
 
 // TODO: implement
 type ServiceHandler interface {
-	OnChange()
+	OnServiceChange(ev Event, svc Service)
 }
 
-type DeRegister func(ctx context.Context) error
+type DeRegister func() error
 
 // true: for pass
 type Filter func(svc Service) bool

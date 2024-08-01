@@ -1,13 +1,12 @@
 package kvstore
 
 import (
-	"context"
 	"errors"
 )
 
 var (
-	// ErrWatcherStopped is returned when source watcher has been stopped.
 	ErrWatcherStopped = errors.New("watcher stopped")
+	ErrNotImplement   = errors.New("method not implement")
 )
 
 type KVPair struct {
@@ -17,10 +16,10 @@ type KVPair struct {
 
 // KV is the source from which config is loaded.
 type KV interface {
-	Write(ctx context.Context, key string, val []byte, opts ...Option) error
-	Read(ctx context.Context, key string, opts ...Option) ([]KVPair, error)
-	Delete(ctx context.Context, key string, opts ...Option) error
-	Watch(ctx context.Context, key string, opts ...Option) Watcher
+	Set(key string, val []byte, opts ...Option) error
+	Get(key string, opts ...Option) ([]KVPair, error)
+	Del(key string, opts ...Option) error
+	Watch(opts ...Option) Watcher
 	Close() error
 	String() string
 }
@@ -44,3 +43,8 @@ type Watcher interface {
 	Next() ([]Event, error)
 	Stop() error
 }
+
+type NopWatcher struct{}
+
+func (NopWatcher) Next() ([]Event, error) { return nil, ErrNotImplement }
+func (NopWatcher) Stop() error            { return nil }

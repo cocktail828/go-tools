@@ -2,9 +2,12 @@ package httpx
 
 import (
 	"context"
-	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
+	"sync"
+
+	"github.com/cocktail828/go-tools/z/locker"
 )
 
 type Option func(*http.Request)
@@ -43,18 +46,40 @@ func NewRequestWithContext(ctx context.Context, method string, url string, body 
 	return req, nil
 }
 
-func ParseWith(resp *http.Response, parser func([]byte, interface{}) error, dst interface{}) error {
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return err
+var (
+	unmarshallersMu = sync.RWMutex{}
+	unmarshallers   = map[string]Unmarshal{}
+)
+
+func RegisterUnmarshal(name string, f Unmarshal) {
+	if f == nil {
+		return
 	}
-	return parser(body, dst)
+	locker.WithLock(&unmarshallersMu, func() { unmarshallers[name] = f })
 }
 
-func Parse(resp *http.Response, dst interface{}) error {
-	body, err := io.ReadAll(resp.Body)
+type Unmarshal func([]byte, interface{}) error
+type Parser struct {
+	Unmarshal Unmarshal
+}
+
+func (p *Parser) Parse(reader io.ReadCloser, dst interface{}) error {
+	if p.Unmarshal == nil {
+		locker.WithRLock(&unmarshallersMu, func() {
+			if v, ok := unmarshallers["json"]; ok {
+				p.Unmarshal = v
+			}
+		})
+
+		if p.Unmarshal == nil {
+			return errors.New("no unmarshaller")
+		}
+	}
+
+	defer reader.Close()
+	body, err := io.ReadAll(reader)
 	if err != nil {
 		return err
 	}
-	return json.Unmarshal(body, dst)
+	return p.Unmarshal(body, dst)
 }

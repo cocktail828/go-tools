@@ -6,7 +6,7 @@ import (
 	"net/netip"
 	"time"
 
-	"github.com/cocktail828/go-tools/z/cache"
+	"github.com/cocktail828/go-tools/z/ttlmap"
 )
 
 type entry struct {
@@ -15,13 +15,9 @@ type entry struct {
 	cname string
 }
 
-var (
-	Default = &Resolver{cache: &cache.Cache[entry]{}}
-)
-
 // DNS Resolver with cache
 type Resolver struct {
-	cache    *cache.Cache[entry]
+	cache    *ttlmap.Cache[entry]
 	Resolver net.Resolver
 	TTL      time.Duration // DNS 记录缓存最长时间
 	NegTTL   time.Duration // 如果非0, 则为 negative record 的缓存时间, 默认为0
@@ -29,9 +25,9 @@ type Resolver struct {
 
 func (r *Resolver) store(key string, err error, val any, cname string) {
 	if err == nil {
-		r.cache.Set(key, entry{err, val, cname}, cache.WithValidate(cache.ExpireFunc(r.TTL)))
+		r.cache.SetWithTTL(key, entry{err, val, cname}, r.TTL)
 	} else {
-		r.cache.Set(key, entry{err, val, cname}, cache.WithValidate(cache.ExpireFunc(r.NegTTL)))
+		r.cache.SetWithTTL(key, entry{err, val, cname}, r.NegTTL)
 	}
 }
 

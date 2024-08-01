@@ -4,13 +4,15 @@ import (
 	"context"
 	"sync"
 	"time"
+
+	"github.com/cocktail828/go-tools/z/locker"
 )
 
 type Graceful struct {
-	wg           sync.WaitGroup
-	mu           sync.Mutex
-	PostponeTime time.Duration
-	Register     func() DeRegister
+	wg       sync.WaitGroup
+	Postpone time.Duration
+	sync.Mutex
+	Register func() DeRegister
 }
 
 func (g *Graceful) Fire(pctx context.Context) {
@@ -19,28 +21,26 @@ func (g *Graceful) Fire(pctx context.Context) {
 
 	var deregister DeRegister
 	ctx, cancel := context.WithCancel(pctx)
-	time.AfterFunc(g.PostponeTime, func() {
+	time.AfterFunc(g.Postpone, func() {
 		defer g.wg.Done()
-
-		g.mu.Lock()
-		defer g.mu.Unlock()
-		select {
-		case <-ctx.Done():
-		default:
-			deregister = g.Register()
-		}
+		locker.WithLock(g, func() {
+			select {
+			case <-ctx.Done():
+			default:
+				deregister = g.Register()
+			}
+		})
 	})
 
 	go func() {
 		defer g.wg.Done()
-
 		<-ctx.Done()
-		g.mu.Lock()
-		defer g.mu.Unlock()
-		cancel()
-		if deregister != nil {
-			deregister(context.Background())
-		}
+		locker.WithLock(g, func() {
+			cancel()
+			if deregister != nil {
+				deregister()
+			}
+		})
 	}()
 }
 
