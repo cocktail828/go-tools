@@ -4,7 +4,7 @@ import (
 	"sync"
 )
 
-type Handle func(path string, ps Params)
+type Handler func(path string, ps Params)
 
 // Param is a single URL parameter, consisting of a key and a value.
 type Param struct {
@@ -45,7 +45,7 @@ func New() *Router {
 // This function is intended for bulk loading and to allow the usage of less
 // frequently used, non-standardized or custom methods (e.g. for internal
 // communication with a proxy).
-func (r *Router) Register(path string, handle Handle) {
+func (r *Router) Register(path string, handle Handler) {
 	if len(path) < 1 || path[0] != '/' {
 		panic("path must begin with '/' in path '" + path + "'")
 	}
@@ -59,7 +59,7 @@ func (r *Router) Register(path string, handle Handle) {
 // This is e.g. useful to build a framework around this router.
 // If the path was found, it returns the handle function and the path parameter
 // values.
-func (r *Router) Lookup(path string) (Handle, Params) {
+func (r *Router) Lookup(path string) (Handler, Params) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	return r.root.getValue(path)

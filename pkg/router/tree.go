@@ -45,7 +45,7 @@ type node struct {
 	priority  uint32
 	indices   string
 	children  []*node
-	handle    Handle
+	handler   Handler
 }
 
 // increments priority of the given child and reorders if necessary
@@ -72,9 +72,9 @@ func (n *node) incrementChildPrio(pos int) int {
 	return newPos
 }
 
-// addRoute adds a node with the given handle to the path.
+// addRoute adds a node with the given handler to the path.
 // Not concurrency-safe!
-func (n *node) addRoute(path string, handle Handle) {
+func (n *node) addRoute(path string, handler Handler) {
 	fullPath := path
 	n.priority++
 	numParams := countParams(path)
@@ -105,7 +105,7 @@ func (n *node) addRoute(path string, handle Handle) {
 					nType:     static,
 					indices:   n.indices,
 					children:  n.children,
-					handle:    n.handle,
+					handler:   n.handler,
 					priority:  n.priority - 1,
 				}
 
@@ -120,7 +120,7 @@ func (n *node) addRoute(path string, handle Handle) {
 				// []byte for proper unicode char conversion, see #65
 				n.indices = string([]byte{n.path[i]})
 				n.path = path[:i]
-				n.handle = nil
+				n.handler = nil
 				n.wildChild = false
 			}
 
@@ -191,24 +191,24 @@ func (n *node) addRoute(path string, handle Handle) {
 					n.incrementChildPrio(len(n.indices) - 1)
 					n = child
 				}
-				n.insertChild(numParams, path, fullPath, handle)
+				n.insertChild(numParams, path, fullPath, handler)
 				return
 
 			} else if i == len(path) { // Make node a (in-path) leaf
-				if n.handle != nil {
-					panic("a handle is already registered for path '" + fullPath + "'")
+				if n.handler != nil {
+					panic("a handler is already registered for path '" + fullPath + "'")
 				}
-				n.handle = handle
+				n.handler = handler
 			}
 			return
 		}
 	} else { // Empty tree
-		n.insertChild(numParams, path, fullPath, handle)
+		n.insertChild(numParams, path, fullPath, handler)
 		n.nType = root
 	}
 }
 
-func (n *node) insertChild(numParams uint8, path, fullPath string, handle Handle) {
+func (n *node) insertChild(numParams uint8, path, fullPath string, handler Handler) {
 	var offset int // already handled bytes of the path
 
 	// find prefix until first wildcard (beginning with ':'' or '*'')
@@ -280,7 +280,7 @@ func (n *node) insertChild(numParams uint8, path, fullPath string, handle Handle
 			}
 
 			if len(n.path) > 0 && n.path[len(n.path)-1] == '/' {
-				panic("catch-all conflicts with existing handle for the path segment root in path '" + fullPath + "'")
+				panic("catch-all conflicts with existing handler for the path segment root in path '" + fullPath + "'")
 			}
 
 			// currently fixed width 1 for '/'
@@ -311,7 +311,7 @@ func (n *node) insertChild(numParams uint8, path, fullPath string, handle Handle
 				path:      path[i:],
 				nType:     catchAll,
 				maxParams: 1,
-				handle:    handle,
+				handler:   handler,
 				priority:  1,
 			}
 			n.children = []*node{child}
@@ -320,14 +320,14 @@ func (n *node) insertChild(numParams uint8, path, fullPath string, handle Handle
 		}
 	}
 
-	// insert remaining path part and handle to the leaf
+	// insert remaining path part and handler to the leaf
 	n.path = path[offset:]
-	n.handle = handle
+	n.handler = handler
 }
 
-// Returns the handle registered with the given path (key). The values of
+// Returns the handler registered with the given path (key). The values of
 // wildcards are saved to a map.
-func (n *node) getValue(path string) (handle Handle, p Params) {
+func (n *node) getValue(path string) (handler Handler, p Params) {
 walk: // outer loop for walking the tree
 	for {
 		if len(path) > len(n.path) {
@@ -347,7 +347,7 @@ walk: // outer loop for walking the tree
 					return
 				}
 
-				// handle wildcard child
+				// handler wildcard child
 				n = n.children[0]
 				switch n.nType {
 				case param:
@@ -375,7 +375,7 @@ walk: // outer loop for walking the tree
 						}
 						return
 					}
-					handle = n.handle
+					handler = n.handler
 
 				case catchAll:
 					// save param value, lazy allocation
@@ -386,7 +386,7 @@ walk: // outer loop for walking the tree
 					p = p[:i+1] // expand slice within preallocated capacity
 					p[i].Key = n.path[2:]
 					p[i].Value = path
-					handle = n.handle
+					handler = n.handler
 
 				default:
 					panic("invalid node type")
@@ -394,10 +394,9 @@ walk: // outer loop for walking the tree
 				return
 			}
 		} else if path == n.path {
-			// We should have reached the node containing the handle.
-			// Check if this node has a handle registered.
-			handle = n.handle
-			return
+			// We should have reached the node containing the handler.
+			// Check if this node has a handler registered.
+			handler = n.handler
 		}
 		return
 	}

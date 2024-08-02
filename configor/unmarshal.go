@@ -25,13 +25,3 @@ func Register(suffix string, f Unmarshal) {
 	defer unmarshalMu.Unlock()
 	unmarshals[suffix] = f
 }
-
-func Unmarshals() []string {
-	unmarshalMu.RLock()
-	defer unmarshalMu.RUnlock()
-	r := []string{}
-	for k := range unmarshals {
-		r = append(r, k)
-	}
-	return r
-}

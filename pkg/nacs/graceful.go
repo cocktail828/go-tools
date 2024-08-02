@@ -15,12 +15,12 @@ type Graceful struct {
 	Register func() DeRegister
 }
 
-func (g *Graceful) Fire(pctx context.Context) {
+func (g *Graceful) Fire(ctx context.Context) {
 	g.wg = sync.WaitGroup{}
 	g.wg.Add(2)
 
 	var deregister DeRegister
-	ctx, cancel := context.WithCancel(pctx)
+	ctx, cancel := context.WithCancel(ctx)
 	time.AfterFunc(g.Postpone, func() {
 		defer g.wg.Done()
 		locker.WithLock(g, func() {
@@ -38,12 +38,12 @@ func (g *Graceful) Fire(pctx context.Context) {
 		locker.WithLock(g, func() {
 			cancel()
 			if deregister != nil {
-				deregister()
+				deregister(context.TODO())
 			}
 		})
 	}()
 }
 
-func (g *Graceful) Wait(pctx context.Context) {
+func (g *Graceful) Wait(ctx context.Context) {
 	g.wg.Wait()
 }

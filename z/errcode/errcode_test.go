@@ -18,4 +18,5 @@ func (ec errCode) String() string { return "unknow error" }
 
 func TestErrCode(t *testing.T) {
 	fmt.Println(errcode.Errorf(GeneralErr, "asdfsdfg"))
+	fmt.Println(errcode.Errorf(nil, "asdfsdfg"))
 }

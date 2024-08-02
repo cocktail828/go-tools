@@ -14,8 +14,8 @@ func (cs Configs) Get(name string) []byte {
 }
 
 type Config struct {
-	Name    string // 配置名称
-	Payload []byte // 配置内容
+	Name    string
+	Payload []byte
 }
 
 // TODO: implement
@@ -25,6 +25,8 @@ type ConfigHandler interface {
 }
 
 type Configor interface {
-	LookupConfig(ctx context.Context, name string) (Config, error)
+	LookupConfig(ctx context.Context, name string, opts ...LookupAndWatchConfigOption) (Config, error)
 	WatchConfig(ctx context.Context, handler ConfigHandler, names ...string) error
 }
+
+type LookupAndWatchConfigOption func(context.Context) context.Context

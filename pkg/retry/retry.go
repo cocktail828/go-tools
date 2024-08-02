@@ -13,7 +13,7 @@ func Do(f func() error, opts ...Option) error {
 }
 
 func DoWithData[T any](f func() (T, error), opts ...Option) (T, error) {
-	cfg := &Config{
+	cfg := &retryConfig{
 		attempts: uint(3),
 		delay:    FixedDelay(time.Millisecond * 10),
 		onRetry:  func(attempt uint, err error) {},
@@ -26,17 +26,17 @@ func DoWithData[T any](f func() (T, error), opts ...Option) (T, error) {
 	}
 
 	var n uint = 0
-	errorLog := Error{}
+	errs := Error{}
 	for {
 		t, err := f()
 		if err == nil {
 			return t, nil
 		}
 		n++
-		errorLog = append(errorLog, err)
+		errs = append(errs, err)
 
 		if cfg.attempts > 0 && n >= cfg.attempts {
-			return t, errorLog
+			return t, errs
 		}
 
 		if cfg.retryIf != nil && !cfg.retryIf(n, err) {
@@ -47,7 +47,7 @@ func DoWithData[T any](f func() (T, error), opts ...Option) (T, error) {
 		select {
 		case <-time.After(cfg.delay(n, err)):
 		case <-cfg.context.Done():
-			return t, errorLog
+			return t, errs
 		}
 	}
 }

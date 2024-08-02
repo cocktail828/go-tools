@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/cocktail828/go-tools/algo/router"
+	"github.com/cocktail828/go-tools/pkg/router"
 )
 
 func TestRouter(t *testing.T) {

@@ -3,7 +3,6 @@ package configor
 import (
 	"fmt"
 	"os"
-	"path"
 	"reflect"
 	"strconv"
 	"strings"
@@ -171,32 +170,8 @@ func (c *Configor) processTags(config interface{}, prefixes ...string) error {
 }
 
 type pair struct {
-	payload   []byte
+	data      []byte
 	unmarshal Unmarshal
-}
-
-func (c *Configor) loadFile(dst any, files ...string) error {
-	pairs := make([]pair, 0, len(files))
-	for _, fname := range files {
-		data, err := os.ReadFile(fname)
-		if err != nil {
-			return err
-		}
-		if f, ok := unmarshals[path.Ext(fname)]; ok {
-			pairs = append(pairs, pair{data, f})
-		} else {
-			pairs = append(pairs, pair{data, c.Unmarshal})
-		}
-	}
-	return c.internalLoad(dst, pairs...)
-}
-
-func (c *Configor) load(dst any, payloads ...[]byte) error {
-	pairs := make([]pair, 0, len(payloads))
-	for _, body := range payloads {
-		pairs = append(pairs, pair{body, c.Unmarshal})
-	}
-	return c.internalLoad(dst, pairs...)
 }
 
 func (c *Configor) internalLoad(dst any, pairs ...pair) error {
@@ -208,7 +183,7 @@ func (c *Configor) internalLoad(dst any, pairs ...pair) error {
 		return err
 	}
 	for _, val := range pairs {
-		if err := val.unmarshal(val.payload, dst); err != nil {
+		if err := val.unmarshal(val.data, dst); err != nil {
 			return err
 		}
 	}

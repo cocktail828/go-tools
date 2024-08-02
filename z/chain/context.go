@@ -1,21 +1,17 @@
 package chain
 
 import (
-	"fmt"
 	"math"
 	"sync"
-)
 
-type ErrCode struct {
-	Code int
-	Desc string
-}
+	"github.com/cocktail828/go-tools/z/errcode"
+)
 
 type Context struct {
 	User    any
 	data    sync.Map
 	index   int
-	errcode *ErrCode
+	errdesc errcode.Error
 }
 
 func (c *Context) Set(k, v any) {
@@ -32,11 +28,11 @@ func (c *Context) Abort() {
 }
 
 // same like 'Abort', but set errcode
-func (c *Context) AbortWith(code int, format string, args ...any) {
-	c.errcode = &ErrCode{code, fmt.Sprintf(format, args...)}
+func (c *Context) AbortWith(code errcode.Code, format string, args ...any) {
+	c.errdesc = errcode.Errorf(code, format, args...)
 	c.index = math.MaxInt16
 }
 
-func (c *Context) Err() *ErrCode {
-	return c.errcode
+func (c *Context) Error() error {
+	return c.errdesc
 }

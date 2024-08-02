@@ -8,9 +8,7 @@ import (
 )
 
 func init() {
-	if v, _ := environs.Bool("SSL_NO_VERIFY"); v {
-		InsecureSSL(v)
-	}
+	InsecureSSL(environs.Bool("SSL_NO_VERIFY"))
 }
 
 func InsecureSSL(v bool) {
