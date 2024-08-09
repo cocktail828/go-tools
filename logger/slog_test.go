@@ -28,7 +28,7 @@ func BenchmarkLog(b *testing.B) {
 	cfg := logger.Config{}
 	z.Must(configor.Load(&cfg, []byte(`
 level = "debug"
-filename = "/log/server/caesar.log"
+filename = "/log/server/xxx.log"
 async = true
 `)))
 

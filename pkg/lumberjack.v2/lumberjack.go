@@ -22,9 +22,7 @@
 package lumberjack
 
 import (
-	"bytes"
 	"compress/gzip"
-	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -33,6 +31,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/pkg/errors"
 )
 
 const (
@@ -87,10 +87,10 @@ type Logger struct {
 	MaxSize int `json:"maxsize" yaml:"maxsize"`
 
 	// Async will cache log and flush on need(30s timeout or buffer is full)
-	Async bool `json:"async" yaml:"async"`
+	Async bool `json:"async" toml:"async" yaml:"async"`
 
 	// bufsize define the buffer size, default size 5Mb
-	BufSize int `json:"bufsize" yaml:"bufsize"`
+	BufSize int `json:"bufsize" toml:"bufsize" yaml:"bufsize" default:"5242880"`
 
 	// MaxAge is the maximum number of days to retain old log files based on the
 	// timestamp encoded in their filename.  Note that a day is defined as 24
@@ -113,11 +113,18 @@ type Logger struct {
 	// using gzip. The default is not to perform compression.
 	Compress bool `json:"compress" yaml:"compress"`
 
-	size        int64
-	file        *os.File
-	mu          sync.Mutex
-	buffer      *bytes.Buffer
-	lastFlushAt int64
+	// buffered output
+	// Writer implements buffering for an io.Writer object.
+	// If an error occurs writing to a Writer, no more data will be
+	// accepted and all subsequent writes, and Flush, will return the error.
+	// After all data has been written, the client should call the
+	// Flush method to guarantee all data has been forwarded to
+	// the underlying io.Writer.
+	buf  []byte // buffer
+	n    int    // currently buffered data size
+	size int64  // currently file size
+	file *os.File
+	mu   sync.Mutex
 
 	millCh    chan bool
 	startMill sync.Once
@@ -134,8 +141,6 @@ var (
 	// variable so tests can mock it out and not need to write megabytes of data
 	// to disk.
 	megabyte = 1024 * 1024
-
-	forceFlushInterval = int64(time.Second * 30)
 )
 
 // Write implements io.Writer.  If a write would cause the log file to be larger
@@ -146,32 +151,16 @@ func (l *Logger) Write(p []byte) (n int, err error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	if l.Async {
-		if l.buffer == nil {
-			l.buffer = bytes.NewBuffer(make([]byte, l.BufSize))
-		}
-
-		now := time.Now().Unix()
-		if l.buffer.Available() > len(p) && l.lastFlushAt+forceFlushInterval > now {
-			return l.buffer.Write(p)
-		}
-
-		l.lastFlushAt = now
-		defer l.buffer.Reset()
-		l.writeLocked(l.buffer.Bytes())
-	}
-	return l.writeLocked(p)
-}
-
-func (l *Logger) writeLocked(p []byte) (n int, err error) {
 	writeLen := int64(len(p))
 	if writeLen > l.max() {
-		return 0, fmt.Errorf(
-			"write length %d exceeds maximum file size %d", writeLen, l.max(),
-		)
+		return 0, errors.Errorf("write length %d exceeds maximum file size %d", writeLen, l.max())
 	}
 
 	if l.file == nil {
+		if len(l.buf) == 0 && l.Async {
+			l.buf = make([]byte, l.BufSize)
+		}
+
 		if err = l.openExistingOrNew(len(p)); err != nil {
 			return 0, err
 		}
@@ -183,7 +172,11 @@ func (l *Logger) writeLocked(p []byte) (n int, err error) {
 		}
 	}
 
-	n, err = l.file.Write(p)
+	if l.Async {
+		n, err = l.writeBuffer(p)
+	} else {
+		n, err = l.file.Write(p)
+	}
 	l.size += int64(n)
 
 	return n, err
@@ -236,7 +229,7 @@ func (l *Logger) rotate() error {
 func (l *Logger) openNew() error {
 	err := os.MkdirAll(l.dir(), 0755)
 	if err != nil {
-		return fmt.Errorf("can't make directories for new logfile: %s", err)
+		return errors.Errorf("can't make directories for new logfile: %s", err)
 	}
 
 	name := l.filename()
@@ -248,7 +241,7 @@ func (l *Logger) openNew() error {
 		// move the existing file
 		newname := backupName(name, l.LocalTime)
 		if err := os.Rename(name, newname); err != nil {
-			return fmt.Errorf("can't rename log file: %s", err)
+			return errors.Errorf("can't rename log file: %s", err)
 		}
 
 		// this is a no-op anywhere but linux
@@ -262,7 +255,7 @@ func (l *Logger) openNew() error {
 	// just wipe out the contents.
 	f, err := os.OpenFile(name, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, mode)
 	if err != nil {
-		return fmt.Errorf("can't open new logfile: %s", err)
+		return errors.Errorf("can't open new logfile: %s", err)
 	}
 	l.file = f
 	l.size = 0
@@ -298,7 +291,7 @@ func (l *Logger) openExistingOrNew(writeLen int) error {
 		return l.openNew()
 	}
 	if err != nil {
-		return fmt.Errorf("error getting log file info: %s", err)
+		return errors.Errorf("error getting log file info: %s", err)
 	}
 
 	if info.Size()+int64(writeLen) >= l.max() {
@@ -425,16 +418,22 @@ func (l *Logger) mill() {
 func (l *Logger) oldLogFiles() ([]logInfo, error) {
 	files, err := os.ReadDir(l.dir())
 	if err != nil {
-		return nil, fmt.Errorf("can't read log file directory: %s", err)
+		return nil, errors.Errorf("can't read log file directory: %s", err)
 	}
 	logFiles := []logInfo{}
 
 	prefix, ext := l.prefixAndExt()
+
 	for _, f := range files {
 		if f.IsDir() {
 			continue
 		}
-		info, _ := f.Info()
+
+		info, err := f.Info()
+		if err != nil {
+			return nil, errors.Errorf("can't read file info: %s", err)
+		}
+
 		if t, err := l.timeFromName(f.Name(), prefix, ext); err == nil {
 			logFiles = append(logFiles, logInfo{t, info})
 			continue
@@ -493,24 +492,24 @@ func (l *Logger) prefixAndExt() (prefix, ext string) {
 func compressLogFile(src, dst string) (err error) {
 	f, err := os.Open(src)
 	if err != nil {
-		return fmt.Errorf("failed to open log file: %v", err)
+		return errors.Errorf("failed to open log file: %v", err)
 	}
 	defer f.Close()
 
 	fi, err := osStat(src)
 	if err != nil {
-		return fmt.Errorf("failed to stat log file: %v", err)
+		return errors.Errorf("failed to stat log file: %v", err)
 	}
 
 	if err := chown(dst, fi); err != nil {
-		return fmt.Errorf("failed to chown compressed log file: %v", err)
+		return errors.Errorf("failed to chown compressed log file: %v", err)
 	}
 
 	// If this file already exists, we presume it was created by
 	// a previous attempt to compress the log file.
 	gzf, err := os.OpenFile(dst, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, fi.Mode())
 	if err != nil {
-		return fmt.Errorf("failed to open compressed log file: %v", err)
+		return errors.Errorf("failed to open compressed log file: %v", err)
 	}
 	defer gzf.Close()
 
@@ -519,7 +518,7 @@ func compressLogFile(src, dst string) (err error) {
 	defer func() {
 		if err != nil {
 			os.Remove(dst)
-			err = fmt.Errorf("failed to compress log file: %v", err)
+			err = errors.Errorf("failed to compress log file: %v", err)
 		}
 	}()
 
