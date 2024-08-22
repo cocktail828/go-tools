@@ -4,6 +4,8 @@ import (
 	"math/rand"
 	"sync"
 	"time"
+
+	"github.com/cocktail828/go-tools/z/locker"
 )
 
 type random struct {
@@ -18,20 +20,12 @@ var (
 
 func RandomWidthName(width int) string {
 	bytes := make([]byte, width)
-	func() {
+	locker.WithLock(r, func() {
 		for i := range bytes {
 			bytes[i] = chars[r.R.Intn(len(chars))]
 		}
-	}()
+	})
 	return string(bytes)
 }
 
-func RandomName() string {
-	bytes := make([]byte, 8)
-	func() {
-		for i := range bytes {
-			bytes[i] = chars[r.R.Intn(len(chars))]
-		}
-	}()
-	return string(bytes)
-}
+func RandomName() string { return RandomWidthName(8) }

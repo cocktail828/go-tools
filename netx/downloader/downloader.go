@@ -17,52 +17,22 @@ var (
 	DefaultMinSize = 5 * 1024 * 1024 // object bigger than this will be downloaded parallely
 )
 
-// FileDownloader 文件下载器
-type FileDownloader struct {
+// Downloader 文件下载器
+type Downloader struct {
 	Client         *http.Client
 	MaxConcurrency int // 最大并发
-	MinSize        int // 触发并发的最小大小
+	SizeThreshold  int // 触发并发的最小大小, default 5MB
 }
 
-func (dl *FileDownloader) Download(ctx context.Context, url string) (*bytes.Buffer, error) {
-	minsize := dl.MinSize
-	if minsize <= 0 {
-		minsize = DefaultMinSize
+func (dl *Downloader) init() {
+	if dl.Client == nil {
+		dl.Client = http.DefaultClient
 	}
-
-	if dl.MaxConcurrency <= 1 {
-		return dl.Single(ctx, url)
-	}
-
-	size, err := dl.AllowRange(ctx, url)
-	if err != nil || minsize > size {
-		return dl.Single(ctx, url)
-	}
-
-	return dl.Multi(ctx, size, url)
-}
-
-func (dl *FileDownloader) Single(ctx context.Context, url string) (*bytes.Buffer, error) {
-	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	resp, err := dl.Client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-	return bytes.NewBuffer(body), nil
 }
 
 // head 获取要下载的文件的基本信息(header) 使用HTTP Method Head
-func (dl *FileDownloader) AllowRange(ctx context.Context, url string) (int, error) {
+func (dl *Downloader) FileSize(ctx context.Context, url string) (int, error) {
+	dl.init()
 	r, err := http.NewRequestWithContext(ctx, "HEAD", url, nil)
 	if err != nil {
 		return 0, err
@@ -87,19 +57,50 @@ func (dl *FileDownloader) AllowRange(ctx context.Context, url string) (int, erro
 	return strconv.Atoi(resp.Header.Get("Content-Length"))
 }
 
-// Download 开始下载任务
-func (dl *FileDownloader) Multi(ctx context.Context, size int, url string) (*bytes.Buffer, error) {
-	partNum := dl.MaxConcurrency
-	if partNum <= 0 {
-		partNum = 1
+func (dl *Downloader) Single(ctx context.Context, url string) (*bytes.Buffer, error) {
+	dl.init()
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		return nil, err
 	}
+
+	resp, err := dl.Client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	return bytes.NewBuffer(body), nil
+}
+
+func (dl *Downloader) Multi(ctx context.Context, url string) (*bytes.Buffer, error) {
+	dl.init()
+	minsize := dl.SizeThreshold
+	if minsize <= 0 {
+		minsize = DefaultMinSize
+	}
+
+	if dl.MaxConcurrency <= 1 {
+		return dl.Single(ctx, url)
+	}
+
+	size, err := dl.FileSize(ctx, url)
+	if err != nil || minsize > size {
+		return dl.Single(ctx, url)
+	}
+
+	partNum := dl.MaxConcurrency
 	partSize := size / partNum
 
 	eg := errgroup.Group{}
 	eg.SetLimit(dl.MaxConcurrency)
-	parts := []*DownloadPart{}
+	parts := []*Partial{}
 	for i := 0; i < partNum; i++ {
-		t := &DownloadPart{
+		t := &Partial{
 			Client: dl.Client,
 			Url:    url,
 			Start:  partSize * i,
@@ -126,7 +127,7 @@ func (dl *FileDownloader) Multi(ctx context.Context, size int, url string) (*byt
 }
 
 // filePart 文件分片
-type DownloadPart struct {
+type Partial struct {
 	Client     *http.Client
 	Url        string
 	Start, End int
@@ -134,7 +135,7 @@ type DownloadPart struct {
 }
 
 // 下载分片
-func (dl *DownloadPart) Download(ctx context.Context) error {
+func (dl *Partial) Download(ctx context.Context) error {
 	r, err := http.NewRequestWithContext(ctx, "GET", dl.Url, nil)
 	if err != nil {
 		return err
@@ -155,4 +156,4 @@ func (dl *DownloadPart) Download(ctx context.Context) error {
 	return err
 }
 
-func (dl *DownloadPart) Data() []byte { return dl.data }
+func (dl *Partial) Data() []byte { return dl.data }

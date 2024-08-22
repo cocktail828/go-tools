@@ -8,7 +8,6 @@ import (
 )
 
 type Context struct {
-	User    any
 	data    sync.Map
 	index   int
 	errdesc errcode.Error

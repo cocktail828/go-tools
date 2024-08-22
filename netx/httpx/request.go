@@ -2,12 +2,9 @@ package httpx
 
 import (
 	"context"
-	"errors"
+	"encoding/json"
 	"io"
 	"net/http"
-	"sync"
-
-	"github.com/cocktail828/go-tools/z/locker"
 )
 
 type Option func(*http.Request)
@@ -46,18 +43,6 @@ func NewRequestWithContext(ctx context.Context, method string, url string, body 
 	return req, nil
 }
 
-var (
-	unmarshallersMu = sync.RWMutex{}
-	unmarshallers   = map[string]Unmarshal{}
-)
-
-func RegisterUnmarshal(name string, f Unmarshal) {
-	if f == nil {
-		return
-	}
-	locker.WithLock(&unmarshallersMu, func() { unmarshallers[name] = f })
-}
-
 type Unmarshal func([]byte, interface{}) error
 type Parser struct {
 	Unmarshal Unmarshal
@@ -65,15 +50,7 @@ type Parser struct {
 
 func (p *Parser) Parse(reader io.ReadCloser, dst interface{}) error {
 	if p.Unmarshal == nil {
-		locker.WithRLock(&unmarshallersMu, func() {
-			if v, ok := unmarshallers["json"]; ok {
-				p.Unmarshal = v
-			}
-		})
-
-		if p.Unmarshal == nil {
-			return errors.New("no unmarshaller")
-		}
+		p.Unmarshal = json.Unmarshal
 	}
 
 	defer reader.Close()

@@ -2,10 +2,11 @@ package inet
 
 import (
 	"net"
-	"strings"
 )
 
-func Inet(validator ...func(*net.IPNet) bool) ([]net.Addr, error) {
+type Validator func(*net.IPNet) bool
+
+func Inet(validator ...Validator) ([]net.Addr, error) {
 	inters, err := net.Interfaces()
 	if err != nil {
 		return nil, err
@@ -13,7 +14,7 @@ func Inet(validator ...func(*net.IPNet) bool) ([]net.Addr, error) {
 
 	var addrs []net.Addr
 	for _, inter := range inters {
-		if inter.Flags&net.FlagUp != 0 && !strings.HasPrefix(inter.Name, "lo") {
+		if inter.Flags&net.FlagUp != 0 {
 			iaddrs, err := inter.Addrs()
 			if err != nil {
 				continue
