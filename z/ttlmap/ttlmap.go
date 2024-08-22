@@ -63,6 +63,25 @@ func (c *Cache[T]) Get(key string) (T, error) {
 	return val.val, nil
 }
 
+// like Get, but will delete key if invalid
+func (c *Cache[T]) GetDel(key string) (T, error) {
+	var a T
+	c.mu.RLock()
+	val, ok := c.cache[key]
+	c.mu.RUnlock()
+
+	if !ok {
+		return a, ErrNoEntry
+	}
+	if !val.validate() {
+		c.mu.Lock()
+		delete(c.cache, key)
+		c.mu.Unlock()
+		return a, ErrNoEntry
+	}
+	return val.val, nil
+}
+
 func (c *Cache[T]) Del(key string) (T, bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
