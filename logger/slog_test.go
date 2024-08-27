@@ -1,6 +1,7 @@
 package logger_test
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/cocktail828/go-tools/configor"
@@ -19,9 +20,9 @@ func TestSlog(t *testing.T) {
 		Compress:  false,
 	})
 	l = l.With("a1", "b1").WithGroup("xxx")
-	l.Infow("slog.finished", "key", "value")
-	l.Errorw("slog.finishedxxx", "key", "value")
-	l.Errorf("slog.finishedxxx %v", "key")
+	l.Info("slog.finished", "key", "value")
+	l.Error("slog.finishedxxx", "key", "value")
+	l.Error(fmt.Sprintf("slog.finishedxxx %v", "key"))
 }
 
 func BenchmarkLog(b *testing.B) {
@@ -38,7 +39,7 @@ async = true
 		b.ResetTimer()
 		b.RunParallel(func(p *testing.PB) {
 			for p.Next() {
-				l.Errorf("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx")
+				l.Error("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx")
 			}
 		})
 	})
@@ -49,7 +50,7 @@ async = true
 		b.ResetTimer()
 		b.RunParallel(func(p *testing.PB) {
 			for p.Next() {
-				l.Errorf("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx")
+				l.Error("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx")
 			}
 		})
 	})
