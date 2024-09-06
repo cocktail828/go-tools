@@ -132,15 +132,15 @@ type Code interface {
 }
 
 type Error struct {
-	Code    Code
-	Message error
+	Code   Code
+	Detail error
 }
 
 func (e Error) Error() string {
 	if e.Code == nil {
 		return ""
 	}
-	return fmt.Sprintf("error: code = %q, desc = %q", e.Code, e.Message)
+	return fmt.Sprintf("error: code = %q, detail = %v", e.Code, e.Detail)
 }
 
 func Errorf(ec Code, format string, args ...interface{}) Error {

@@ -2,12 +2,10 @@ package hashring
 
 import (
 	"crypto/sha1"
-	"sync"
-
-	//	"hash"
 	"math"
 	"sort"
 	"strconv"
+	"sync"
 )
 
 const (

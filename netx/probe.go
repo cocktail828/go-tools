@@ -7,7 +7,7 @@ import (
 
 type Prober func(addr string, tmo time.Duration) error
 
-func probe(network string, addr string, tmo time.Duration) error {
+func Probe(network string, addr string, tmo time.Duration) error {
 	if c, err := net.DialTimeout(network, addr, tmo); err != nil {
 		return err
 	} else {
@@ -17,9 +17,9 @@ func probe(network string, addr string, tmo time.Duration) error {
 }
 
 func ProbeTCP(addr string, tmo time.Duration) error {
-	return probe("tcp", addr, tmo)
+	return Probe("tcp", addr, tmo)
 }
 
 func ProbeUDP(addr string, tmo time.Duration) error {
-	return probe("udp", addr, tmo)
+	return Probe("udp", addr, tmo)
 }

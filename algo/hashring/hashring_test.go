@@ -41,18 +41,20 @@ func TestHashRing(t *testing.T) {
 	vitualSpots := 100
 
 	hring := New(vitualSpots)
-
 	hring.AddNodes(nodeWeight)
-	if hring.GetNode("1") != node3 {
-		t.Fatalf("expetcd %v got %v", node3, hring.GetNode("1"))
-	}
-	if hring.GetNode("2") != node3 {
-		t.Fatalf("expetcd %v got %v", node3, hring.GetNode("2"))
-	}
-	if hring.GetNode("3") != node2 {
-		t.Fatalf("expetcd %v got %v", node2, hring.GetNode("3"))
-	}
 	_, _, c3 := getNodesCount(hring.nodes)
+
+	func() {
+		if hring.GetNode("1") != node3 {
+			t.Fatalf("expetcd %v got %v", node3, hring.GetNode("1"))
+		}
+		if hring.GetNode("2") != node3 {
+			t.Fatalf("expetcd %v got %v", node3, hring.GetNode("2"))
+		}
+		if hring.GetNode("3") != node2 {
+			t.Fatalf("expetcd %v got %v", node2, hring.GetNode("3"))
+		}
+	}()
 
 	func() {
 		hring.RemoveNode(node3)
