@@ -59,7 +59,7 @@ func NewLoggerWithLumberjack(cfg Config) *slog.Logger {
 	}())
 
 	var wr io.Writer
-	if cfg.Filename != "/dev/null" {
+	if cfg.Filename == "/dev/null" {
 		wr = io.Discard
 	} else {
 		wr = &lumberjack.Logger{
