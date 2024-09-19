@@ -15,6 +15,13 @@ func String(name string) string {
 	return s
 }
 
+func StringWithValue(name string, val string) string {
+	if Has(name) {
+		return String(name)
+	}
+	return val
+}
+
 func Float32(name string) float32 {
 	if val, ok := os.LookupEnv(name); ok {
 		if v, e := strconv.ParseFloat(val, 32); e == nil {
@@ -22,6 +29,13 @@ func Float32(name string) float32 {
 		}
 	}
 	return 0
+}
+
+func Float32WithValue(name string, val float32) float32 {
+	if Has(name) {
+		return Float32(name)
+	}
+	return val
 }
 
 func Float64(name string) float64 {
@@ -33,6 +47,13 @@ func Float64(name string) float64 {
 	return 0
 }
 
+func Float64WithValue(name string, val float64) float64 {
+	if Has(name) {
+		return Float64(name)
+	}
+	return val
+}
+
 func Int64(name string) int64 {
 	if val, ok := os.LookupEnv(name); ok {
 		if v, e := strconv.ParseInt(val, 0, 64); e == nil {
@@ -40,6 +61,13 @@ func Int64(name string) int64 {
 		}
 	}
 	return 0
+}
+
+func Int64WithValue(name string, val int64) int64 {
+	if Has(name) {
+		return Int64(name)
+	}
+	return val
 }
 
 func Bool(name string) bool {
@@ -52,4 +80,11 @@ func Bool(name string) bool {
 		}
 	}
 	return false
+}
+
+func BoolWithValue(name string, val bool) bool {
+	if Has(name) {
+		return Bool(name)
+	}
+	return val
 }
