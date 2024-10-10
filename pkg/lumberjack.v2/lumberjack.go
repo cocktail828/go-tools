@@ -120,11 +120,12 @@ type Logger struct {
 	// After all data has been written, the client should call the
 	// Flush method to guarantee all data has been forwarded to
 	// the underlying io.Writer.
-	buf  []byte // buffer
-	n    int    // currently buffered data size
-	size int64  // currently file size
-	file *os.File
-	mu   sync.Mutex
+	buf         []byte // buffer
+	n           int    // currently buffered data size
+	size        int64  // currently file size
+	file        *os.File
+	lastFlushAt time.Time
+	mu          sync.Mutex
 
 	millCh    chan bool
 	startMill sync.Once
@@ -141,6 +142,9 @@ var (
 	// variable so tests can mock it out and not need to write megabytes of data
 	// to disk.
 	megabyte = 1024 * 1024
+
+	// maxFlushInterval defines the max interval that lumberjack will force flush buffer
+	maxFlushInterval = time.Second * 30
 )
 
 // Write implements io.Writer.  If a write would cause the log file to be larger
@@ -157,10 +161,6 @@ func (l *Logger) Write(p []byte) (n int, err error) {
 	}
 
 	if l.file == nil {
-		if len(l.buf) == 0 && l.Async {
-			l.buf = make([]byte, l.BufSize)
-		}
-
 		if err = l.openExistingOrNew(len(p)); err != nil {
 			return 0, err
 		}
@@ -173,13 +173,76 @@ func (l *Logger) Write(p []byte) (n int, err error) {
 	}
 
 	if l.Async {
+		if len(l.buf) == 0 {
+			l.buf = make([]byte, l.BufSize)
+		}
 		n, err = l.writeBuffer(p)
+		if l.lastFlushAt.Add(maxFlushInterval).Before(time.Now()) {
+			l.flush()
+		}
 	} else {
 		n, err = l.file.Write(p)
 	}
 	l.size += int64(n)
 
 	return n, err
+}
+
+// flush writes any buffered data to the underlying io.Writer.
+func (l *Logger) flush() error {
+	if l.n == 0 {
+		return nil
+	}
+	l.lastFlushAt = time.Now()
+	n, err := l.file.Write(l.buf[0:l.n])
+	if n < l.n && err == nil {
+		err = io.ErrShortWrite
+	}
+	if err != nil {
+		if n > 0 && n < l.n {
+			copy(l.buf[0:l.n-n], l.buf[n:l.n])
+		}
+		l.n -= n
+		return err
+	}
+	l.n = 0
+	return nil
+}
+
+// available returns how many bytes are unused in the buffer.
+func (l *Logger) available() int { return len(l.buf) - l.n }
+
+// buffered returns the number of bytes that have been written into the current buffer.
+func (l *Logger) buffered() int { return l.n }
+
+// Write writes the contents of p into the buffer.
+// It returns the number of bytes written.
+// If nn < len(p), it also returns an error explaining
+// why the write is short.
+func (l *Logger) writeBuffer(p []byte) (nn int, err error) {
+	for len(p) > l.available() {
+		var n int
+		if l.buffered() == 0 {
+			// Large write, empty buffer.
+			// Write directly from p to avoid copy.
+			l.lastFlushAt = time.Now()
+			n, err = l.file.Write(p)
+		} else {
+			n = copy(l.buf[l.n:], p)
+			l.n += n
+			err = l.flush()
+		}
+		nn += n
+		p = p[n:]
+
+		if err != nil {
+			return nn, err
+		}
+	}
+	n := copy(l.buf[l.n:], p)
+	l.n += n
+	nn += n
+	return nn, nil
 }
 
 // Close implements io.Closer, and closes the current logfile.
