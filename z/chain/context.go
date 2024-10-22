@@ -19,6 +19,7 @@ type Context struct {
 }
 
 func (c *Context) IsAborted() bool { return !reflectx.IsNil(c.errdesc) }
+
 func (c *Context) Abort() {
 	cur := c.chain.handlers[c.index]
 	c.errdesc = errors.Errorf("chain abort at(%v) unexpectlly", cur.Name())
@@ -60,3 +61,9 @@ func (c *Context) GetLocal() (any, bool) {
 func (c *Context) Set(v any)        { c.data.Store(globalKey, v) }
 func (c *Context) Get() (any, bool) { return c.data.Load(globalKey) }
 func (c *Context) Error() error     { return c.errdesc }
+
+// set instance global meta
+func (c *Context) SetMeta(v any) { c.chain.meta = v }
+
+// get instance global meta
+func (c *Context) GetMeta() any { return c.chain.meta }

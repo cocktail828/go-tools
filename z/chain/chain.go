@@ -25,7 +25,18 @@ type Handler interface {
 type Chain struct {
 	Logger   *slog.Logger
 	Parser   func(context.Context) (any, error)
+	meta     any // instance global meta
 	handlers []Handler
+}
+
+// set instance global meta
+func (chain *Chain) SetMeta(v any) {
+	chain.meta = v
+}
+
+// get instance global meta
+func (chain *Chain) GetMeta() any {
+	return chain.meta
 }
 
 func (chain *Chain) Use(handlers ...Handler) {
