@@ -1,45 +1,34 @@
 package balancer
 
-import (
-	"sync/atomic"
-)
+import "sync"
 
-type roundRobinBuilder struct{}
-
-func (roundRobinBuilder) Build() Balancer {
-	return NewRoundRobin()
+type rrBalancer struct {
+	mu    sync.RWMutex
+	pos   int
+	array []Validator
 }
 
-type roundRobin struct {
-	pos   uint64
-	array []any
+func NewRR() Balancer {
+	return &rrBalancer{}
 }
 
-var _ Balancer = &roundRobin{}
-
-func init() {
-	Register("round-robin", roundRobinBuilder{})
-	Register("rr", roundRobinBuilder{})
-}
-
-func NewRoundRobin() *roundRobin {
-	return &roundRobin{}
-}
-
-func (b *roundRobin) Update(array []any) error {
+func (b *rrBalancer) Update(array []Validator) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
 	b.array = array
-	return nil
 }
 
-func (b *roundRobin) Pick() any {
-	array := b.array
-	length := len(array)
+func (b *rrBalancer) Pick() Validator {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+
+	length := len(b.array)
 	for i := 0; i < length; i++ {
-		pos := atomic.AddUint64(&b.pos, 1) % uint64(length)
-		c := array[pos]
-		if f, ok := c.(Validator); ok && !f.IsOK() {
+		c := b.array[b.pos]
+		if !c.IsOK() {
 			continue
 		}
+		b.pos = (b.pos + 1) % length
 		return c
 	}
 	return nil

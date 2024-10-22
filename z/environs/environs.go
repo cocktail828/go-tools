@@ -2,17 +2,33 @@ package environs
 
 import (
 	"os"
+	"regexp"
 	"strconv"
 )
 
+var (
+	re          = regexp.MustCompile(`(\w+)=([^\s]+)`)
+	environVars = map[string]string{}
+)
+
+func init() {
+	for _, str := range os.Environ() {
+		match := re.FindStringSubmatch(str)
+		if len(match) > 0 {
+			key := match[1]
+			value := match[2]
+			environVars[key] = value
+		}
+	}
+}
+
 func Has(name string) bool {
-	_, ok := os.LookupEnv(name)
+	_, ok := environVars[name]
 	return ok
 }
 
 func String(name string) string {
-	s, _ := os.LookupEnv(name)
-	return s
+	return environVars[name]
 }
 
 func StringWithValue(name string, val string) string {
@@ -23,7 +39,7 @@ func StringWithValue(name string, val string) string {
 }
 
 func Float32(name string) float32 {
-	if val, ok := os.LookupEnv(name); ok {
+	if val, ok := environVars[name]; ok {
 		if v, e := strconv.ParseFloat(val, 32); e == nil {
 			return float32(v)
 		}
@@ -39,7 +55,7 @@ func Float32WithValue(name string, val float32) float32 {
 }
 
 func Float64(name string) float64 {
-	if val, ok := os.LookupEnv(name); ok {
+	if val, ok := environVars[name]; ok {
 		if v, e := strconv.ParseFloat(val, 64); e == nil {
 			return v
 		}
@@ -55,7 +71,7 @@ func Float64WithValue(name string, val float64) float64 {
 }
 
 func Int64(name string) int64 {
-	if val, ok := os.LookupEnv(name); ok {
+	if val, ok := environVars[name]; ok {
 		if v, e := strconv.ParseInt(val, 0, 64); e == nil {
 			return v
 		}
@@ -71,7 +87,7 @@ func Int64WithValue(name string, val int64) int64 {
 }
 
 func Bool(name string) bool {
-	if val, ok := os.LookupEnv(name); ok {
+	if val, ok := environVars[name]; ok {
 		if v, e := strconv.ParseBool(val); e == nil {
 			return v
 		}

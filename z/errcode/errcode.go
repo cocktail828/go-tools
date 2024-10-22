@@ -1,6 +1,7 @@
 package errcode
 
 import (
+	"errors"
 	"fmt"
 )
 
@@ -129,20 +130,58 @@ const (
 type Code interface {
 	Code() uint32
 	String() string
+	WithMessagef(format string, args ...interface{}) *Error
+	WithMessage(msg string) *Error
+	WithError(err error) *Error
 }
 
+func New(ec Code) *Error { return &Error{code: ec} }
+
 type Error struct {
-	Code   Code
-	Detail error
+	code  Code
+	cause []error
 }
 
 func (e Error) Error() string {
-	if e.Code == nil {
+	if e.code == nil {
 		return ""
 	}
-	return fmt.Sprintf("error: code = %q, detail = %v", e.Code, e.Detail)
+	return fmt.Sprintf("error: code=%d, desc=%q, cause=%q", e.code.Code(), e.code.String(), e.Cause())
 }
 
-func Errorf(ec Code, format string, args ...interface{}) Error {
-	return Error{ec, fmt.Errorf(format, args...)}
+func (e Error) Cause() error {
+	return errors.Join(e.cause...)
+}
+
+func (e *Error) WithMessagef(format string, args ...interface{}) *Error {
+	e.cause = append(e.cause, fmt.Errorf(format, args...))
+	return e
+}
+
+func (e *Error) WithMessage(msg string) *Error {
+	e.cause = append(e.cause, fmt.Errorf(msg))
+	return e
+}
+
+func (e *Error) WithError(err error) *Error {
+	e.cause = append(e.cause, err)
+	return e
+}
+
+func (e Error) Is(target error) bool {
+	for _, err := range e.cause {
+		if errors.Is(err, target) {
+			return true
+		}
+	}
+	return false
+}
+
+func (e Error) As(target any) bool {
+	for _, err := range e.cause {
+		if errors.As(err, target) {
+			return true
+		}
+	}
+	return false
 }

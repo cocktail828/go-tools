@@ -24,7 +24,7 @@ type Handler interface {
 
 type Chain struct {
 	Logger   *slog.Logger
-	Prepare  func(context.Context) (any, error)
+	Parser   func(context.Context) (any, error)
 	handlers []Handler
 }
 
@@ -50,8 +50,8 @@ func (chain *Chain) Handle(ctx context.Context) error {
 		}
 	}()
 
-	if chain.Prepare != nil {
-		req, err := chain.Prepare(ctx)
+	if chain.Parser != nil {
+		req, err := chain.Parser(ctx)
 		if err != nil {
 			return err
 		}

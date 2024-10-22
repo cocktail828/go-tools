@@ -5,7 +5,6 @@ import (
 	"log/slog"
 	"sync"
 
-	"github.com/cocktail828/go-tools/z/errcode"
 	"github.com/cocktail828/go-tools/z/reflectx"
 	"github.com/pkg/errors"
 )
@@ -26,7 +25,7 @@ func (c *Context) Abort() {
 	c.index = abortIndex
 }
 
-func (c *Context) AbortWithError(err *errcode.Error) {
+func (c *Context) AbortWithError(err error) {
 	c.index = abortIndex
 	c.errdesc = err
 }
