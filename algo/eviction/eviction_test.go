@@ -9,59 +9,71 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestLFULength(t *testing.T) {
-	gc := NewLFUCache(1000)
-	gc.Set("test1", 0)
-	gc.Set("test2", 0)
-	assert.Equalf(t, 2, gc.Len(true), "Expected length is %v, not 2", gc.Len(true))
+func TestLength(t *testing.T) {
+	f := func(gc Eviction) {
+		gc.Set("test1", 0)
+		gc.Set("test2", 0)
+		assert.Equalf(t, 2, gc.Len(true), "Expected length is %v, not 2", gc.Len(true))
+	}
+	t.Run("LFU", func(t *testing.T) { f(NewLFUCache(1000)) })
+	t.Run("LRU", func(t *testing.T) { f(NewLRUCache(1000)) })
 }
 
 func TestLFUEvictItem(t *testing.T) {
 	cacheSize := 10
 	numbers := 11
-	gc := NewLFUCache(cacheSize)
 
-	for i := 0; i < numbers; i++ {
-		gc.Set(fmt.Sprintf("Key-%d", i), i)
-		_, err := gc.Get(fmt.Sprintf("Key-%d", i))
-		if err != nil {
-			t.Errorf("Unexpected error: %v", err)
+	f := func(gc Eviction) {
+		for i := 0; i < numbers; i++ {
+			gc.Set(fmt.Sprintf("Key-%d", i), i)
+			_, err := gc.Get(fmt.Sprintf("Key-%d", i))
+			if err != nil {
+				t.Errorf("Unexpected error: %v", err)
+			}
 		}
 	}
+	t.Run("LFU", func(t *testing.T) { f(NewLFUCache(cacheSize)) })
+	t.Run("LRU", func(t *testing.T) { f(NewLRUCache(cacheSize)) })
 }
 
 func TestLFUHas(t *testing.T) {
-	gc := NewLFUCache(2)
-	gc.SetExpiration(10 * time.Millisecond)
+	f := func(gc Eviction) {
+		gc.SetExpiration(10 * time.Millisecond)
 
-	for i := 0; i < 10; i++ {
-		t.Run(fmt.Sprint(i), func(t *testing.T) {
-			gc.Get("test1")
-			gc.Get("test2")
+		for i := 0; i < 10; i++ {
+			t.Run(fmt.Sprint(i), func(t *testing.T) {
+				gc.Set("test1", 0)
+				gc.Set("test2", 0)
+				gc.Get("test1")
+				gc.Get("test2")
 
-			if gc.Has("test0") {
-				t.Fatal("should not have test0")
-			}
-			if !gc.Has("test1") {
-				t.Fatal("should have test1")
-			}
-			if !gc.Has("test2") {
-				t.Fatal("should have test2")
-			}
+				if gc.Has("test0") {
+					t.Fatal("should not have test0")
+				}
+				if !gc.Has("test1") {
+					t.Fatal("should have test1")
+				}
+				if !gc.Has("test2") {
+					t.Fatal("should have test2")
+				}
 
-			time.Sleep(20 * time.Millisecond)
+				time.Sleep(20 * time.Millisecond)
 
-			if gc.Has("test0") {
-				t.Fatal("should not have test0")
-			}
-			if gc.Has("test1") {
-				t.Fatal("should not have test1")
-			}
-			if gc.Has("test2") {
-				t.Fatal("should not have test2")
-			}
-		})
+				if gc.Has("test0") {
+					t.Fatal("should not have test0")
+				}
+				if gc.Has("test1") {
+					t.Fatal("should not have test1")
+				}
+				if gc.Has("test2") {
+					t.Fatal("should not have test2")
+				}
+			})
+		}
 	}
+
+	t.Run("LFU", func(t *testing.T) { f(NewLFUCache(2)) })
+	t.Run("LRU", func(t *testing.T) { f(NewLRUCache(2)) })
 }
 
 func TestLFUFreqListOrder(t *testing.T) {

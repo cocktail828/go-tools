@@ -45,9 +45,12 @@ func (c *LRUCache) set(key string, value any, expiration time.Duration) {
 		c.items[key] = c.evictList.PushFront(item)
 	}
 
-	item.addAt = time.Now()
+	addAt := time.Now()
 	item.isExpired = func(now time.Time) bool {
-		return now.Sub(item.addAt) >= expiration
+		if expiration == 0 {
+			return false
+		}
+		return now.Sub(addAt) >= expiration
 	}
 }
 
@@ -207,6 +210,5 @@ func (c *LRUCache) Purge() {
 type lruItem struct {
 	key       string
 	value     any
-	addAt     time.Time
 	isExpired func(time.Time) bool
 }

@@ -18,7 +18,6 @@ type lfuItem struct {
 	key         string
 	value       any
 	freqElement *list.Element
-	addAt       time.Time
 	isExpired   func(time.Time) bool
 }
 
@@ -79,9 +78,12 @@ func (c *LFUCache) set(key string, value any, expiration time.Duration) {
 		c.items[key] = item
 	}
 
-	item.addAt = time.Now()
+	addAt := time.Now()
 	item.isExpired = func(now time.Time) bool {
-		return now.Sub(item.addAt) >= expiration
+		if expiration == 0 {
+			return false
+		}
+		return now.Sub(addAt) >= expiration
 	}
 }
 
