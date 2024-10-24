@@ -77,7 +77,6 @@ func New(l net.Listener) CMux {
 		runningCtx:  ctx,
 		cancel:      cancel,
 		root:        l,
-		bufLen:      1024,
 		errh:        func(_ error) bool { return true },
 		readTimeout: noTimeout,
 	}
@@ -114,11 +113,23 @@ type matchersListener struct {
 	l  *muxListener
 }
 
+func (l *matchersListener) onMatch(muc *MuxConn) {
+	if l.l.closed.Load() {
+		_ = muc.Close()
+		return
+	}
+
+	select {
+	case l.l.connc <- muc:
+	case <-l.l.runningCtx.Done():
+		_ = muc.Close()
+	}
+}
+
 type cMux struct {
 	runningCtx  context.Context
 	cancel      context.CancelFunc
 	root        net.Listener
-	bufLen      int
 	errh        ErrorHandler
 	sls         []matchersListener
 	readTimeout time.Duration
@@ -143,10 +154,10 @@ func (m *cMux) Match(matchers ...Matcher) net.Listener {
 func (m *cMux) MatchWithWriters(matchers ...MatchWriter) net.Listener {
 	subCtx, cancel := context.WithCancel(m.runningCtx)
 	ml := &muxListener{
+		Listener:   m.root,
 		runningCtx: subCtx,
 		cancel:     cancel,
-		addr:       m.root.Addr(),
-		connc:      make(chan net.Conn, m.bufLen),
+		connc:      make(chan net.Conn, 1024),
 	}
 	m.sls = append(m.sls, matchersListener{ss: matchers, l: ml})
 	return ml
@@ -196,11 +207,7 @@ func (m *cMux) serve(c net.Conn, wg *sync.WaitGroup) {
 				if m.readTimeout > noTimeout {
 					_ = c.SetReadDeadline(time.Time{})
 				}
-				select {
-				case sl.l.connc <- muc:
-				case <-m.runningCtx.Done():
-					_ = c.Close()
-				}
+				sl.onMatch(muc)
 				return
 			}
 		}
@@ -233,25 +240,17 @@ func (m *cMux) handleErr(err error) bool {
 }
 
 type muxListener struct {
+	net.Listener
 	closed     atomic.Bool
 	runningCtx context.Context
 	cancel     context.CancelFunc
-	addr       net.Addr
 	connc      chan net.Conn
-}
-
-// Addr returns the root's network address.
-func (l *muxListener) Addr() net.Addr {
-	return l.addr
 }
 
 // Accept waits for and returns the next connection to the listener.
 func (l *muxListener) Accept() (net.Conn, error) {
 	select {
-	case c, ok := <-l.connc:
-		if !ok {
-			return nil, ErrListenerClosed
-		}
+	case c := <-l.connc:
 		return c, nil
 	case <-l.runningCtx.Done():
 		return nil, ErrServerClosed
