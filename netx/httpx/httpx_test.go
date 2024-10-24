@@ -2,6 +2,7 @@ package httpx_test
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"testing"
 
@@ -11,7 +12,11 @@ import (
 )
 
 func TestHTTPX(t *testing.T) {
-	req, err := httpx.NewRequestWithContext(context.Background(), "GET", "https://baidu.com", nil)
+	req, err := httpx.NewRequest(context.Background(), "GET", "https://baidu.com",
+		httpx.WithBody([]byte("xxx")),
+		httpx.WithHeaders(map[string]string{"k": "v"}),
+		httpx.WithModifier(func(r *http.Request) { fmt.Println("xxx") }),
+	)
 	z.Must(err)
 
 	_, err = http.DefaultClient.Do(req)
