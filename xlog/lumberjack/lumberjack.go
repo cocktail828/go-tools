@@ -1,11 +1,14 @@
-package logger
+package lumberjack
 
 import (
+	"bufio"
 	"io"
 	"log/slog"
-	"strings"
+	"sync"
 
-	"github.com/cocktail828/go-tools/pkg/lumberjack.v2"
+	"github.com/cocktail828/go-tools/xlog"
+	"github.com/cocktail828/go-tools/z/environs"
+	"gopkg.in/natefinch/lumberjack.v2"
 )
 
 type Config struct {
@@ -21,9 +24,6 @@ type Config struct {
 
 	// Async will cache log and flush on need(30s timeout or buffer is full)
 	Async bool `json:"async" toml:"async" yaml:"async"`
-
-	// bufsize define the buffer size, default size 5Mb
-	BufSize int `json:"bufsize" toml:"bufsize" yaml:"bufsize" default:"5242880"`
 
 	// MaxAge is the maximum number of days to retain old log files based on the timestamp encoded in their filename.
 	//  Note that a day is defined as 24 hours and may not exactly correspond to calendar days due to daylight savings,
@@ -41,42 +41,51 @@ type Config struct {
 	Compress bool `json:"compress" toml:"compress" yaml:"compress"`
 }
 
-func NewLoggerWithLumberjack(cfg Config) *slog.Logger {
-	var lvl slog.LevelVar
-	lvl.Set(func() slog.Level {
-		switch strings.ToLower(cfg.Level) {
-		case "debug":
-			return slog.LevelDebug
-		case "info":
-			return slog.LevelInfo
-		case "warn":
-			return slog.LevelWarn
-		case "error":
-			return slog.LevelError
-		default:
-			return slog.LevelError
-		}
-	}())
+var (
+	MinBufSize = 10 * 1024 * 1024 // 10MB
+)
 
-	var wr io.Writer
+type BufferWriter struct {
+	mu sync.RWMutex
+	wr io.Writer
+}
+
+func (w *BufferWriter) Write(p []byte) (n int, err error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.wr.Write(p)
+}
+
+func NewLumberjack(cfg Config) *xlog.Logger {
+	var w io.Writer
 	if cfg.Filename == "/dev/null" {
-		wr = io.Discard
+		w = io.Discard
 	} else {
-		wr = &lumberjack.Logger{
+		w = &lumberjack.Logger{
 			Filename:   cfg.Filename,
 			MaxSize:    cfg.MaxSize,
-			Async:      cfg.Async,
-			BufSize:    cfg.BufSize,
 			MaxAge:     cfg.MaxAge,
 			MaxBackups: cfg.MaxCount,
 			Compress:   cfg.Compress,
 		}
 	}
 
-	return slog.New(slog.NewJSONHandler(
-		wr, &slog.HandlerOptions{
-			AddSource: cfg.AddSource,
-			Level:     &lvl,
-		},
-	))
+	if cfg.Async {
+		bufsize := MinBufSize
+		if val := int(environs.Int64("XLOG_BUF_SIZE")); val > MinBufSize {
+			bufsize = val
+		}
+		w = &BufferWriter{
+			wr: bufio.NewWriterSize(w, bufsize),
+		}
+	}
+
+	level := slog.LevelError
+	level.UnmarshalText([]byte(cfg.Level))
+
+	sopts := slog.HandlerOptions{
+		AddSource: cfg.AddSource,
+		Level:     level,
+	}
+	return xlog.New(slog.NewJSONHandler(w, &sopts), sopts)
 }
