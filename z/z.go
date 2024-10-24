@@ -32,6 +32,6 @@ func Must(err error) {
 
 func Mustf(err error, format string, args ...any) {
 	if !reflectx.IsNil(err) {
-		panic(fmt.Sprintf(format, args...))
+		panic(err.Error() + ", message: " + fmt.Sprintf(format, args...))
 	}
 }
