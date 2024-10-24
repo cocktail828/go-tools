@@ -30,6 +30,7 @@ func dump(l *colorful.Logger) {
 
 func main() {
 	l := colorful.NewColorfulLog(log.Default())
+	// l = colorful.Default()
 	dump(l)
 	l.SetFlags(l.Flags() | log.Llongfile)
 	dump(l)
