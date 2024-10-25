@@ -114,11 +114,16 @@ type matchersListener struct {
 }
 
 func (l *matchersListener) onMatch(muc *MuxConn) {
+	// liveness check
 	if l.l.closed.Load() {
 		_ = muc.Close()
 		return
 	}
 
+	// For concurrency security, select may still choose to write a closed channel.
+	// There is a small probability that this edge condition will be triggered.
+	l.l.mu.RLock()
+	defer l.l.mu.RUnlock()
 	select {
 	case l.l.connc <- muc:
 	case <-l.l.runningCtx.Done():
@@ -241,6 +246,7 @@ func (m *cMux) handleErr(err error) bool {
 
 type muxListener struct {
 	net.Listener
+	mu         sync.RWMutex
 	closed     atomic.Bool
 	runningCtx context.Context
 	cancel     context.CancelFunc
@@ -250,7 +256,10 @@ type muxListener struct {
 // Accept waits for and returns the next connection to the listener.
 func (l *muxListener) Accept() (net.Conn, error) {
 	select {
-	case c := <-l.connc:
+	case c, ok := <-l.connc:
+		if !ok {
+			return nil, ErrListenerClosed
+		}
 		return c, nil
 	case <-l.runningCtx.Done():
 		return nil, ErrServerClosed
@@ -262,7 +271,9 @@ func (l *muxListener) Accept() (net.Conn, error) {
 func (l *muxListener) Close() error {
 	l.cancel()
 	if l.closed.CompareAndSwap(false, true) {
+		l.mu.Lock()
 		close(l.connc)
+		l.mu.Unlock()
 		// Drain the connections enqueued for the listener.
 		for c := range l.connc {
 			_ = c.Close()
