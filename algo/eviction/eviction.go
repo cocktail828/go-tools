@@ -1,30 +1,25 @@
 package eviction
 
 import (
-	"errors"
 	"sync/atomic"
 	"time"
-)
-
-var (
-	ErrKeyNotFound = errors.New("key not found")
 )
 
 type Eviction interface {
 	Stats
 	Set(string, any)
-	Get(string) (any, error)
+	SetWithExpiration(string, any, time.Duration)
+	Get(string) (any, bool)
 	Has(string) bool
 	Remove(string) bool
-	Keys(checkExpired bool) []string
-	Len(checkExpired bool) int
+	Keys(includeExpired bool) []string
+	Len(includeExpired bool) int
 	Purge()
-	GetAll(checkExpired bool) map[string]any
-	SetExpiration(expiration time.Duration)
+	GetAll(includeExpired bool) map[string]any
 }
 
 type cache struct {
-	size       int
+	size       uint
 	expiration time.Duration // 0 means item has no expiration
 	onEvict    func(string, any)
 	onPurge    func(string, any)
@@ -32,10 +27,6 @@ type cache struct {
 	// statistics
 	hitCount  uint64
 	missCount uint64
-}
-
-func (c *cache) SetExpiration(expiration time.Duration) {
-	c.expiration = expiration
 }
 
 type Stats interface {

@@ -6,209 +6,199 @@ import (
 	"time"
 )
 
-// Discards the least recently used items first.
 type LRUCache struct {
 	cache
-
 	mu        sync.RWMutex
 	items     map[string]*list.Element
 	evictList *list.List
 }
 
-func NewLRUCache(size int) Eviction {
-	c := &LRUCache{cache: cache{size: size}}
-	c.init()
-	return c
+type lruItem struct {
+	key      string
+	value    any
+	freq     uint
+	expireAt time.Time
 }
 
-func (c *LRUCache) init() {
-	c.evictList = list.New()
-	c.items = make(map[string]*list.Element, c.size+1)
+func NewLRUCache(size uint, opts ...Option) Eviction {
+	c := cache{
+		size:    size,
+		onEvict: func(s string, a any) {},
+		onPurge: func(s string, a any) {},
+	}
+	for _, o := range opts {
+		o(&c)
+	}
+
+	return &LRUCache{
+		cache:     c,
+		items:     make(map[string]*list.Element, size),
+		evictList: list.New(),
+	}
 }
 
-func (c *LRUCache) set(key string, value any, expiration time.Duration) {
-	// Check for existing item
-	var item *lruItem
-	if it, ok := c.items[key]; ok {
-		c.evictList.MoveToFront(it)
-		item = it.Value.(*lruItem)
+func (c *LRUCache) Set(key string, value any) {
+	c.SetWithExpiration(key, value, c.expiration)
+}
+
+func (c *LRUCache) SetWithExpiration(key string, value any, expiration time.Duration) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	var exp time.Time
+	if expiration > 0 {
+		exp = time.Now().Add(expiration)
+	}
+
+	if elem, exists := c.items[key]; exists {
+		c.evictList.MoveToFront(elem)
+		item := elem.Value.(*lruItem)
 		item.value = value
+		item.expireAt = exp
 	} else {
-		// Verify size not exceeded
-		if c.evictList.Len() >= c.size {
+		if uint(c.evictList.Len()) >= c.size {
 			c.evict(1)
 		}
-		item = &lruItem{
-			key:   key,
-			value: value,
-		}
-		c.items[key] = c.evictList.PushFront(item)
-	}
-
-	addAt := time.Now()
-	item.isExpired = func(now time.Time) bool {
-		if expiration == 0 {
-			return false
-		}
-		return now.Sub(addAt) >= expiration
+		c.items[key] = c.evictList.PushFront(&lruItem{
+			key:      key,
+			value:    value,
+			expireAt: exp,
+		})
 	}
 }
 
-// set a new key-value pair
-func (c *LRUCache) Set(key string, value any) {
+func (c *LRUCache) Get(key string) (any, bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.set(key, value, c.expiration)
-}
 
-// Set a new key-value pair with an expiration time
-func (c *LRUCache) SetWithExpire(key string, value any, expiration time.Duration) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.set(key, value, expiration)
-}
-
-// Get a value from cache pool using key if it exists.
-func (c *LRUCache) Get(key string) (any, error) {
-	return c.get(key)
-}
-
-func (c *LRUCache) get(key string) (any, error) {
-	c.mu.Lock()
-	item, ok := c.items[key]
-	if ok {
-		it := item.Value.(*lruItem)
-		if !it.isExpired(time.Now()) {
-			c.evictList.MoveToFront(item)
-			v := it.value
-			c.mu.Unlock()
-			c.IncrHitCount()
-			return v, nil
+	if elem, exists := c.items[key]; exists {
+		item := elem.Value.(*lruItem)
+		now := time.Now()
+		if item.expireAt.IsZero() || now.Before(item.expireAt) {
+			c.evictList.MoveToFront(elem)
+			item.freq++
+			return item.value, true
 		}
-		c.removeElement(item)
+		c.removeElement(elem)
 	}
-	c.mu.Unlock()
-	c.IncrMissCount()
-	return nil, ErrKeyNotFound
+	return nil, false
 }
 
-// evict removes the oldest item from the cache.
-func (c *LRUCache) evict(count int) {
-	for i := 0; i < count; i++ {
-		ent := c.evictList.Back()
-		if ent == nil {
-			return
-		} else {
-			c.removeElement(ent)
-		}
-	}
-}
-
-// Has checks if key exists in cache
 func (c *LRUCache) Has(key string) bool {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	now := time.Now()
-	return c.has(key, now)
+
+	elem, exists := c.items[key]
+	return exists && (elem.Value.(*lruItem).expireAt.IsZero() || time.Now().Before(elem.Value.(*lruItem).expireAt))
 }
 
-func (c *LRUCache) has(key string, now time.Time) bool {
-	item, ok := c.items[key]
-	if !ok {
-		return false
-	}
-	return !item.Value.(*lruItem).isExpired(now)
-}
-
-// Remove removes the provided key from the cache.
 func (c *LRUCache) Remove(key string) bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	return c.remove(key)
-}
-
-func (c *LRUCache) remove(key string) bool {
-	if ent, ok := c.items[key]; ok {
-		c.removeElement(ent)
+	elem, exists := c.items[key]
+	if exists {
+		c.removeElement(elem)
 		return true
 	}
 	return false
 }
 
-func (c *LRUCache) removeElement(e *list.Element) {
-	c.evictList.Remove(e)
-	entry := e.Value.(*lruItem)
-	delete(c.items, entry.key)
-	if c.onEvict != nil {
-		entry := e.Value.(*lruItem)
-		c.onEvict(entry.key, entry.value)
-	}
-}
-
-// GetALL returns all key-value pairs in the cache.
-func (c *LRUCache) GetAll(checkExpired bool) map[string]any {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	items := make(map[string]any, len(c.items))
-	now := time.Now()
-	for k, item := range c.items {
-		if !checkExpired || c.has(k, now) {
-			items[k] = item.Value.(*lruItem).value
-		}
-	}
-	return items
-}
-
-// Keys returns a slice of the keys in the cache.
-func (c *LRUCache) Keys(checkExpired bool) []string {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	keys := make([]string, 0, len(c.items))
-	now := time.Now()
-	for k := range c.items {
-		if !checkExpired || c.has(k, now) {
-			keys = append(keys, k)
-		}
-	}
-	return keys
-}
-
-// Len returns the number of items in the cache.
-func (c *LRUCache) Len(checkExpired bool) int {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	if !checkExpired {
-		return len(c.items)
-	}
-	var length int
-	now := time.Now()
-	for k := range c.items {
-		if c.has(k, now) {
-			length++
-		}
-	}
-	return length
-}
-
-// Completely clear the cache
 func (c *LRUCache) Purge() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	if c.onPurge != nil {
-		for key, item := range c.items {
-			it := item.Value.(*lruItem)
-			v := it.value
-			c.onPurge(key, v)
+		for key, elem := range c.items {
+			c.onPurge(key, elem.Value.(*lruItem).value)
+		}
+	}
+	c.items = make(map[string]*list.Element, c.size)
+	c.evictList.Init()
+}
+
+func (c *LRUCache) evict(count int) {
+	now := time.Now()
+	for _, elem := range c.items {
+		item := elem.Value.(*lruItem)
+		if !item.expireAt.IsZero() && !now.Before(item.expireAt) {
+			count--
+			if count == 0 {
+				return
+			}
 		}
 	}
 
-	c.init()
+	for i := 0; i < count; i++ {
+		elem := c.evictList.Back()
+		if elem != nil {
+			c.removeElement(elem)
+		}
+	}
 }
 
-type lruItem struct {
-	key       string
-	value     any
-	isExpired func(time.Time) bool
+func (c *LRUCache) removeElement(e *list.Element) {
+	item := e.Value.(*lruItem)
+	if c.onEvict != nil {
+		c.onEvict(item.key, item.value)
+	}
+	delete(c.items, item.key)
+	c.evictList.Remove(e)
+}
+
+func (c *LRUCache) lookupWithCallbackLocked(includeExpired bool, cb func(*lruItem)) {
+	now := time.Now()
+	for _, elem := range c.items {
+		item := elem.Value.(*lruItem)
+		if includeExpired || (item.expireAt.IsZero() || now.Before(item.expireAt)) {
+			cb(item)
+		}
+	}
+}
+
+func (c *LRUCache) GetAll(includeExpired bool) map[string]any {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	result := make(map[string]any, len(c.items))
+	c.lookupWithCallbackLocked(includeExpired, func(li *lruItem) {
+		result[li.key] = li.value
+	})
+	return result
+}
+
+func (c *LRUCache) Keys(includeExpired bool) []string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	result := make([]string, 0, len(c.items))
+	c.lookupWithCallbackLocked(includeExpired, func(li *lruItem) {
+		result = append(result, li.key)
+	})
+	return result
+}
+
+func (c *LRUCache) Len(includeExpired bool) int {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	result := 0
+	c.lookupWithCallbackLocked(includeExpired, func(li *lruItem) {
+		result++
+	})
+	return result
+}
+
+func (c *LRUCache) Frequency(key string) uint {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	elem, exists := c.items[key]
+	if exists {
+		item := elem.Value.(*lruItem)
+		if item.expireAt.IsZero() || time.Now().Before(item.expireAt) {
+			return item.freq
+		}
+	}
+	return 0
 }

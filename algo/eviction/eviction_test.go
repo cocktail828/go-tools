@@ -1,189 +1,132 @@
-package eviction
+package eviction_test
 
 import (
-	"fmt"
-	"strconv"
 	"testing"
 	"time"
 
+	"github.com/cocktail828/go-tools/algo/eviction"
 	"github.com/stretchr/testify/assert"
 )
 
-func TestLength(t *testing.T) {
-	f := func(gc Eviction) {
-		gc.Set("test1", 0)
-		gc.Set("test2", 0)
-		assert.Equalf(t, 2, gc.Len(true), "Expected length is %v, not 2", gc.Len(true))
-	}
-	t.Run("LFU", func(t *testing.T) { f(NewLFUCache(1000)) })
-	t.Run("LRU", func(t *testing.T) { f(NewLRUCache(1000)) })
-}
-
-func TestLFUEvictItem(t *testing.T) {
-	cacheSize := 10
-	numbers := 11
-
-	f := func(gc Eviction) {
-		for i := 0; i < numbers; i++ {
-			gc.Set(fmt.Sprintf("Key-%d", i), i)
-			_, err := gc.Get(fmt.Sprintf("Key-%d", i))
-			if err != nil {
-				t.Errorf("Unexpected error: %v", err)
-			}
-		}
-	}
-	t.Run("LFU", func(t *testing.T) { f(NewLFUCache(cacheSize)) })
-	t.Run("LRU", func(t *testing.T) { f(NewLRUCache(cacheSize)) })
-}
-
-func TestLFUHas(t *testing.T) {
-	f := func(gc Eviction) {
-		gc.SetExpiration(10 * time.Millisecond)
-
-		for i := 0; i < 10; i++ {
-			t.Run(fmt.Sprint(i), func(t *testing.T) {
-				gc.Set("test1", 0)
-				gc.Set("test2", 0)
-				gc.Get("test1")
-				gc.Get("test2")
-
-				if gc.Has("test0") {
-					t.Fatal("should not have test0")
-				}
-				if !gc.Has("test1") {
-					t.Fatal("should have test1")
-				}
-				if !gc.Has("test2") {
-					t.Fatal("should have test2")
-				}
-
-				time.Sleep(20 * time.Millisecond)
-
-				if gc.Has("test0") {
-					t.Fatal("should not have test0")
-				}
-				if gc.Has("test1") {
-					t.Fatal("should not have test1")
-				}
-				if gc.Has("test2") {
-					t.Fatal("should not have test2")
-				}
-			})
-		}
+func TestCacheExpiration(t *testing.T) {
+	tests := []struct {
+		name      string
+		cacheInit func(size uint) eviction.Eviction
+	}{
+		{"LFUCache", func(size uint) eviction.Eviction { return eviction.NewLFUCache(size) }},
+		{"LRUCache", func(size uint) eviction.Eviction { return eviction.NewLRUCache(size) }},
+		{"WindowLFUCache", func(size uint) eviction.Eviction { return eviction.NewWindowLFUCache(size, size*2, 100) }},
 	}
 
-	t.Run("LFU", func(t *testing.T) { f(NewLFUCache(2)) })
-	t.Run("LRU", func(t *testing.T) { f(NewLRUCache(2)) })
-}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cache := tt.cacheInit(2)
 
-func TestLFUFreqListOrder(t *testing.T) {
-	gc := NewLFUCache(5)
-	for i := 4; i >= 0; i-- {
-		v := strconv.Itoa(i)
-		gc.Set(v, i)
-		for j := 0; j <= i; j++ {
-			gc.Get(v)
-		}
-	}
-	if l := gc.(*LFUCache).freqList.Len(); l != 6 {
-		t.Fatalf("%v != 6", l)
-	}
-	var i uint
-	for e := gc.(*LFUCache).freqList.Front(); e != nil; e = e.Next() {
-		if e.Value.(*freqEntry).freq != i {
-			t.Fatalf("%v != %v", e.Value.(*freqEntry).freq, i)
-		}
-		i++
-	}
-	gc.Remove("1")
+			cache.SetWithExpiration("key1", "value1", 50*time.Millisecond)
+			cache.SetWithExpiration("key2", "value2", 100*time.Millisecond)
 
-	if l := gc.(*LFUCache).freqList.Len(); l != 5 {
-		t.Fatalf("%v != 5", l)
-	}
-	gc.Set("1", 1)
-	if l := gc.(*LFUCache).freqList.Len(); l != 5 {
-		t.Fatalf("%v != 5", l)
-	}
-	gc.Get("1")
-	if l := gc.(*LFUCache).freqList.Len(); l != 5 {
-		t.Fatalf("%v != 5", l)
-	}
-	gc.Get("1")
-	if l := gc.(*LFUCache).freqList.Len(); l != 6 {
-		t.Fatalf("%v != 6", l)
+			// 检查在过期前是否存在
+			value, exists := cache.Get("key1")
+			assert.True(t, exists)
+			assert.Equal(t, "value1", value)
+
+			// 等待元素过期
+			time.Sleep(60 * time.Millisecond)
+			_, exists = cache.Get("key1")
+			assert.False(t, exists, "key1 should have expired")
+
+			// 确认其他未过期元素仍在
+			value, exists = cache.Get("key2")
+			assert.True(t, exists)
+			assert.Equal(t, "value2", value)
+		})
 	}
 }
 
-func TestLFUFreqListLength(t *testing.T) {
-	k0, v0 := "k0", "v0"
-	k1, v1 := "k1", "v1"
-
-	{
-		gc := NewLFUCache(5)
-		if l := gc.(*LFUCache).freqList.Len(); l != 1 {
-			t.Fatalf("%v != 1", l)
-		}
-	}
-	{
-		gc := NewLFUCache(5)
-		gc.Set(k0, v0)
-		for i := 0; i < 5; i++ {
-			gc.Get(k0)
-		}
-		if l := gc.(*LFUCache).freqList.Len(); l != 2 {
-			t.Fatalf("%v != 2", l)
-		}
+func TestCacheEviction(t *testing.T) {
+	tests := []struct {
+		name      string
+		cacheInit func(size uint) eviction.Eviction
+	}{
+		{"LFUCache", func(size uint) eviction.Eviction { return eviction.NewLFUCache(size) }},
+		{"LRUCache", func(size uint) eviction.Eviction { return eviction.NewLRUCache(size) }},
+		{"WindowLFUCache", func(size uint) eviction.Eviction { return eviction.NewWindowLFUCache(size, size*2, 100) }},
 	}
 
-	{
-		gc := NewLFUCache(5)
-		gc.Set(k0, v0)
-		gc.Set(k1, v1)
-		for i := 0; i < 5; i++ {
-			gc.Get(k0)
-			gc.Get(k1)
-		}
-		if l := gc.(*LFUCache).freqList.Len(); l != 2 {
-			t.Fatalf("%v != 2", l)
-		}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cache := tt.cacheInit(2)
+
+			cache.Set("key1", "value1")
+			cache.Set("key2", "value2")
+			cache.Set("key3", "value3") // "key1" 应该被淘汰
+
+			_, exists := cache.Get("key1")
+			assert.False(t, exists, "key1 should have been evicted")
+
+			cache.Get("key2")           // 提升 "key2" 的频率 (LFU) 或最近使用状态 (LRU)
+			cache.Set("key4", "value4") // 淘汰其他项目 ("key3" 应该被淘汰)
+
+			_, exists = cache.Get("key3")
+			assert.False(t, exists, "key3 should have been evicted")
+			value, exists := cache.Get("key2")
+			assert.True(t, exists)
+			assert.Equal(t, "value2", value)
+		})
+	}
+}
+
+func TestCacheInterfaces(t *testing.T) {
+	tests := []struct {
+		name      string
+		cacheInit func(size uint) eviction.Eviction
+	}{
+		{"LFUCache", func(size uint) eviction.Eviction { return eviction.NewLFUCache(size) }},
+		{"LRUCache", func(size uint) eviction.Eviction { return eviction.NewLRUCache(size) }},
+		{"WindowLFUCache", func(size uint) eviction.Eviction { return eviction.NewWindowLFUCache(size, size*2, 100) }},
 	}
 
-	{
-		gc := NewLFUCache(5)
-		gc.Set(k0, v0)
-		gc.Set(k1, v1)
-		for i := 0; i < 5; i++ {
-			gc.Get(k0)
-		}
-		if l := gc.(*LFUCache).freqList.Len(); l != 2 {
-			t.Fatalf("%v != 2", l)
-		}
-		for i := 0; i < 5; i++ {
-			gc.Get(k1)
-		}
-		if l := gc.(*LFUCache).freqList.Len(); l != 2 {
-			t.Fatalf("%v != 2", l)
-		}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cache := tt.cacheInit(3)
+
+			cache.Set("key1", "value1")
+			cache.Set("key2", "value2")
+			cache.Set("key3", "value3")
+
+			assert.True(t, cache.Has("key1"))
+			assert.True(t, cache.Has("key2"))
+			assert.False(t, cache.Has("nonexistent"))
+
+			cache.Remove("key2")
+			assert.False(t, cache.Has("key2"), "key2 should have been removed")
+
+			allItems := cache.GetAll(false)
+			assert.Equal(t, 2, len(allItems))
+			assert.Contains(t, allItems, "key1")
+			assert.Contains(t, allItems, "key3")
+		})
+	}
+}
+
+func TestCachePurge(t *testing.T) {
+	tests := []struct {
+		name      string
+		cacheInit func(size uint) eviction.Eviction
+	}{
+		{"LFUCache", func(size uint) eviction.Eviction { return eviction.NewLFUCache(size) }},
+		{"LRUCache", func(size uint) eviction.Eviction { return eviction.NewLRUCache(size) }},
+		{"WindowLFUCache", func(size uint) eviction.Eviction { return eviction.NewWindowLFUCache(size, size*2, 100) }},
 	}
 
-	{
-		gc := NewLFUCache(5)
-		gc.Set(k0, v0)
-		gc.Get(k0)
-		if l := gc.(*LFUCache).freqList.Len(); l != 2 {
-			t.Fatalf("%v != 2", l)
-		}
-		gc.Remove(k0)
-		if l := gc.(*LFUCache).freqList.Len(); l != 1 {
-			t.Fatalf("%v != 1", l)
-		}
-		gc.Set(k0, v0)
-		if l := gc.(*LFUCache).freqList.Len(); l != 1 {
-			t.Fatalf("%v != 1", l)
-		}
-		gc.Get(k0)
-		if l := gc.(*LFUCache).freqList.Len(); l != 2 {
-			t.Fatalf("%v != 2", l)
-		}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cache := tt.cacheInit(2)
+			cache.Set("key1", "value1")
+			cache.Set("key2", "value2")
+
+			cache.Purge()
+			assert.Equal(t, 0, cache.Len(false), "Cache should be empty after purge")
+		})
 	}
 }
