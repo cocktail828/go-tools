@@ -2,9 +2,9 @@ package chain
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"math"
+	"sync"
 
 	"github.com/pkg/errors"
 )
@@ -14,29 +14,29 @@ const (
 	abortIndex int8 = math.MaxInt8 >> 1
 
 	// global key
-	globalKey = "__global__"
+	globalKey  = "__global__"
+	requestKey = "__request__"
 )
 
 type Handler interface {
 	Name() string
-	Execute(ctx *Context)
+	Execute(*Context)
 }
 
 type Chain struct {
 	Logger   *slog.Logger
-	Parser   func(context.Context) (any, error)
-	meta     any // instance global meta
+	meta     sync.Map // instance global meta
 	handlers []Handler
 }
 
 // set instance global meta
-func (chain *Chain) SetMeta(v any) {
-	chain.meta = v
+func (chain *Chain) StoreMeta(v any) {
+	chain.meta.Store(globalKey, v)
 }
 
 // get instance global meta
-func (chain *Chain) GetMeta() any {
-	return chain.meta
+func (chain *Chain) LoadMeta() (any, bool) {
+	return chain.meta.Load(globalKey)
 }
 
 func (chain *Chain) Use(handlers ...Handler) {
@@ -46,27 +46,21 @@ func (chain *Chain) Use(handlers ...Handler) {
 	chain.handlers = append(chain.handlers, handlers...)
 }
 
-func (chain *Chain) Handle(ctx context.Context) error {
+func (chain *Chain) Handle(ctx context.Context, opts ...Option) error {
 	if len(chain.handlers) == 0 {
 		return errors.New("no handlers found")
+	}
+
+	if ctx == nil {
+		ctx = context.Background()
 	}
 
 	c := &Context{
 		Context: ctx,
 		chain:   chain,
 	}
-	defer func() {
-		if err := recover(); err != nil {
-			chain.Logger.Error(fmt.Sprintf("oops! chain handlers(%v) panic: %v", c.index, err))
-		}
-	}()
-
-	if chain.Parser != nil {
-		req, err := chain.Parser(ctx)
-		if err != nil {
-			return err
-		}
-		c.request = req
+	for _, o := range opts {
+		o(c)
 	}
 
 	for _, h := range chain.handlers {
