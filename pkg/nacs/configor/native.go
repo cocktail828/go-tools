@@ -7,13 +7,21 @@ import (
 	"github.com/fsnotify/fsnotify"
 )
 
+type FileConfigorBuilder struct{}
+
+func (FileConfigorBuilder) Build() Configor { return NewFileConfigor() }
+
+func init() {
+	Register("native", FileConfigorBuilder{})
+}
+
 type FileConfigor struct{}
 
 func NewFileConfigor() Configor {
 	return &FileConfigor{}
 }
 
-func (fc *FileConfigor) Watch(ctx context.Context, handler ConfigorHandler, paths ...string) error {
+func (fc *FileConfigor) Watch(ctx context.Context, handler Handler, paths ...string) error {
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		return err
@@ -39,7 +47,7 @@ func (fc *FileConfigor) Watch(ctx context.Context, handler ConfigorHandler, path
 				fc.handleEvent(event, handler)
 			case err, ok := <-watcher.Errors:
 				if ok {
-					handler.OnChange(SYS, "", nil, err)
+					handler.OnChange(SYS, Config{}, err)
 				}
 			}
 		}
@@ -47,7 +55,7 @@ func (fc *FileConfigor) Watch(ctx context.Context, handler ConfigorHandler, path
 	return nil
 }
 
-func (fc *FileConfigor) handleEvent(event fsnotify.Event, handler ConfigorHandler) {
+func (fc *FileConfigor) handleEvent(event fsnotify.Event, handler Handler) {
 	var evt Event
 	var content []byte
 	var err error
@@ -63,7 +71,7 @@ func (fc *FileConfigor) handleEvent(event fsnotify.Event, handler ConfigorHandle
 	default:
 		return
 	}
-	handler.OnChange(evt, event.Name, content, err)
+	handler.OnChange(evt, Config{event.Name, content}, err)
 }
 
 func (fc *FileConfigor) Load(ctx context.Context, paths ...string) (map[string][]byte, error) {

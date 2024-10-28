@@ -14,7 +14,7 @@ func TestConfigor(t *testing.T) {
 	z.Must(err)
 
 	t.Run("none-config", func(t *testing.T) {
-		cfgor, err := nacs.NewConfigor("", "", "", true)
+		cfgor, err := nacs.NewConfigor("native://xxx", "", "")
 		z.Must(err)
 
 		// assert.EqualValues(t, data, cfgor.GetRawCfg()) // panic
@@ -22,7 +22,7 @@ func TestConfigor(t *testing.T) {
 	})
 
 	t.Run("one-config", func(t *testing.T) {
-		cfgor, err := nacs.NewConfigor("", "", "", true, "configor.go")
+		cfgor, err := nacs.NewConfigor("native://xxx", "", "", "configor.go")
 		z.Must(err)
 
 		assert.EqualValues(t, data, cfgor.GetRawCfg())
@@ -30,7 +30,7 @@ func TestConfigor(t *testing.T) {
 	})
 
 	t.Run("more-config", func(t *testing.T) {
-		cfgor, err := nacs.NewConfigor("", "", "", true, "configor.go", "configor_test.go")
+		cfgor, err := nacs.NewConfigor("native://xxx", "", "", "configor.go", "configor_test.go")
 		z.Must(err)
 
 		// assert.EqualValues(t, data, cfgor.GetRawCfg()) // panic

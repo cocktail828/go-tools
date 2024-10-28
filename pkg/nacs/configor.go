@@ -7,25 +7,28 @@ import (
 	"sync"
 
 	"github.com/cocktail828/go-tools/pkg/nacs/configor"
+	"github.com/cocktail828/go-tools/z/environs"
 )
 
 var (
 	ErrNoSuchConfigor = errors.New("no such configor")
 )
 
-type ConfigLoader struct {
-	files []string
-	cache sync.Map
-	cfgor configor.Configor
+type Configor struct {
+	files  []string
+	cache  sync.Map
+	dumper dumper
+	cfgor  configor.Configor
 }
 
-func NewConfigor(addr, group, service string, native bool, files ...string) (*ConfigLoader, error) {
-	loader := &ConfigLoader{
-		files: files,
-		cfgor: configor.NewFileConfigor(),
+func NewConfigor(addr, group, service string, files ...string) (*Configor, error) {
+	loader := &Configor{
+		files:  files,
+		dumper: dumper{".findercache", "config_"},
+		cfgor:  configor.NewFileConfigor(),
 	}
 
-	if !native {
+	if !environs.Has("NATIVE_CONFIGOR") {
 		urld, err := url.Parse(addr)
 		if err != nil {
 			return nil, err
@@ -43,12 +46,12 @@ func NewConfigor(addr, group, service string, native bool, files ...string) (*Co
 		return nil, err
 	}
 	for k, v := range vals {
-		loader.cache.Store(k, v)
+		loader.onEvent(configor.ADD, configor.Config{k, v})
 	}
 	return loader, nil
 }
 
-func (loader *ConfigLoader) GetRawCfg() []byte {
+func (loader *Configor) GetRawCfg() []byte {
 	if len(loader.files) != 1 {
 		panic("not exactly one config is provided")
 	}
@@ -60,7 +63,7 @@ func (loader *ConfigLoader) GetRawCfg() []byte {
 	return val.([]byte)
 }
 
-func (loader *ConfigLoader) GetByName(name string) []byte {
+func (loader *Configor) GetByName(name string) []byte {
 	val, ok := loader.cache.Load(name)
 	if !ok {
 		return nil
@@ -68,23 +71,30 @@ func (loader *ConfigLoader) GetByName(name string) []byte {
 	return val.([]byte)
 }
 
-type changer struct {
-	*ConfigLoader
-	handler configor.ConfigorHandler
+type configChanger struct {
+	*Configor
+	handler configor.Handler
 }
 
-func (c changer) OnChange(evt configor.Event, name string, payload []byte, err error) {
+func (c configChanger) OnChange(evt configor.Event, cfg configor.Config, err error) {
 	if err == nil {
-		switch evt {
-		case configor.ADD, configor.CHG:
-			c.cache.Store(name, payload)
-		case configor.DEL:
-			c.cache.Delete(name)
-		}
+		c.onEvent(evt, cfg)
 	}
-	c.handler.OnChange(evt, name, payload, err)
+	c.handler.OnChange(evt, cfg, err)
 }
 
-func (loader *ConfigLoader) Watch(ctx context.Context, handler configor.ConfigorHandler) error {
-	return loader.cfgor.Watch(ctx, changer{loader, handler}, loader.files...)
+func (loader *Configor) onEvent(evt configor.Event, cfg configor.Config) {
+	switch evt {
+	case configor.ADD, configor.CHG:
+		loader.cache.Store(cfg.Name, cfg.Payload)
+		loader.dumper.Dump(cfg.Name, cfg.Payload)
+
+	case configor.DEL:
+		loader.cache.Delete(cfg.Name)
+		loader.dumper.Remove(cfg.Name)
+	}
+}
+
+func (loader *Configor) Watch(ctx context.Context, handler configor.Handler) error {
+	return loader.cfgor.Watch(ctx, configChanger{loader, handler}, loader.files...)
 }

@@ -2,6 +2,7 @@ package configor
 
 import (
 	"context"
+	"strings"
 	"sync"
 )
 
@@ -13,25 +14,30 @@ var (
 func Register(n string, b Builder) {
 	configorMu.Lock()
 	defer configorMu.Unlock()
-	configorMap[n] = b
+	configorMap[strings.ToLower(n)] = b
 }
 
 func Lookup(n string) Builder {
 	configorMu.Lock()
 	defer configorMu.Unlock()
-	return configorMap[n]
+	return configorMap[strings.ToLower(n)]
 }
 
 type Builder interface {
 	Build() Configor
 }
 
-type ConfigorHandler interface {
-	OnChange(Event, string, []byte, error)
+type Config struct {
+	Name    string `json:"name,omitempty"`
+	Payload []byte `json:"payload,omitempty"`
+}
+
+type Handler interface {
+	OnChange(Event, Config, error)
 }
 
 type Configor interface {
-	Watch(context.Context, ConfigorHandler, ...string) error
+	Watch(context.Context, Handler, ...string) error
 	Load(context.Context, ...string) (map[string][]byte, error)
 }
 
