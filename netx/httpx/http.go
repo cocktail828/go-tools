@@ -23,7 +23,7 @@ func WithHeaders(headers map[string]string) Option {
 	}}
 }
 
-func WithModifier(f func(*http.Request)) Option {
+func WithCallback(f func(*http.Request)) Option {
 	return Option{f}
 }
 
@@ -56,12 +56,14 @@ func NewRequest(ctx context.Context, method string, url string, opts ...Option) 
 type Caller struct {
 	Client    *http.Client
 	Request   *http.Request
-	Unmarshal func([]byte, interface{}) error
+	Unmarshal func(status int, body []byte, i interface{}) error
 }
 
 func (c *Caller) Do(dst interface{}) error {
 	if c.Unmarshal == nil {
-		c.Unmarshal = json.Unmarshal
+		c.Unmarshal = func(status int, body []byte, i interface{}) error {
+			return json.Unmarshal(body, i)
+		}
 	}
 
 	if c.Client == nil {
@@ -69,10 +71,14 @@ func (c *Caller) Do(dst interface{}) error {
 	}
 
 	resp, err := c.Client.Do(c.Request)
+	if err != nil {
+		return err
+	}
+
 	defer resp.Body.Close()
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return err
 	}
-	return c.Unmarshal(body, dst)
+	return c.Unmarshal(resp.StatusCode, body, dst)
 }

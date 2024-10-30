@@ -24,7 +24,7 @@ import (
 	"net/rpc"
 	"strings"
 
-	"github.com/soheilhy/cmux"
+	"github.com/cocktail828/go-tools/pkg/cmux"
 )
 
 type recursiveHTTPHandler struct{}

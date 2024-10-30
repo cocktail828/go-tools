@@ -28,8 +28,7 @@ import (
 	"golang.org/x/net/context"
 	"golang.org/x/net/websocket"
 
-	"github.com/soheilhy/cmux"
-	"google.golang.org/grpc/examples/helloworld/helloworld"
+	"github.com/cocktail828/go-tools/pkg/cmux"
 	grpchello "google.golang.org/grpc/examples/helloworld/helloworld"
 )
 
@@ -88,7 +87,7 @@ func serveRPC(l net.Listener) {
 }
 
 type grpcServer struct {
-	helloworld.UnimplementedGreeterServer
+	grpchello.UnimplementedGreeterServer
 }
 
 func (s *grpcServer) SayHello(ctx context.Context, in *grpchello.HelloRequest) (

@@ -12,14 +12,10 @@ var (
 	ErrClosed      = errors.New("the work queue already been closed")
 )
 
-type Task interface {
-	Handle(context.Context)
-}
-
 type Workq struct {
 	runningCtx context.Context
 	cancel     context.CancelFunc
-	taskq      chan Task
+	taskq      chan func(context.Context)
 	incq       chan struct{}
 	decq       chan struct{}
 	wg         sync.WaitGroup
@@ -32,7 +28,7 @@ func New() *Workq {
 	wq := &Workq{
 		runningCtx: ctx,
 		cancel:     cancel,
-		taskq:      make(chan Task, 1024),
+		taskq:      make(chan func(context.Context), 1024),
 		incq:       make(chan struct{}, 10),
 		decq:       make(chan struct{}, 10),
 		wg:         sync.WaitGroup{},
@@ -41,7 +37,7 @@ func New() *Workq {
 	return wq
 }
 
-func (wq *Workq) Kickoff(t Task) error {
+func (wq *Workq) Kickoff(t func(context.Context)) error {
 	select {
 	case wq.taskq <- t:
 		return nil
@@ -100,7 +96,7 @@ func (wq *Workq) do() {
 		return
 	case <-wq.decq:
 		return
-	case t := <-wq.taskq:
-		t.Handle(wq.runningCtx)
+	case f := <-wq.taskq:
+		f(wq.runningCtx)
 	}
 }
