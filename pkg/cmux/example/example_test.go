@@ -42,7 +42,7 @@ func serveHTTP(l net.Listener) {
 	s := &http.Server{
 		Handler: &exampleHTTPHandler{},
 	}
-	if err := s.Serve(l); err != cmux.ErrListenerClosed {
+	if err := s.Serve(l); err != cmux.ErrServerClosed {
 		panic(err)
 	}
 }
@@ -57,7 +57,7 @@ func serveWS(l net.Listener) {
 	s := &http.Server{
 		Handler: websocket.Handler(EchoServer),
 	}
-	if err := s.Serve(l); err != cmux.ErrListenerClosed {
+	if err := s.Serve(l); err != cmux.ErrServerClosed {
 		panic(err)
 	}
 }
@@ -77,7 +77,7 @@ func serveRPC(l net.Listener) {
 	for {
 		conn, err := l.Accept()
 		if err != nil {
-			if err != cmux.ErrListenerClosed {
+			if err != cmux.ErrServerClosed {
 				panic(err)
 			}
 			return
@@ -99,7 +99,7 @@ func (s *grpcServer) SayHello(ctx context.Context, in *grpchello.HelloRequest) (
 func serveGRPC(l net.Listener) {
 	grpcs := grpc.NewServer()
 	grpchello.RegisterGreeterServer(grpcs, &grpcServer{})
-	if err := grpcs.Serve(l); err != cmux.ErrListenerClosed {
+	if err := grpcs.Serve(l); err != cmux.ErrServerClosed {
 		panic(err)
 	}
 }

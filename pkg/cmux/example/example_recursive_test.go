@@ -39,7 +39,7 @@ func recursiveServeHTTP(l net.Listener) {
 	s := &http.Server{
 		Handler: &recursiveHTTPHandler{},
 	}
-	if err := s.Serve(l); err != cmux.ErrListenerClosed {
+	if err := s.Serve(l); err != cmux.ErrServerClosed {
 		panic(err)
 	}
 }
@@ -76,7 +76,7 @@ func recursiveServeRPC(l net.Listener) {
 	for {
 		conn, err := l.Accept()
 		if err != nil {
-			if err != cmux.ErrListenerClosed {
+			if err != cmux.ErrServerClosed {
 				panic(err)
 			}
 			return
@@ -113,7 +113,7 @@ func Example_recursiveCmux() {
 	go recursiveServeRPC(gorpcl)
 
 	go func() {
-		if err := tlsm.Serve(); err != cmux.ErrListenerClosed {
+		if err := tlsm.Serve(); err != cmux.ErrServerClosed {
 			panic(err)
 		}
 	}()

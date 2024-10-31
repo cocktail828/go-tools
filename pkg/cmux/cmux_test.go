@@ -135,7 +135,7 @@ func runTestHTTPServer(errCh chan<- error, l net.Listener) {
 			mu.Unlock()
 		},
 	}
-	if err := s.Serve(l); err != ErrListenerClosed && err != ErrServerClosed {
+	if err := s.Serve(l); err != ErrServerClosed {
 		errCh <- err
 	}
 }
@@ -225,7 +225,7 @@ func runTestRPCServer(errCh chan<- error, l net.Listener) {
 	for {
 		c, err := l.Accept()
 		if err != nil {
-			if err != ErrListenerClosed && err != ErrServerClosed {
+			if err != ErrServerClosed {
 				errCh <- err
 			}
 			return
@@ -692,7 +692,7 @@ func TestListenerClose(t *testing.T) {
 
 	// Second connection either goes through or it is closed.
 	if _, err := anyl.Accept(); err != nil {
-		if err != ErrListenerClosed && err != ErrServerClosed {
+		if err != ErrServerClosed {
 			t.Fatal(err)
 		}
 		// The error is either io.ErrClosedPipe or net.OpError wrapping

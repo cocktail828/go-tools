@@ -36,7 +36,7 @@ func serveHTTP1(l net.Listener) {
 	s := &http.Server{
 		Handler: &anotherHTTPHandler{},
 	}
-	if err := s.Serve(l); err != cmux.ErrListenerClosed {
+	if err := s.Serve(l); err != cmux.ErrServerClosed {
 		panic(err)
 	}
 }
