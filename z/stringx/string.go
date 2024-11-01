@@ -26,9 +26,8 @@ func StringToBytes(s string) []byte {
 	return *(*[]byte)(unsafe.Pointer(&byteHeader))
 }
 
-// report whether 'array' contains string 's'
-func Contains(array []string, s string) bool {
-	for _, a := range array {
+func Oneof(s string, set []string) bool {
+	for _, a := range set {
 		if a == s {
 			return true
 		}
@@ -36,12 +35,36 @@ func Contains(array []string, s string) bool {
 	return false
 }
 
-// report whether 's' is a member of 'array'
-func Oneof(s string, array ...string) bool {
-	for _, a := range array {
-		if a == s {
-			return true
+func Unique(s []string) []string {
+	m := map[string]struct{}{}
+	r := []string{}
+	for _, k := range s {
+		if _, has := m[k]; !has {
+			m[k] = struct{}{}
+			r = append(r, k)
 		}
 	}
-	return false
+	return r
+}
+
+func Subset(test, base []string) bool {
+	for _, k := range test {
+		if !Oneof(k, base) {
+			return false
+		}
+	}
+	return true
+}
+
+func EqualValues(s1, s2 []string) bool {
+	if len(s1) != len(s2) {
+		return false
+	}
+
+	for _, k := range s1 {
+		if !Oneof(k, s2) {
+			return false
+		}
+	}
+	return true
 }

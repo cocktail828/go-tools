@@ -77,3 +77,13 @@ func Mustf(err error, format string, args ...any) {
 		panic(err)
 	}
 }
+
+func Delete[T any](args []T, idx int) []T {
+	if idx < 0 || idx >= len(args) {
+		return args
+	}
+	r := make([]T, len(args)-1)
+	copy(r[:idx], args[:idx])
+	copy(r[idx:], args[idx+1:])
+	return r
+}

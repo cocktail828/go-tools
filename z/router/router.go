@@ -2,43 +2,23 @@ package router
 
 import (
 	"sync"
+
+	"github.com/cocktail828/go-tools/pkg/httprouter/trie"
 )
 
-type Handler func(path string, ps Params)
-
-// Param is a single URL parameter, consisting of a key and a value.
-type Param struct {
-	Key   string
-	Value string
-}
-
-// Params is a Param-slice, as returned by the router.
-// The slice is ordered, the first URL parameter is also the first slice value.
-// It is therefore safe to read values by the index.
-type Params []Param
-
-// Get returns the value of the first Param which key matches the given name.
-// If no matching Param is found, an empty string is returned.
-func (ps Params) Get(name string) string {
-	for i := range ps {
-		if ps[i].Key == name {
-			return ps[i].Value
-		}
-	}
-	return ""
-}
+type Handler func(path string, ps trie.Params)
 
 // Router is a Handler which can be used to dispatch requests to different
 // handler functions via configurable routes
 type Router struct {
 	mu   sync.RWMutex
-	root *node
+	root *trie.Node
 }
 
 // New returns a new initialized Router.
 // Path auto-correction, including trailing slashes, is enabled by default.
 func New() *Router {
-	return &Router{root: new(node)}
+	return &Router{root: new(trie.Node)}
 }
 
 // Register registers a new request handle with the given path.
@@ -52,15 +32,19 @@ func (r *Router) Register(path string, handle Handler) {
 
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.root.addRoute(path, handle)
+	r.root.AddRoute(path, handle)
 }
 
 // Lookup allows the manual lookup of a path combo.
 // This is e.g. useful to build a framework around this router.
 // If the path was found, it returns the handle function and the path parameter
 // values.
-func (r *Router) Lookup(path string) (Handler, Params) {
+func (r *Router) Lookup(path string) (Handler, trie.Params) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	return r.root.getValue(path)
+	h, p, _ := r.root.GetValue(path)
+	if h == nil {
+		return nil, p
+	}
+	return h.(Handler), p
 }

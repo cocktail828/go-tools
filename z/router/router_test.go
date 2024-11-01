@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/cocktail828/go-tools/pkg/router"
+	"github.com/cocktail828/go-tools/z/router"
 )
 
 func TestRouter(t *testing.T) {
@@ -13,6 +13,7 @@ func TestRouter(t *testing.T) {
 	r.Register("/asd/:id", nil)
 	fmt.Println(r.Lookup("/asd/1/2"))
 	fmt.Println(r.Lookup("/asd/1/"))
+	fmt.Println(r.Lookup("/asd/1"))
 	fmt.Println(r.Lookup("/asd1/1"))
 }
 
@@ -22,11 +23,11 @@ func BenchmarkLookup(b *testing.B) {
 	b.RunParallel(func(p *testing.PB) {
 		for p.Next() {
 			_, ps := r.Lookup("/asd/1/2")
-			if len(ps) != 2 || ps.Get("id") != "1" || ps.Get("a") != "2" {
+			if len(ps) != 2 || ps.ByName("id") != "1" || ps.ByName("a") != "2" {
 				panic(ps)
 			}
 			_, ps = r.Lookup("/asd/1/")
-			if len(ps) != 1 || ps.Get("id") != "1" {
+			if len(ps) != 1 || ps.ByName("id") != "1" {
 				panic(ps)
 			}
 		}
