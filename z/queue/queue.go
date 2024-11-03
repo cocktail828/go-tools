@@ -86,6 +86,21 @@ func (q *Queue) SetConcurrency(n int) {
 	q.concurrency = n
 }
 
+func (q *Queue) GoContext(ctx context.Context, t Handle) error {
+	q.mu.RLock()
+	defer q.mu.RUnlock()
+	if q.isclosed.Load() {
+		return ErrClosed
+	}
+
+	select {
+	case q.taskq <- t:
+		return nil
+	case <-ctx.Done():
+		return context.DeadlineExceeded
+	}
+}
+
 func (q *Queue) Go(t Handle) error {
 	q.mu.RLock()
 	defer q.mu.RUnlock()

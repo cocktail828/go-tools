@@ -75,33 +75,29 @@ func (c *Configor) processTags(config interface{}, prefixes ...string) error {
 
 	configType := configValue.Type()
 	for i := 0; i < configType.NumField(); i++ {
-		var (
-			envNames    []string
-			fieldStruct = configType.Field(i)
-			field       = configValue.Field(i)
-			envName     = fieldStruct.Tag.Get("env") // read configuration from shell env
-		)
-
+		fieldStruct := configType.Field(i)
+		field := configValue.Field(i)
 		if !field.CanAddr() || !field.CanInterface() {
 			continue
 		}
 
-		if envName == "" {
-			envNames = append(envNames, strings.Join(append(prefixes, fieldStruct.Name), "_"))
-			envNames = append(envNames, strings.ToUpper(strings.Join(append(prefixes, fieldStruct.Name), "_")))
-		} else {
-			envNames = []string{envName}
-		}
-
-		// Load From Shell ENV
+		// read configuration from shell env
 		if err := func() error {
 			if !c.LoadEnv {
 				return nil
 			}
-			for _, env := range envNames {
-				name := env
+
+			envNames := []string{}
+			if envName := fieldStruct.Tag.Get("env"); envName == "" {
+				envName = strings.Join(append(prefixes, fieldStruct.Name), "_")
+				envNames = append(envNames, envName, strings.ToUpper(envName))
+			} else {
+				envNames = []string{envName}
+			}
+
+			for _, name := range envNames {
 				if c.EnvPrefix != "" {
-					name = c.EnvPrefix + "_" + env
+					name = c.EnvPrefix + "_" + name
 				}
 				if value := os.Getenv(name); value != "" {
 					switch reflect.Indirect(field).Kind() {
