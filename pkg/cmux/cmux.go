@@ -15,7 +15,6 @@
 package cmux
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -61,12 +60,9 @@ var ErrServerClosed = errors.New("mux: server closed")
 var noTimeout time.Duration
 
 // New instantiates a new connection multiplexer.
-func New(l net.Listener) CMux {
-	ctx, cancel := context.WithCancel(context.Background())
+func New(ln net.Listener) CMux {
 	return &cMux{
-		runningCtx:  ctx,
-		cancel:      cancel,
-		root:        l,
+		root:        ln,
 		errh:        func(_ error) bool { return true },
 		readTimeout: noTimeout,
 	}
@@ -99,8 +95,6 @@ type CMux interface {
 }
 
 type cMux struct {
-	runningCtx  context.Context
-	cancel      context.CancelFunc
 	root        net.Listener
 	errh        ErrorHandler
 	children    []*muxListener
@@ -124,13 +118,10 @@ func (m *cMux) Match(matchers ...Matcher) net.Listener {
 }
 
 func (m *cMux) MatchWithWriters(matchers ...MatchWriter) net.Listener {
-	subCtx, cancel := context.WithCancel(m.runningCtx)
 	ml := &muxListener{
-		Listener:   m.root,
-		matchers:   matchers,
-		runningCtx: subCtx,
-		cancel:     cancel,
-		connc:      make(chan net.Conn, 1024),
+		Listener: m.root,
+		matchers: matchers,
+		connc:    make(chan net.Conn, 1024),
 	}
 	m.children = append(m.children, ml)
 	return ml
@@ -140,22 +131,14 @@ func (m *cMux) SetReadTimeout(t time.Duration) {
 	m.readTimeout = t
 }
 
-func (m *cMux) Serve() error {
-	var wg sync.WaitGroup
-
-	defer func() {
-		m.cancel()
-		wg.Wait()
-		for _, sl := range m.children {
-			sl.Close()
-		}
-	}()
-
+func (m *cMux) Serve() (err error) {
+	wg := sync.WaitGroup{}
 	for {
-		c, err := m.root.Accept()
+		var c net.Conn
+		c, err = m.root.Accept()
 		if err != nil {
 			if !m.handleErr(err) {
-				return err
+				break
 			}
 			continue
 		}
@@ -163,6 +146,12 @@ func (m *cMux) Serve() error {
 		wg.Add(1)
 		go m.serve(c, &wg)
 	}
+
+	for _, sl := range m.children {
+		sl.Close()
+	}
+	wg.Wait()
+	return err
 }
 
 func (m *cMux) serve(c net.Conn, wg *sync.WaitGroup) {
@@ -197,7 +186,9 @@ func (m *cMux) serve(c net.Conn, wg *sync.WaitGroup) {
 }
 
 func (m *cMux) Close() {
-	m.cancel()
+	for _, sl := range m.children {
+		sl.Close()
+	}
 }
 
 func (m *cMux) HandleError(h ErrorHandler) {
@@ -218,41 +209,38 @@ func (m *cMux) handleErr(err error) bool {
 
 type muxListener struct {
 	net.Listener
-	isClosed   atomic.Bool
-	matchers   []MatchWriter
-	runningCtx context.Context
-	cancel     context.CancelFunc
-	connc      chan net.Conn
+	isClosed atomic.Bool
+	mu       sync.RWMutex
+	matchers []MatchWriter
+	connc    chan net.Conn
 }
 
 func (l *muxListener) onMatch(muc *MuxConn) {
+	l.mu.RLock()
+	defer l.mu.RUnlock()
 	if l.isClosed.Load() {
 		_ = muc.Close()
 		return
 	}
-
-	select {
-	case l.connc <- muc:
-	case <-l.runningCtx.Done():
-		_ = muc.Close()
-	}
+	l.connc <- muc
 }
 
 // Accept waits for and returns the next connection to the listener.
 func (l *muxListener) Accept() (net.Conn, error) {
-	select {
-	case c := <-l.connc:
+	if c, ok := <-l.connc; ok {
 		return c, nil
-	case <-l.runningCtx.Done():
-		l.isClosed.Store(true)
-		return nil, ErrServerClosed
 	}
+	return nil, ErrServerClosed
 }
 
-// Close closes the root.
+// Close closes the muxListener.
 // Any blocked Accept operations will be unblocked and return errors.
 func (l *muxListener) Close() error {
-	l.cancel()
+	if l.isClosed.CompareAndSwap(false, true) {
+		l.mu.Lock()
+		close(l.connc)
+		l.mu.Unlock()
+	}
 	return nil
 }
 

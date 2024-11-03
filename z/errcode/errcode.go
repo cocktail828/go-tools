@@ -142,14 +142,14 @@ type Error struct {
 	cause []error
 }
 
-func (e Error) Error() string {
+func (e *Error) Error() string {
 	if e.code == nil {
 		return ""
 	}
-	return fmt.Sprintf("error: code=%d, desc=%q, cause=%q", e.code.Code(), e.code.String(), e.Cause())
+	return fmt.Sprintf("exception: code=%d, desc=%q, cause=%q", e.code.Code(), e.code.String(), e.Cause())
 }
 
-func (e Error) Cause() error {
+func (e *Error) Cause() error {
 	return errors.Join(e.cause...)
 }
 
@@ -168,7 +168,7 @@ func (e *Error) WithError(err error) *Error {
 	return e
 }
 
-func (e Error) Is(target error) bool {
+func (e *Error) Is(target error) bool {
 	for _, err := range e.cause {
 		if errors.Is(err, target) {
 			return true
@@ -177,7 +177,7 @@ func (e Error) Is(target error) bool {
 	return false
 }
 
-func (e Error) As(target any) bool {
+func (e *Error) As(target any) bool {
 	for _, err := range e.cause {
 		if errors.As(err, target) {
 			return true

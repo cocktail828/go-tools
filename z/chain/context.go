@@ -2,9 +2,7 @@ package chain
 
 import (
 	"context"
-	"log/slog"
 	"sync"
-	"sync/atomic"
 
 	"github.com/pkg/errors"
 )
@@ -13,19 +11,26 @@ type Option func(*Context)
 
 // unmarshal and set request
 func WithRequest(req any) Option {
-	return func(ctx *Context) { ctx.data.Store(requestKey, req) }
+	return func(c *Context) {
+		c.data.Store(requestKey, req)
+	}
+}
+
+func WithContext(ctx context.Context) Option {
+	return func(c *Context) {
+		c.Context = ctx
+	}
 }
 
 type Context struct {
 	context.Context
-	chain   *Chain
-	index   int8
-	isAbort atomic.Bool
-	errdesc error
-	data    sync.Map
+	chain *Chain
+	index int8
+	error error
+	data  sync.Map
 }
 
-func (c *Context) IsAborted() bool { return c.isAbort.Load() }
+func (c *Context) IsAborted() bool { return c.index >= abortIndex }
 
 func (c *Context) Abort() {
 	cur := c.chain.handlers[c.index]
@@ -34,8 +39,7 @@ func (c *Context) Abort() {
 
 func (c *Context) AbortWithError(err error) {
 	c.index = abortIndex
-	c.errdesc = err
-	c.isAbort.Store(true)
+	c.error = err
 }
 
 func (c *Context) Next() {
@@ -50,18 +54,14 @@ func (c *Context) Request() (any, bool) {
 	return c.data.Load(requestKey)
 }
 
-func (c *Context) Logger() *slog.Logger {
-	return c.chain.Logger
-}
-
-func (c *Context) Store(v any) {
+func (c *Context) Set(v any) {
 	if c.index < int8(len(c.chain.handlers)) {
 		cur := c.chain.handlers[c.index]
 		c.data.Store(cur.Name(), v)
 	}
 }
 
-func (c *Context) Load() (any, bool) {
+func (c *Context) Get() (any, bool) {
 	if c.index < int8(len(c.chain.handlers)) {
 		cur := c.chain.handlers[c.index]
 		return c.data.Load(cur.Name())
@@ -69,10 +69,10 @@ func (c *Context) Load() (any, bool) {
 	return nil, false
 }
 
-func (c *Context) Error() error { return c.errdesc }
+func (c *Context) Error() error { return c.error }
 
 // set instance global meta
-func (c *Context) StoreMeta(v any) { c.chain.StoreMeta(v) }
+func (c *Context) Store(v any) { c.chain.Store(v) }
 
 // get instance global meta
-func (c *Context) LoadMeta() (any, bool) { return c.chain.LoadMeta() }
+func (c *Context) Load() (any, bool) { return c.chain.Load() }

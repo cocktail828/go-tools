@@ -2,11 +2,15 @@ package chain
 
 import (
 	"context"
-	"log/slog"
 	"math"
 	"sync"
 
 	"github.com/pkg/errors"
+)
+
+var (
+	ErrTooManyHandle = errors.New("too many handlers, at most 63 handlers is allowed")
+	ErrNoHandle      = errors.New("chain has no handlers, forget call Use()?")
 )
 
 const (
@@ -24,39 +28,35 @@ type Handler interface {
 }
 
 type Chain struct {
-	Logger   *slog.Logger
 	meta     sync.Map // instance global meta
 	handlers []Handler
 }
 
 // set instance global meta
-func (chain *Chain) StoreMeta(v any) {
+func (chain *Chain) Store(v any) {
 	chain.meta.Store(globalKey, v)
 }
 
 // get instance global meta
-func (chain *Chain) LoadMeta() (any, bool) {
+func (chain *Chain) Load() (any, bool) {
 	return chain.meta.Load(globalKey)
 }
 
-func (chain *Chain) Use(handlers ...Handler) {
+func (chain *Chain) Use(handlers ...Handler) error {
 	if len(handlers) >= int(abortIndex) {
-		panic("too many handlers")
+		return ErrTooManyHandle
 	}
 	chain.handlers = append(chain.handlers, handlers...)
+	return nil
 }
 
-func (chain *Chain) Handle(ctx context.Context, opts ...Option) error {
+func (chain *Chain) Handle(opts ...Option) error {
 	if len(chain.handlers) == 0 {
-		return errors.New("no handlers found")
-	}
-
-	if ctx == nil {
-		ctx = context.Background()
+		return ErrNoHandle
 	}
 
 	c := &Context{
-		Context: ctx,
+		Context: context.Background(),
 		chain:   chain,
 	}
 	for _, o := range opts {
