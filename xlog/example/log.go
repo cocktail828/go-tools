@@ -29,13 +29,17 @@ func dump(l *colorful.Logger) {
 }
 
 func main() {
-	l := colorful.NewColorfulLog(log.Default())
-	// l = colorful.Default()
-	dump(l)
-	l.SetFlags(l.Flags() | log.Llongfile)
-	dump(l)
-	l.DisableColor()
-	dump(l)
-	l.EnableColor()
-	dump(l)
+	log.SetFlags(log.Flags() | log.Llongfile)
+	l0 := colorful.NewColorfulLog(log.Default())
+	l1 := colorful.Default()
+	// dump(l)
+	// dump(l)
+	// l.DisableColor()
+	// dump(l)
+	// l.EnableColor()
+	// dump(l)
+
+	l0.Warn("xxxxxxxxxxx")
+	l1.Warn("xxxxxxxxxxx")
+	colorful.Warn("xxxxxxxxxxx")
 }
