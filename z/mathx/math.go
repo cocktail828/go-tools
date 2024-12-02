@@ -2,6 +2,23 @@ package mathx
 
 // Next2Power rounds x up to the next power of 2, if it's not already one.
 func Next2Power(x int64) int64 {
+	if x >= 0 {
+		return next2Power(x)
+	}
+
+	if y := -next2Power(-x); x == y {
+		return y
+	} else {
+		return y / 2
+	}
+}
+
+// x >= 0
+func next2Power(x int64) int64 {
+	if x < 0 {
+		panic("x cannot be a negative value")
+	}
+
 	x--
 	x |= x >> 1
 	x |= x >> 2
@@ -13,16 +30,16 @@ func Next2Power(x int64) int64 {
 	return x
 }
 
-func Min[T int | uint | int8 | int16 | int32 | int64 | uint8 | uint16 | uint32 | uint64](min, val T) T {
-	if val <= min {
-		return val
+// NumOfOnes counts the number of set bits (ones) in the binary representation of x.
+// This version supports negative numbers.
+func NumOfOnes(x int64) int {
+	ones := int64(0)
+	if x < 0 {
+		x = -x
 	}
-	return min
-}
 
-func Max[T int | uint | int8 | int16 | int32 | int64 | uint8 | uint16 | uint32 | uint64](max, val T) T {
-	if val >= max {
-		return val
+	for ; x != 0; x >>= 1 {
+		ones += x & 0x1
 	}
-	return max
+	return int(ones)
 }

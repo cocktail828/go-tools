@@ -3,7 +3,6 @@ package chain
 import (
 	"context"
 	"math"
-	"sync"
 
 	"github.com/pkg/errors"
 )
@@ -16,58 +15,91 @@ var (
 const (
 	// abortIndex represents a typical value used in abort functions.
 	abortIndex int8 = math.MaxInt8 >> 1
-
-	// global key
-	globalKey  = "__global__"
-	requestKey = "__request__"
 )
 
 type Handler interface {
 	Name() string
-	Execute(*Context)
+	Execute(ctx *Context)
 }
 
 type Chain struct {
-	meta     sync.Map // instance global meta
 	handlers []Handler
 }
 
-// set instance global meta
-func (chain *Chain) Store(v any) {
-	chain.meta.Store(globalKey, v)
-}
-
-// get instance global meta
-func (chain *Chain) Load() (any, bool) {
-	return chain.meta.Load(globalKey)
-}
-
 func (chain *Chain) Use(handlers ...Handler) error {
-	if len(handlers) >= int(abortIndex) {
+	if len(handlers)+len(chain.handlers) >= int(abortIndex) {
 		return ErrTooManyHandle
 	}
 	chain.handlers = append(chain.handlers, handlers...)
 	return nil
 }
 
-func (chain *Chain) Handle(opts ...Option) error {
+func (chain *Chain) Handle(ctx context.Context, req any) error {
 	if len(chain.handlers) == 0 {
 		return ErrNoHandle
 	}
 
-	c := &Context{
-		Context: context.Background(),
-		chain:   chain,
-	}
-	for _, o := range opts {
-		o(c)
+	c := Context{
+		Context:  context.Background(),
+		handlers: chain.handlers,
+		req:      req,
 	}
 
-	for _, h := range chain.handlers {
-		if c.index >= int8(len(c.chain.handlers)) {
-			break
-		}
-		h.Execute(c)
+	for c.index < int8(len(c.handlers)) {
+		c.handlers[c.index].Execute(&c)
+		c.index++
 	}
 	return c.Error()
 }
+
+type Context struct {
+	context.Context
+	index    int8
+	handlers []Handler
+	req      any
+	resp     any
+	private  map[string]any
+	error    error
+}
+
+func (c *Context) Error() error    { return c.error }
+func (c *Context) IsAborted() bool { return c.index >= abortIndex }
+func (c *Context) Abort() {
+	c.index = abortIndex
+	cur := c.handlers[c.index]
+	c.error = errors.Errorf("chain abort at(%v) unexpectlly", cur.Name())
+}
+
+func (c *Context) AbortWithError(err error) {
+	c.index = abortIndex
+	cur := c.handlers[c.index]
+	c.error = errors.WithMessagef(err, "chain abort at(%v) unexpectlly", cur.Name())
+}
+
+func (c *Context) Next() {
+	c.index++
+	for c.index < int8(len(c.handlers)) {
+		c.handlers[c.index].Execute(c)
+		c.index++
+	}
+}
+
+func (c *Context) Set(v any) {
+	if c.index < int8(len(c.handlers)) {
+		cur := c.handlers[c.index]
+		c.private[cur.Name()] = v
+	}
+}
+
+func (c *Context) Get() (any, bool) {
+	if c.index < int8(len(c.handlers)) {
+		cur := c.handlers[c.index]
+		val, ok := c.private[cur.Name()]
+		return val, ok
+	}
+	return nil, false
+}
+
+func (c *Context) Request() any { return c.req }
+func (c *Context) Write(v any)  { c.resp = v }
+func (c *Context) Result() any  { return c.resp }

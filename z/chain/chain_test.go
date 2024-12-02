@@ -1,6 +1,7 @@
 package chain_test
 
 import (
+	"context"
 	"fmt"
 	"testing"
 
@@ -20,5 +21,5 @@ func (n nop) Execute(c *chain.Context) {
 func TestChain(t *testing.T) {
 	c := chain.Chain{}
 	z.Must(c.Use(nop{"a"}, nop{"b"}, nop{"c"}))
-	c.Handle()
+	c.Handle(context.Background(), nil)
 }
