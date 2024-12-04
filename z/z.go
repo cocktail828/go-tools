@@ -3,6 +3,7 @@ package z
 import (
 	"fmt"
 	"runtime"
+	"strings"
 
 	"github.com/cocktail828/go-tools/z/reflectx"
 )
@@ -86,4 +87,21 @@ func Delete[T any](args []T, idx int) []T {
 	copy(r[:idx], args[:idx])
 	copy(r[idx:], args[idx+1:])
 	return r
+}
+
+func DumpStack(depth, skip int) string {
+	pc := make([]uintptr, depth)
+	n := runtime.Callers(skip+1, pc)
+	pc = pc[:n]
+
+	sb := strings.Builder{}
+	frames := runtime.CallersFrames(pc)
+	for i := 0; i < depth; i++ {
+		frame, more := frames.Next()
+		sb.WriteString(fmt.Sprintf("Frame %d: %s\n\t%s:%d\n", i+1, frame.Function, frame.File, frame.Line))
+		if !more {
+			break
+		}
+	}
+	return sb.String()
 }

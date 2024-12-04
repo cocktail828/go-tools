@@ -12,4 +12,9 @@ func TestZ(t *testing.T) {
 	for i := -3; i < len(v)+3; i++ {
 		fmt.Println(z.Delete(v, i))
 	}
+	a()
 }
+
+func c() { fmt.Println(z.DumpStack(5, 1)) }
+func b() { c() }
+func a() { b() }
