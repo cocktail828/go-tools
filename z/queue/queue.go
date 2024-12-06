@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"sync"
-	"sync/atomic"
 )
 
 var (
@@ -12,15 +11,13 @@ var (
 	ErrClosed      = errors.New("the work queue already been closed")
 )
 
-type Handle func(context.Context)
+type Handle func()
 type Queue struct {
 	ctx         context.Context
 	taskq       chan Handle
 	incrq       chan struct{}
 	decrq       chan struct{}
 	concurrency int
-	mu          sync.RWMutex
-	isclosed    atomic.Bool
 	wg          sync.WaitGroup
 }
 
@@ -43,11 +40,7 @@ func WithContext(ctx context.Context) *Queue {
 				q.wg.Add(1)
 				go q.spawn()
 			case <-q.ctx.Done():
-				if q.isclosed.CompareAndSwap(false, true) {
-					q.mu.Lock()
-					close(q.taskq)
-					q.mu.Unlock()
-				}
+				close(q.taskq)
 				return
 			}
 		}
@@ -56,6 +49,7 @@ func WithContext(ctx context.Context) *Queue {
 	return q
 }
 
+// spawn a goroutine and handle tasks
 func (q *Queue) spawn() {
 	defer q.wg.Done()
 	for {
@@ -66,7 +60,7 @@ func (q *Queue) spawn() {
 			if !ok {
 				return
 			}
-			t(q.ctx)
+			t()
 		}
 	}
 }
@@ -86,26 +80,11 @@ func (q *Queue) SetConcurrency(n int) {
 	q.concurrency = n
 }
 
-func (q *Queue) GoContext(ctx context.Context, t Handle) error {
-	q.mu.RLock()
-	defer q.mu.RUnlock()
-	if q.isclosed.Load() {
-		return ErrClosed
-	}
-
-	select {
-	case q.taskq <- t:
-		return nil
-	case <-ctx.Done():
-		return context.DeadlineExceeded
-	}
-}
-
 func (q *Queue) Go(t Handle) error {
-	q.mu.RLock()
-	defer q.mu.RUnlock()
-	if q.isclosed.Load() {
+	select {
+	case <-q.ctx.Done():
 		return ErrClosed
+	default:
 	}
 
 	select {

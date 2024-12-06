@@ -17,7 +17,7 @@ func TestQ(t *testing.T) {
 	assert.Equal(t, 5, q.Concurrency())
 
 	for i := 0; i < 10; i++ {
-		q.Go(func(ctx context.Context) { fmt.Println(time.Now()); time.Sleep(time.Second) })
+		q.Go(func() { fmt.Println(time.Now()); time.Sleep(time.Second / 2) })
 	}
 	q.Wait()
 }
