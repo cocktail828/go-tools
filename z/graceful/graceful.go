@@ -13,8 +13,7 @@ type Graceful struct {
 func (g *Graceful) Do(ctx context.Context) error {
 	runningCtx, cancel := context.WithCancelCause(ctx)
 	go func() {
-		err := g.Start()
-		cancel(err)
+		cancel(g.Start())
 	}()
 
 	<-runningCtx.Done()

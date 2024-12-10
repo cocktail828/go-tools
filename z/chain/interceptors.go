@@ -14,9 +14,9 @@ type UnaryInfo struct {
 }
 
 type UnaryHandler func(ctx context.Context, req any) (any, error)
-type UnaryInterceptor func(ctx context.Context, req any, info *UnaryInfo, handler UnaryHandler) (resp any, err error)
+type UnaryInterceptor func(ctx context.Context, req any, info UnaryInfo, handler UnaryHandler) (resp any, err error)
 
-func getChainUnaryHandler(interceptors []UnaryInterceptor, curr int, info *UnaryInfo, finalHandler UnaryHandler) UnaryHandler {
+func getChainUnaryHandler(interceptors []UnaryInterceptor, curr int, info UnaryInfo, finalHandler UnaryHandler) UnaryHandler {
 	if curr == len(interceptors)-1 {
 		return finalHandler
 	}
@@ -28,12 +28,12 @@ func getChainUnaryHandler(interceptors []UnaryInterceptor, curr int, info *Unary
 
 func ChainUnaryInterceptors(interceptors []UnaryInterceptor) UnaryInterceptor {
 	if len(interceptors) == 0 {
-		return func(ctx context.Context, req any, info *UnaryInfo, handler UnaryHandler) (resp any, err error) {
+		return func(ctx context.Context, req any, info UnaryInfo, handler UnaryHandler) (resp any, err error) {
 			return handler(ctx, req)
 		}
 	}
 
-	return func(ctx context.Context, req any, info *UnaryInfo, handler UnaryHandler) (any, error) {
+	return func(ctx context.Context, req any, info UnaryInfo, handler UnaryHandler) (any, error) {
 		return interceptors[0](ctx, req, info, getChainUnaryHandler(interceptors, 0, info, handler))
 	}
 }
