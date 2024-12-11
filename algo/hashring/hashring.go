@@ -27,19 +27,30 @@ func (p nodesArray) Sort()              { sort.Sort(p) }
 
 // HashRing store nodes and weigths
 type HashRing struct {
+	hashFunc    HashFunc
 	mu          sync.RWMutex
 	virualSpots int
 	nodes       nodesArray
 	weights     map[string]int
 }
 
+type HashFunc func(string) uint32
+
+func Sha1(nodeKey string) uint32 {
+	hash := sha1.New()
+	hash.Write([]byte(nodeKey))
+	hashBytes := hash.Sum(nil)[6:10]
+	return (uint32(hashBytes[3]) << 24) | (uint32(hashBytes[2]) << 16) | (uint32(hashBytes[1]) << 8) | (uint32(hashBytes[0]))
+}
+
 // NewHashRing create a hash ring with virual spots
-func New(spots int) *HashRing {
+func New(spots int, f HashFunc) *HashRing {
 	if spots <= 0 {
 		spots = DefaultVirualSpots
 	}
 
 	return &HashRing{
+		hashFunc:    f,
 		virualSpots: spots,
 		weights:     make(map[string]int),
 	}
@@ -87,18 +98,11 @@ func (h *HashRing) updateLocked() {
 		for i := 1; i <= spots; i++ {
 			h.nodes = append(h.nodes, node{
 				nodeKey:   nodeKey,
-				spotValue: spotValue(nodeKey + ":" + strconv.Itoa(i)),
+				spotValue: h.hashFunc(nodeKey + ":" + strconv.Itoa(i)),
 			})
 		}
 	}
 	h.nodes.Sort()
-}
-
-func spotValue(nodeKey string) uint32 {
-	hash := sha1.New()
-	hash.Write([]byte(nodeKey))
-	hashBytes := hash.Sum(nil)[6:10]
-	return (uint32(hashBytes[3]) << 24) | (uint32(hashBytes[2]) << 16) | (uint32(hashBytes[1]) << 8) | (uint32(hashBytes[0]))
 }
 
 // GetNode get node with key
@@ -109,7 +113,7 @@ func (h *HashRing) GetNode(s string) string {
 		return ""
 	}
 
-	v := spotValue(s)
+	v := h.hashFunc(s)
 	i := sort.Search(len(h.nodes), func(i int) bool { return h.nodes[i].spotValue >= v })
 	if i == len(h.nodes) {
 		i = 0
