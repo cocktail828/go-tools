@@ -1,7 +1,9 @@
 package hashring
 
 import (
-	"crypto/sha1"
+	"crypto/md5"
+	"crypto/sha256"
+	"hash/crc32"
 	"math"
 	"sort"
 	"strconv"
@@ -10,7 +12,7 @@ import (
 
 const (
 	//DefaultVirualSpots default virual spots
-	DefaultVirualSpots = 400
+	DefaultVirualSpots = 300
 )
 
 type node struct {
@@ -27,22 +29,63 @@ func (p nodesArray) Sort()              { sort.Sort(p) }
 
 // HashRing store nodes and weigths
 type HashRing struct {
-	mu          sync.RWMutex
+	hashFunc    HashFunc
 	virualSpots int
+	mu          sync.RWMutex
 	nodes       nodesArray
 	weights     map[string]int
 }
 
-// NewHashRing create a hash ring with virual spots
-func New(spots int) *HashRing {
-	if spots <= 0 {
-		spots = DefaultVirualSpots
-	}
+type HashFunc func(string) uint32
 
-	return &HashRing{
-		virualSpots: spots,
+func Crc32(nodeKey string) uint32 {
+	return crc32.ChecksumIEEE([]byte(nodeKey))
+}
+
+func Sha256(nodeKey string) uint32 {
+	hash := sha256.New()
+	hash.Write([]byte(nodeKey))
+	hashBytes := hash.Sum(nil)[6:10]
+	return (uint32(hashBytes[3]) << 24) | (uint32(hashBytes[2]) << 16) | (uint32(hashBytes[1]) << 8) | (uint32(hashBytes[0]))
+}
+
+func Md5(nodeKey string) uint32 {
+	hash := md5.New()
+	hash.Write([]byte(nodeKey))
+	hashBytes := hash.Sum(nil)[6:10]
+	return (uint32(hashBytes[3]) << 24) | (uint32(hashBytes[2]) << 16) | (uint32(hashBytes[1]) << 8) | (uint32(hashBytes[0]))
+}
+
+type Option func(*HashRing)
+
+// set hash func
+func WithHash(f HashFunc) Option {
+	return func(hr *HashRing) {
+		hr.hashFunc = f
+	}
+}
+
+// set num of virtual nodes
+func WithSpots(n int) Option {
+	return func(hr *HashRing) {
+		hr.virualSpots = n
+	}
+}
+
+// NewHashRing create a hash ring with virual spots
+// default Hash crc32
+func New(opts ...Option) *HashRing {
+	hring := &HashRing{
+		hashFunc:    Crc32,
+		virualSpots: DefaultVirualSpots,
 		weights:     make(map[string]int),
 	}
+
+	for _, f := range opts {
+		f(hring)
+	}
+
+	return hring
 }
 
 // AddNode add node to hash ring
@@ -62,7 +105,7 @@ func (h *HashRing) AddNodes(nodeWeight map[string]int) {
 
 // UpdateNode update node with weight
 func (h *HashRing) UpdateNode(nodeKey string, weight int) {
-	h.AddNodes(map[string]int{nodeKey: weight})
+	h.AddNode(nodeKey, weight)
 }
 
 // RemoveNode remove node
@@ -87,18 +130,11 @@ func (h *HashRing) updateLocked() {
 		for i := 1; i <= spots; i++ {
 			h.nodes = append(h.nodes, node{
 				nodeKey:   nodeKey,
-				spotValue: spotValue(nodeKey + ":" + strconv.Itoa(i)),
+				spotValue: h.hashFunc(nodeKey + ":" + strconv.Itoa(i)),
 			})
 		}
 	}
 	h.nodes.Sort()
-}
-
-func spotValue(nodeKey string) uint32 {
-	hash := sha1.New()
-	hash.Write([]byte(nodeKey))
-	hashBytes := hash.Sum(nil)[6:10]
-	return (uint32(hashBytes[3]) << 24) | (uint32(hashBytes[2]) << 16) | (uint32(hashBytes[1]) << 8) | (uint32(hashBytes[0]))
 }
 
 // GetNode get node with key
@@ -109,9 +145,9 @@ func (h *HashRing) GetNode(s string) string {
 		return ""
 	}
 
-	v := spotValue(s)
+	v := h.hashFunc(s)
 	i := sort.Search(len(h.nodes), func(i int) bool { return h.nodes[i].spotValue >= v })
-	if i == len(h.nodes) {
+	if i >= len(h.nodes) || i < 0 {
 		i = 0
 	}
 	return h.nodes[i].nodeKey

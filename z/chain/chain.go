@@ -7,14 +7,14 @@ import (
 	"github.com/pkg/errors"
 )
 
-var (
-	ErrTooManyHandle = errors.New("too many handlers, at most 63 handlers is allowed")
-	ErrNoHandle      = errors.New("chain has no handlers, forget call Use()?")
-)
-
 const (
 	// abortIndex represents a typical value used in abort functions.
-	abortIndex int8 = math.MaxInt8 >> 1
+	abortIndex = math.MaxInt8 >> 1
+)
+
+var (
+	ErrTooManyHandle = errors.Errorf("too many handlers, at most '%d' handlers is allowed", abortIndex)
+	ErrNoHandle      = errors.New("chain has no handlers, forget call Use()?")
 )
 
 type Handler interface {
@@ -39,13 +39,15 @@ func (chain *Chain) Handle(ctx context.Context, req any) error {
 		return ErrNoHandle
 	}
 
+	handlers := make([]Handler, len(chain.handlers))
+	copy(handlers, chain.handlers)
 	c := Context{
-		Context:  context.Background(),
-		handlers: chain.handlers,
+		Context:  ctx,
+		handlers: handlers,
 		req:      req,
 	}
 
-	for c.index < int8(len(c.handlers)) {
+	for c.index < len(c.handlers) {
 		c.handlers[c.index].Execute(&c)
 		c.index++
 	}
@@ -54,10 +56,10 @@ func (chain *Chain) Handle(ctx context.Context, req any) error {
 
 type Context struct {
 	context.Context
-	index    int8
+	index    int
 	handlers []Handler
 	req      any
-	resp     any
+	result   any
 	private  map[string]any
 	error    error
 }
@@ -78,21 +80,21 @@ func (c *Context) AbortWithError(err error) {
 
 func (c *Context) Next() {
 	c.index++
-	for c.index < int8(len(c.handlers)) {
+	for c.index < len(c.handlers) {
 		c.handlers[c.index].Execute(c)
 		c.index++
 	}
 }
 
 func (c *Context) Set(v any) {
-	if c.index < int8(len(c.handlers)) {
+	if c.index < len(c.handlers) {
 		cur := c.handlers[c.index]
 		c.private[cur.Name()] = v
 	}
 }
 
 func (c *Context) Get() (any, bool) {
-	if c.index < int8(len(c.handlers)) {
+	if c.index < len(c.handlers) {
 		cur := c.handlers[c.index]
 		val, ok := c.private[cur.Name()]
 		return val, ok
@@ -100,6 +102,6 @@ func (c *Context) Get() (any, bool) {
 	return nil, false
 }
 
-func (c *Context) Request() any { return c.req }
-func (c *Context) Write(v any)  { c.resp = v }
-func (c *Context) Result() any  { return c.resp }
+func (c *Context) Request() any    { return c.req }
+func (c *Context) SetResult(v any) { c.result = v }
+func (c *Context) GetResult() any  { return c.result }

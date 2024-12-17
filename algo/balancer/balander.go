@@ -1,10 +1,11 @@
 package balancer
 
-type Validator interface {
-	IsOK() bool
+type Node interface {
+	Weight() int // 权重
+	Value() any
 }
 
 type Balancer interface {
-	Pick() Validator
-	Update([]Validator)
+	Pick() Node
+	Update([]Node)
 }
