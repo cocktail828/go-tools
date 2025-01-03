@@ -2,15 +2,21 @@ package z_test
 
 import (
 	"fmt"
+	"slices"
 	"testing"
 
 	"github.com/cocktail828/go-tools/z"
 )
 
 func TestZ(t *testing.T) {
-	v := []int{1, 2, 3, 4, 5, 6}
-	for i := -3; i < len(v)+3; i++ {
-		fmt.Println(z.Delete(v, i))
+	i := 0
+	for {
+		v := []int{1, 2, 3, 4, 5, 6}
+		fmt.Println(slices.Delete(v, i, i+1))
+		i++
+		if i >= len(v) {
+			break
+		}
 	}
 	a()
 }
