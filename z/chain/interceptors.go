@@ -4,36 +4,27 @@ import (
 	"context"
 )
 
-// UnaryInfo consists of various information about a unary RPC on
-// server side. All per-rpc information may be mutated by the interceptor.
-type UnaryInfo struct {
-	// Server is the service implementation the user provides. This is read-only.
-	Server any
-	// FullMethod is the full RPC method string, i.e., /package.service/method.
-	FullMethod string
-}
+type UnaryHandler[T any] func(ctx context.Context, in T) (any, error)
+type UnaryInterceptor[T any] func(ctx context.Context, in T, handler UnaryHandler[T]) (resp any, err error)
 
-type UnaryHandler func(ctx context.Context, req any) (any, error)
-type UnaryInterceptor func(ctx context.Context, req any, info UnaryInfo, handler UnaryHandler) (resp any, err error)
-
-func getChainUnaryHandler(interceptors []UnaryInterceptor, curr int, info UnaryInfo, finalHandler UnaryHandler) UnaryHandler {
+func getChainUnaryHandler[T any](interceptors []UnaryInterceptor[T], curr int, finalHandler UnaryHandler[T]) UnaryHandler[T] {
 	if curr == len(interceptors)-1 {
 		return finalHandler
 	}
 
-	return func(ctx context.Context, req any) (any, error) {
-		return interceptors[curr+1](ctx, req, info, getChainUnaryHandler(interceptors, curr+1, info, finalHandler))
+	return func(ctx context.Context, in T) (any, error) {
+		return interceptors[curr+1](ctx, in, getChainUnaryHandler(interceptors, curr+1, finalHandler))
 	}
 }
 
-func ChainUnaryInterceptors(interceptors []UnaryInterceptor) UnaryInterceptor {
+func ChainUnaryInterceptors[T any](interceptors []UnaryInterceptor[T]) UnaryInterceptor[T] {
 	if len(interceptors) == 0 {
-		return func(ctx context.Context, req any, info UnaryInfo, handler UnaryHandler) (resp any, err error) {
-			return handler(ctx, req)
+		return func(ctx context.Context, in T, handler UnaryHandler[T]) (resp any, err error) {
+			return handler(ctx, in)
 		}
 	}
 
-	return func(ctx context.Context, req any, info UnaryInfo, handler UnaryHandler) (any, error) {
-		return interceptors[0](ctx, req, info, getChainUnaryHandler(interceptors, 0, info, handler))
+	return func(ctx context.Context, in T, handler UnaryHandler[T]) (any, error) {
+		return interceptors[0](ctx, in, getChainUnaryHandler[T](interceptors, 0, handler))
 	}
 }

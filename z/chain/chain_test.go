@@ -18,8 +18,23 @@ func (n nop) Execute(c *chain.Context) {
 	fmt.Println("post handle by", n.name)
 }
 
+type anop struct{ name string }
+
+func (n anop) Name() string { return n.name }
+func (n anop) Execute(c *chain.Context) {
+	fmt.Println("pre handle by", n.name)
+	c.Abort()
+	fmt.Println("post handle by", n.name)
+}
+
 func TestChain(t *testing.T) {
 	c := chain.Chain{}
 	z.Must(c.Use(nop{"a"}, nop{"b"}, nop{"c"}))
+	c.Handle(context.Background(), nil)
+}
+
+func TestAbort(t *testing.T) {
+	c := chain.Chain{}
+	z.Must(c.Use(nop{"a"}, nop{"b"}, anop{"xx"}, nop{"c"}))
 	c.Handle(context.Background(), nil)
 }
