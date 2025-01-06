@@ -3,7 +3,7 @@ package balancer
 import (
 	"sync"
 
-	"github.com/cocktail828/go-tools/z/locker"
+	"github.com/cocktail828/go-tools/z"
 )
 
 type rrBalancer struct {
@@ -17,12 +17,12 @@ func NewRR() Balancer {
 }
 
 func (b *rrBalancer) Update(array []Node) {
-	locker.WithLock(b, func() { b.array = array })
+	z.WithLock(b, func() { b.array = array })
 }
 
 func (b *rrBalancer) Pick() (n Node) {
 	var array []Node
-	locker.WithRLock(b, func() { array = b.array })
+	z.WithRLock(b, func() { array = b.array })
 
 	if len(array) == 0 {
 		return nil

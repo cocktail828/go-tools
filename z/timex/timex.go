@@ -4,6 +4,8 @@ import (
 	"context"
 	"sync"
 	"time"
+
+	"github.com/pkg/errors"
 )
 
 // TimeRecorder provides methods to record time duration
@@ -73,13 +75,12 @@ type LongTermChecker struct {
 // NewLongTermChecker creates a long term checker specified name, checking interval and warning string to print
 func NewLongTermChecker(ctx context.Context, d time.Duration, cb func()) *LongTermChecker {
 	ctx, cancel := context.WithCancel(ctx)
-	c := &LongTermChecker{
+	return &LongTermChecker{
 		d:      d,
 		cb:     cb,
 		ctx:    ctx,
 		cancel: cancel,
 	}
-	return c
 }
 
 // Start starts the check process
@@ -100,8 +101,12 @@ func (c *LongTermChecker) Start() {
 }
 
 // Check resets the time ticker
-func (c *LongTermChecker) Check() {
+func (c *LongTermChecker) Check() error {
+	if c.t == nil {
+		return errors.New("forget call `Start()` ???")
+	}
 	c.t.Reset(c.d)
+	return nil
 }
 
 // Stop stops the checker

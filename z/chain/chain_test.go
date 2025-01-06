@@ -1,40 +1,52 @@
 package chain_test
 
 import (
-	"context"
-	"fmt"
 	"testing"
 
 	"github.com/cocktail828/go-tools/z"
 	"github.com/cocktail828/go-tools/z/chain"
+	"github.com/stretchr/testify/assert"
 )
 
 type nop struct{ name string }
 
-func (n nop) Name() string { return n.name }
-func (n nop) Execute(c *chain.Context) {
-	fmt.Println("pre handle by", n.name)
+func (n nop) Execute(c chain.Context) {
+	c.Set("t", n.name)
 	c.Next()
-	fmt.Println("post handle by", n.name)
+	c.Set("t", n.name)
 }
 
 type anop struct{ name string }
 
-func (n anop) Name() string { return n.name }
-func (n anop) Execute(c *chain.Context) {
-	fmt.Println("pre handle by", n.name)
+func (n anop) Execute(c chain.Context) {
+	c.Set("t", n.name)
 	c.Abort()
-	fmt.Println("post handle by", n.name)
+	c.Set("t", n.name)
 }
+
+type T struct {
+	req  any
+	meta map[string][]any
+}
+
+func (t *T) Set(key string, value any)  { t.meta[key] = append(t.meta[key], value) }
+func (t *T) Get(key string) (any, bool) { val, ok := t.meta[key]; return val, ok }
+func (t *T) Request() any               { return t.req }
 
 func TestChain(t *testing.T) {
 	c := chain.Chain{}
 	z.Must(c.Use(nop{"a"}, nop{"b"}, nop{"c"}))
-	c.Handle(context.Background(), nil)
+	x := &T{meta: map[string][]any{}}
+	c.Handle(x)
+	val, _ := x.Get("t")
+	assert.EqualValues(t, []any{"a", "b", "c", "c", "b", "a"}, val)
 }
 
 func TestAbort(t *testing.T) {
 	c := chain.Chain{}
 	z.Must(c.Use(nop{"a"}, nop{"b"}, anop{"xx"}, nop{"c"}))
-	c.Handle(context.Background(), nil)
+	x := &T{meta: map[string][]any{}}
+	c.Handle(x)
+	val, _ := x.Get("t")
+	assert.EqualValues(t, []any{"a", "b", "xx", "xx", "b", "a"}, val)
 }

@@ -3,7 +3,7 @@ package balancer
 import (
 	"sync"
 
-	"github.com/cocktail828/go-tools/z/locker"
+	"github.com/cocktail828/go-tools/z"
 )
 
 type wrrBalancer struct {
@@ -17,7 +17,7 @@ func NewWRR() Balancer {
 }
 
 func (b *wrrBalancer) Update(array []Node) {
-	locker.WithLock(b, func() {
+	z.WithLock(b, func() {
 		b.array = array
 		b.busyArray = make([]int, len(b.array))
 	})
@@ -30,7 +30,7 @@ func (b *wrrBalancer) Pick() (n Node) {
 		return
 	}
 
-	locker.WithLock(b, func() {
+	z.WithLock(b, func() {
 		allWeight := 0
 		pos := -1
 		for i := 0; i < len(b.array); i++ {

@@ -1,7 +1,6 @@
 package chain
 
 import (
-	"context"
 	"math"
 
 	"github.com/pkg/errors"
@@ -17,15 +16,32 @@ var (
 	ErrNoHandle      = errors.New("chain has no handlers, forget call Use()?")
 )
 
-type Handler interface {
-	Name() string
-	Execute(ctx *Context)
+// Context defines the interface for the context passed through the chain.
+type Context interface {
+	Temporary
+	Abort()                   // Abort the chain execution.
+	AbortWithError(err error) // Abort the chain execution with a custom error.
+	IsAborted() bool          // Check if the chain execution is aborted.
+	Next()                    // Continue to the next handler in the chain.
 }
 
+type Temporary interface {
+	Set(key string, value any)  // Set a value in the context.
+	Get(key string) (any, bool) // Get a value from the context.
+	Request() any               // Get the request associated with the context.
+}
+
+// Handler defines the interface for a chain handler.
+type Handler interface {
+	Execute(ctx Context)
+}
+
+// Chain represents a chain of handlers.
 type Chain struct {
 	handlers []Handler
 }
 
+// Use adds handlers to the chain.
 func (chain *Chain) Use(handlers ...Handler) error {
 	if len(handlers)+len(chain.handlers) >= int(abortIndex) {
 		return ErrTooManyHandle
@@ -34,89 +50,59 @@ func (chain *Chain) Use(handlers ...Handler) error {
 	return nil
 }
 
-type Result interface {
-	Error() error
-	Request() any
-	GetResult() any
-}
-
-type errResult struct {
-	err error
-	req any
-}
-
-func (e errResult) Error() error   { return e.err }
-func (e errResult) Request() any   { return e.req }
-func (e errResult) GetResult() any { return nil }
-
-func (chain *Chain) Handle(ctx context.Context, req any) Result {
+// Handle executes the chain of handlers.
+func (chain *Chain) Handle(tmp Temporary) error {
 	if len(chain.handlers) == 0 {
-		return errResult{ErrNoHandle, req}
+		return ErrNoHandle
 	}
 
-	handlers := make([]Handler, len(chain.handlers))
-	copy(handlers, chain.handlers)
-	c := &Context{
-		Context:  ctx,
-		handlers: handlers,
-		req:      req,
+	// Wrap the user-provided context with our internal logic.
+	cc := &chainContext{
+		Temporary: tmp,
+		handlers:  chain.handlers,
 	}
 
-	for c.index < len(c.handlers) {
-		c.handlers[c.index].Execute(c)
-		c.index++
+	for cc.index < len(cc.handlers) && cc.index < abortIndex {
+		cc.handlers[cc.index].Execute(cc)
+		cc.index++
 	}
-	return c
+	return cc.Error()
 }
 
-type Context struct {
-	context.Context
+// chainContext is the internal implementation of Context.
+type chainContext struct {
+	Temporary
 	index    int
 	handlers []Handler
-	req      any
-	result   any
-	private  map[string]any
 	error    error
 }
 
-func (c *Context) Error() error    { return c.error }
-func (c *Context) IsAborted() bool { return c.index >= abortIndex }
-func (c *Context) Abort() {
-	cur := c.handlers[c.index]
-	c.index = abortIndex
-	c.error = errors.Errorf("chain abort at(%v) unexpectlly", cur.Name())
+// Abort aborts the chain execution.
+func (c *chainContext) Abort() {
+	c.abortWithError(errors.Errorf("chain abort at(%v) unexpectedly", c.index))
 }
 
-func (c *Context) AbortWithError(err error) {
-	cur := c.handlers[c.index]
-	c.index = abortIndex
-	c.error = errors.WithMessagef(err, "chain abort at(%v) unexpectlly", cur.Name())
+// AbortWithError aborts the chain execution with a custom error.
+func (c *chainContext) AbortWithError(err error) {
+	c.abortWithError(errors.WithMessagef(err, "chain abort at(%v) unexpectedly", c.index))
 }
 
-func (c *Context) Next() {
+// abortWithError is a helper function to set the error and abort the chain.
+func (c *chainContext) abortWithError(err error) {
+	c.index = abortIndex
+	c.error = err
+}
+
+// IsAborted checks if the chain execution is aborted.
+func (c *chainContext) IsAborted() bool { return c.index >= abortIndex }
+
+// Next continues the chain execution to the next handler.
+func (c *chainContext) Next() {
 	c.index++
-	for c.index < len(c.handlers) {
+	if c.index < len(c.handlers) && c.index < abortIndex {
 		c.handlers[c.index].Execute(c)
-		c.index++
 	}
 }
 
-func (c *Context) Set(v any) {
-	if c.index < len(c.handlers) {
-		cur := c.handlers[c.index]
-		c.private[cur.Name()] = v
-	}
-}
-
-func (c *Context) Get() (any, bool) {
-	if c.index < len(c.handlers) {
-		cur := c.handlers[c.index]
-		val, ok := c.private[cur.Name()]
-		return val, ok
-	}
-	return nil, false
-}
-
-func (c *Context) Request() any    { return c.req }
-func (c *Context) SetResult(v any) { c.result = v }
-func (c *Context) GetResult() any  { return c.result }
+// Error returns the error set in the context.
+func (c *chainContext) Error() error { return c.error }

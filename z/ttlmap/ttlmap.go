@@ -13,9 +13,10 @@ var (
 type validateFunc func() bool
 
 var alwaysTrue = func() bool { return true }
-var expireFunc = func(ttl time.Duration) validateFunc {
-	now := time.Now()
-	return func() bool { return time.Since(now) < ttl }
+
+// expireFunc returns a function that checks if the current time is before the expiration time.
+func expireFunc(expiration time.Time) validateFunc {
+	return func() bool { return time.Now().Before(expiration) }
 }
 
 type entry[T any] struct {
@@ -30,54 +31,50 @@ type Cache[T any] struct {
 
 func New[T any]() *Cache[T] {
 	return &Cache[T]{
-		cache: map[string]entry[T]{},
+		cache: make(map[string]entry[T]),
+	}
+}
+
+// setEntry is a helper function to set an entry in the cache.
+func (c *Cache[T]) setEntry(key string, val T, validate validateFunc) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.cache[key] = entry[T]{
+		val:      val,
+		validate: validate,
 	}
 }
 
 func (c *Cache[T]) Set(key string, val T) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.cache[key] = entry[T]{
-		val:      val,
-		validate: alwaysTrue,
-	}
+	c.setEntry(key, val, alwaysTrue)
 }
 
 func (c *Cache[T]) SetWithTTL(key string, val T, ttl time.Duration) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.cache[key] = entry[T]{
-		val:      val,
-		validate: expireFunc(ttl),
-	}
+	c.setEntry(key, val, expireFunc(time.Now().Add(ttl)))
 }
 
 func (c *Cache[T]) Get(key string) (T, error) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	var a T
+
 	val, ok := c.cache[key]
 	if !ok || !val.validate() {
-		return a, ErrNoEntry
+		var zero T
+		return zero, ErrNoEntry
 	}
 	return val.val, nil
 }
 
-// like Get, but will delete key if invalid
+// GetDel retrieves the value for a key and deletes it if it's invalid.
 func (c *Cache[T]) GetDel(key string) (T, error) {
-	var a T
-	c.mu.RLock()
-	val, ok := c.cache[key]
-	c.mu.RUnlock()
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	defer delete(c.cache, key)
 
-	if !ok {
-		return a, ErrNoEntry
-	}
-	if !val.validate() {
-		c.mu.Lock()
-		delete(c.cache, key)
-		c.mu.Unlock()
-		return a, ErrNoEntry
+	val, ok := c.cache[key]
+	if !ok || !val.validate() {
+		var zero T
+		return zero, ErrNoEntry
 	}
 	return val.val, nil
 }
@@ -85,6 +82,7 @@ func (c *Cache[T]) GetDel(key string) (T, error) {
 func (c *Cache[T]) Del(key string) (T, bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+
 	old, ok := c.cache[key]
 	delete(c.cache, key)
 	return old.val, ok

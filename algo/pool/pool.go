@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/cocktail828/go-tools/algo/pool/driver"
-	"github.com/cocktail828/go-tools/z/locker"
+	"github.com/cocktail828/go-tools/z"
 	"github.com/pkg/errors"
 )
 
@@ -156,7 +156,7 @@ func (dc *driverConn) closeDBLocked() func() error {
 	}
 
 	closer := func() error { return nil }
-	locker.WithLock(dc, func() {
+	z.WithLock(dc, func() {
 		if !dc.closed {
 			closer = dc.db.removeConnLocked(dc)
 		}
@@ -239,7 +239,7 @@ func Open(driverName, dataSourceName string) (*DB, error) {
 func (db *DB) pingDC(ctx context.Context, dc *driverConn, release func(error)) error {
 	var err error
 	if pinger, ok := dc.ci.(driver.Pinger); ok {
-		locker.WithLock(dc, func() {
+		z.WithLock(dc, func() {
 			err = pinger.Ping(ctx)
 		})
 	}
@@ -276,7 +276,7 @@ func (db *DB) Ping() error {
 
 func (db *DB) removeConnLocked(dc *driverConn) func() error {
 	return func() error {
-		locker.WithLock(&db.mu, func() {
+		z.WithLock(&db.mu, func() {
 			dc.db.numOpen--
 		})
 		return dc.ci.Close()
@@ -944,7 +944,7 @@ func (db *DB) DoContext(ctx context.Context, f func(ci driver.Conn) error) error
 // The connection gets released by the releaseConn function.
 func (db *DB) doDC(ctx context.Context, dc *driverConn, releaseConn func(error), f func(ci driver.Conn) error) error {
 	var err error
-	locker.WithLock(dc, func() {
+	z.WithLock(dc, func() {
 		errchan := make(chan error, 1)
 		go func() { errchan <- f(dc.ci) }()
 		select {
