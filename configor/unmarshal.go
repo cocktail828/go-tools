@@ -20,6 +20,7 @@ var (
 	}
 )
 
+// Register registers a new unmarshal function for a file extension.
 func Register(suffix string, f Unmarshal) {
 	unmarshalMu.Lock()
 	defer unmarshalMu.Unlock()

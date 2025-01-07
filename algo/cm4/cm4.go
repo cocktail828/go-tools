@@ -1,21 +1,23 @@
-package cms
+package cm4
 
 import (
 	"fmt"
 	"math/rand"
+	"sync"
 	"time"
 
 	"github.com/cocktail828/go-tools/z/mathx"
 )
 
-// CMSketch is a Count-Min sketch implementation with 4-bit counters, heavily
-// based on Damian Gryski's CM4 [1].
+// CM4 is a Count-Min sketch implementation with 4-bit counters, heavily
+// based on Damian Gryski'cm CM4 [1].
 //
 // [1]: https://github.com/dgryski/go-tinylfu/blob/master/cm4.go
-type CMSketch struct {
+type CM4 struct {
 	rows [cmDepth]cmRow
 	seed [cmDepth]uint64
 	mask uint64
+	mu   sync.RWMutex // 添加读写锁以支持并发访问
 }
 
 const (
@@ -23,35 +25,41 @@ const (
 	cmDepth = 4
 )
 
-func NewCMSketch(numCounters int64) *CMSketch {
+func NewCM4(numCounters int64) *CM4 {
 	if numCounters == 0 {
-		panic("CMSketch: bad numCounters")
+		panic("CM4: bad numCounters")
 	}
 	// Get the next power of 2 for better cache performance.
 	numCounters = mathx.Next2Power(numCounters)
-	sketch := &CMSketch{mask: uint64(numCounters - 1)}
+	cm4 := &CM4{mask: uint64(numCounters - 1)}
 	// Initialize rows of counters and seeds.
 	// Cryptographic precision not needed
 	source := rand.New(rand.NewSource(time.Now().UnixNano())) //nolint:gosec
 	for i := 0; i < cmDepth; i++ {
-		sketch.seed[i] = source.Uint64()
-		sketch.rows[i] = newCmRow(numCounters)
+		cm4.seed[i] = source.Uint64()
+		cm4.rows[i] = newCmRow(numCounters)
 	}
-	return sketch
+	return cm4
 }
 
 // Increment increments the count(ers) for the specified key.
-func (s *CMSketch) Increment(hashed uint64) {
-	for i := range s.rows {
-		s.rows[i].increment((hashed ^ s.seed[i]) & s.mask)
+func (cm *CM4) Increment(hashed uint64) {
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+
+	for i := range cm.rows {
+		cm.rows[i].increment((hashed ^ cm.seed[i]) & cm.mask)
 	}
 }
 
 // Estimate returns the value of the specified key.
-func (s *CMSketch) Estimate(hashed uint64) int64 {
+func (cm *CM4) Estimate(hashed uint64) int64 {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+
 	min := byte(255)
-	for i := range s.rows {
-		val := s.rows[i].get((hashed ^ s.seed[i]) & s.mask)
+	for i := range cm.rows {
+		val := cm.rows[i].get((hashed ^ cm.seed[i]) & cm.mask)
 		if val < min {
 			min = val
 		}
@@ -60,15 +68,21 @@ func (s *CMSketch) Estimate(hashed uint64) int64 {
 }
 
 // Reset halves all counter values.
-func (s *CMSketch) Reset() {
-	for _, r := range s.rows {
+func (cm *CM4) Reset() {
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+
+	for _, r := range cm.rows {
 		r.reset()
 	}
 }
 
 // Clear zeroes all counters.
-func (s *CMSketch) Clear() {
-	for _, r := range s.rows {
+func (cm *CM4) Clear() {
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+
+	for _, r := range cm.rows {
 		r.clear()
 	}
 }
@@ -80,30 +94,32 @@ func newCmRow(numCounters int64) cmRow {
 	return make(cmRow, numCounters/2)
 }
 
+// get returns the value of the counter at index n.
 func (r cmRow) get(n uint64) byte {
 	return (r[n/2] >> ((n & 1) * 4)) & 0x0f
 }
 
+// increment increments the counter at index n.
 func (r cmRow) increment(n uint64) {
-	// Index of the counter.
-	i := n / 2
-	// Shift distance (even 0, odd 4).
-	s := (n & 1) * 4
-	// Counter value.
-	v := (r[i] >> s) & 0x0f
+	i := n / 2               // Index of the counter.
+	cm := (n & 1) * 4        // Shift distance (even 0, odd 4).
+	v := (r[i] >> cm) & 0x0f // Counter value.
+
 	// Only increment if not max value (overflow wrap is bad for LFU).
 	if v < 15 {
-		r[i] += 1 << s
+		r[i] += 1 << cm
 	}
 }
 
+// reset halves all counter values.
 func (r cmRow) reset() {
-	// Halve each counter.
 	for i := range r {
+		// Halve each counter (two counters per byte).
 		r[i] = (r[i] >> 1) & 0x77
 	}
 }
 
+// clear zeroes all counters.
 func (r cmRow) clear() {
 	// Zero each counter.
 	for i := range r {
@@ -111,11 +127,12 @@ func (r cmRow) clear() {
 	}
 }
 
-func (r cmRow) string() string {
-	s := ""
+// string returns a string representation of the row.
+func (r cmRow) String() string {
+	cm := ""
 	for i := uint64(0); i < uint64(len(r)*2); i++ {
-		s += fmt.Sprintf("%02d ", (r[(i/2)]>>((i&1)*4))&0x0f)
+		cm += fmt.Sprintf("%02d ", (r[(i/2)]>>((i&1)*4))&0x0f)
 	}
-	s = s[:len(s)-1]
-	return s
+	cm = cm[:len(cm)-1]
+	return cm
 }

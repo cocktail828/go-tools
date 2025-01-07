@@ -21,15 +21,13 @@ func (c *Configor) getPrefixForStruct(prefixes []string, fieldStruct *reflect.St
 func (c *Configor) processDefaults(dst any) error {
 	configValue := reflect.Indirect(reflect.ValueOf(dst))
 	if configValue.Kind() != reflect.Struct {
-		return errors.New("invalid dst, should be struct")
+		return errors.New("dst must be a struct")
 	}
 
 	configType := configValue.Type()
 	for i := 0; i < configType.NumField(); i++ {
-		var (
-			fieldStruct = configType.Field(i)
-			field       = configValue.Field(i)
-		)
+		fieldStruct := configType.Field(i)
+		field := configValue.Field(i)
 
 		if !field.CanAddr() || !field.CanInterface() {
 			continue
@@ -39,7 +37,7 @@ func (c *Configor) processDefaults(dst any) error {
 			// Set default configuration if blank
 			if value := fieldStruct.Tag.Get("default"); value != "" {
 				if err := yaml.Unmarshal([]byte(value), field.Addr().Interface()); err != nil {
-					return err
+					return errors.Wrapf(err, "failed to set default value for field %s", fieldStruct.Name)
 				}
 			}
 		}
@@ -51,13 +49,13 @@ func (c *Configor) processDefaults(dst any) error {
 		switch field.Kind() {
 		case reflect.Struct:
 			if err := c.processDefaults(field.Addr().Interface()); err != nil {
-				return err
+				return errors.Wrapf(err, "failed to process defaults for nested struct %s", fieldStruct.Name)
 			}
 		case reflect.Slice:
 			for i := 0; i < field.Len(); i++ {
 				if reflect.Indirect(field.Index(i)).Kind() == reflect.Struct {
 					if err := c.processDefaults(field.Index(i).Addr().Interface()); err != nil {
-						return err
+						return errors.Wrapf(err, "failed to process defaults for slice element %d in field %s", i, fieldStruct.Name)
 					}
 				}
 			}
@@ -67,26 +65,22 @@ func (c *Configor) processDefaults(dst any) error {
 	return nil
 }
 
-func (c *Configor) processTags(config interface{}, prefixes ...string) error {
+func (c *Configor) processTags(config any, prefixes ...string) error {
 	configValue := reflect.Indirect(reflect.ValueOf(config))
 	if configValue.Kind() != reflect.Struct {
-		return errors.New("invalid config, should be struct")
+		return errors.New("config must be a struct")
 	}
 
 	configType := configValue.Type()
 	for i := 0; i < configType.NumField(); i++ {
 		fieldStruct := configType.Field(i)
 		field := configValue.Field(i)
+
 		if !field.CanAddr() || !field.CanInterface() {
 			continue
 		}
 
-		// read configuration from shell env
-		if err := func() error {
-			if !c.LoadEnv {
-				return nil
-			}
-
+		if c.LoadEnv {
 			envNames := []string{}
 			if envName := fieldStruct.Tag.Get("env"); envName == "" {
 				envName = strings.Join(append(prefixes, fieldStruct.Name), "_")
@@ -105,18 +99,16 @@ func (c *Configor) processTags(config interface{}, prefixes ...string) error {
 						if val, err := strconv.ParseBool(strings.ToLower(value)); err == nil {
 							field.Set(reflect.ValueOf(val))
 						}
-						return nil
 					case reflect.String:
 						field.Set(reflect.ValueOf(value))
-						return nil
 					default:
-						return yaml.Unmarshal([]byte(value), field.Addr().Interface())
+						if err := yaml.Unmarshal([]byte(value), field.Addr().Interface()); err != nil {
+							return errors.Wrapf(err, "failed to unmarshal env value for field %s", fieldStruct.Name)
+						}
 					}
+					break
 				}
 			}
-			return nil
-		}(); err != nil {
-			return err
 		}
 
 		for field.Kind() == reflect.Ptr {
@@ -125,7 +117,7 @@ func (c *Configor) processTags(config interface{}, prefixes ...string) error {
 
 		if field.Kind() == reflect.Struct {
 			if err := c.processTags(field.Addr().Interface(), c.getPrefixForStruct(prefixes, &fieldStruct)...); err != nil {
-				return err
+				return errors.Wrapf(err, "failed to process tags for nested struct %s", fieldStruct.Name)
 			}
 		}
 
@@ -162,6 +154,7 @@ func (c *Configor) processTags(config interface{}, prefixes ...string) error {
 			}
 		}
 	}
+
 	return nil
 }
 
@@ -173,15 +166,22 @@ type pair struct {
 func (c *Configor) internalLoad(dst any, pairs ...pair) error {
 	defaultValue := reflect.Indirect(reflect.ValueOf(dst))
 	if !defaultValue.CanAddr() {
-		return errors.Errorf("Config %v should be addressable", dst)
+		return errors.Errorf("config %v must be addressable", dst)
 	}
+
 	if err := c.processDefaults(dst); err != nil {
-		return err
+		return errors.Wrap(err, "failed to process defaults")
 	}
+
 	for _, val := range pairs {
 		if err := val.unmarshal(val.data, dst); err != nil {
-			return err
+			return errors.Wrap(err, "failed to unmarshal data")
 		}
 	}
-	return c.processTags(dst)
+
+	if err := c.processTags(dst); err != nil {
+		return errors.Wrap(err, "failed to process tags")
+	}
+
+	return nil
 }

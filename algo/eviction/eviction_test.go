@@ -13,9 +13,9 @@ func TestCacheExpiration(t *testing.T) {
 		name      string
 		cacheInit func(size uint) eviction.Eviction
 	}{
-		{"LFUCache", func(size uint) eviction.Eviction { return eviction.NewLFUCache(size) }},
-		{"LRUCache", func(size uint) eviction.Eviction { return eviction.NewLRUCache(size) }},
-		{"WindowLFUCache", func(size uint) eviction.Eviction { return eviction.NewWindowLFUCache(size, size*2, 100) }},
+		{"LFU", func(size uint) eviction.Eviction { return eviction.NewLFU(size) }},
+		{"LRU", func(size uint) eviction.Eviction { return eviction.NewLRU(size) }},
+		{"WindowLFU", func(size uint) eviction.Eviction { return eviction.NewWindowLFU(size, size*2, 100) }},
 	}
 
 	for _, tt := range tests {
@@ -48,9 +48,9 @@ func TestCacheEviction(t *testing.T) {
 		name      string
 		cacheInit func(size uint) eviction.Eviction
 	}{
-		{"LFUCache", func(size uint) eviction.Eviction { return eviction.NewLFUCache(size) }},
-		{"LRUCache", func(size uint) eviction.Eviction { return eviction.NewLRUCache(size) }},
-		{"WindowLFUCache", func(size uint) eviction.Eviction { return eviction.NewWindowLFUCache(size, size*2, 100) }},
+		{"LFU", func(size uint) eviction.Eviction { return eviction.NewLFU(size) }},
+		{"LRU", func(size uint) eviction.Eviction { return eviction.NewLRU(size) }},
+		{"WindowLFU", func(size uint) eviction.Eviction { return eviction.NewWindowLFU(size, size*2, 100) }},
 	}
 
 	for _, tt := range tests {
@@ -81,9 +81,9 @@ func TestCacheInterfaces(t *testing.T) {
 		name      string
 		cacheInit func(size uint) eviction.Eviction
 	}{
-		{"LFUCache", func(size uint) eviction.Eviction { return eviction.NewLFUCache(size) }},
-		{"LRUCache", func(size uint) eviction.Eviction { return eviction.NewLRUCache(size) }},
-		{"WindowLFUCache", func(size uint) eviction.Eviction { return eviction.NewWindowLFUCache(size, size*2, 100) }},
+		{"LFU", func(size uint) eviction.Eviction { return eviction.NewLFU(size) }},
+		{"LRU", func(size uint) eviction.Eviction { return eviction.NewLRU(size) }},
+		{"WindowLFU", func(size uint) eviction.Eviction { return eviction.NewWindowLFU(size, size*2, 100) }},
 	}
 
 	for _, tt := range tests {
@@ -114,9 +114,9 @@ func TestCachePurge(t *testing.T) {
 		name      string
 		cacheInit func(size uint) eviction.Eviction
 	}{
-		{"LFUCache", func(size uint) eviction.Eviction { return eviction.NewLFUCache(size) }},
-		{"LRUCache", func(size uint) eviction.Eviction { return eviction.NewLRUCache(size) }},
-		{"WindowLFUCache", func(size uint) eviction.Eviction { return eviction.NewWindowLFUCache(size, size*2, 100) }},
+		{"LFU", func(size uint) eviction.Eviction { return eviction.NewLFU(size) }},
+		{"LRU", func(size uint) eviction.Eviction { return eviction.NewLRU(size) }},
+		{"WindowLFU", func(size uint) eviction.Eviction { return eviction.NewWindowLFU(size, size*2, 100) }},
 	}
 
 	for _, tt := range tests {

@@ -23,10 +23,11 @@ var Default = &Configor{
 	Validator: validator.New().Struct,
 }
 
-func (c *Configor) Load(dst any, data ...[]byte) (err error) {
+// Load unmarshals configurations to struct from provided data.
+func (c *Configor) Load(dst any, data ...[]byte) error {
 	pairs := make([]pair, 0, len(data))
-	for idx := 0; idx < len(data); idx++ {
-		pairs = append(pairs, pair{data: data[idx], unmarshal: c.Unmarshal})
+	for _, d := range data {
+		pairs = append(pairs, pair{data: d, unmarshal: c.Unmarshal})
 	}
 
 	if err := c.internalLoad(dst, pairs...); err != nil {
@@ -38,19 +39,21 @@ func (c *Configor) Load(dst any, data ...[]byte) (err error) {
 	return nil
 }
 
-// Load will unmarshal configurations to struct from files that you provide
+// LoadFile unmarshals configurations to struct from provided files.
 func (c *Configor) LoadFile(dst any, files ...string) error {
 	pairs := make([]pair, 0, len(files))
 	for _, fname := range files {
 		data, err := os.ReadFile(fname)
 		if err != nil {
-			return err
+			return errors.Wrapf(err, "failed to read file %s", fname)
 		}
-		if f, ok := unmarshals[path.Ext(fname)]; ok {
-			pairs = append(pairs, pair{data, f})
-		} else {
-			return errors.Errorf("missing unmarshal for %q", path.Ext(fname))
+
+		ext := path.Ext(fname)
+		unmarshal, ok := unmarshals[ext]
+		if !ok {
+			return errors.Errorf("unsupported file extension: %s", ext)
 		}
+		pairs = append(pairs, pair{data: data, unmarshal: unmarshal})
 	}
 
 	if err := c.internalLoad(dst, pairs...); err != nil {
@@ -62,12 +65,12 @@ func (c *Configor) LoadFile(dst any, files ...string) error {
 	return nil
 }
 
-// Load will unmarshal configurations to struct from files that you provide
+// Load unmarshals configurations to struct from provided data using the default Configor.
 func Load(dst any, data ...[]byte) error {
 	return Default.Load(dst, data...)
 }
 
-// Load will unmarshal configurations to struct from files that you provide
+// LoadFile unmarshals configurations to struct from provided files using the default Configor.
 func LoadFile(dst any, files ...string) error {
 	return Default.LoadFile(dst, files...)
 }

@@ -1,4 +1,4 @@
-package cms
+package cm4
 
 import (
 	"testing"
@@ -7,39 +7,39 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestSketch(t *testing.T) {
+func TestCM4(t *testing.T) {
 	defer func() {
 		require.NotNil(t, recover())
 	}()
 
-	s := NewCMSketch(5)
+	s := NewCM4(5)
 	require.Equal(t, uint64(7), s.mask)
-	NewCMSketch(0)
+	NewCM4(0)
 }
 
-func TestSketchIncrement(t *testing.T) {
-	s := NewCMSketch(16)
+func TestCM4Increment(t *testing.T) {
+	s := NewCM4(16)
 	s.Increment(1)
 	s.Increment(5)
 	s.Increment(9)
 	for i := 0; i < cmDepth; i++ {
-		if s.rows[i].string() != s.rows[0].string() {
+		if s.rows[i].String() != s.rows[0].String() {
 			break
 		}
 		require.False(t, i == cmDepth-1, "identical rows, bad seeding")
 	}
 }
 
-func TestSketchEstimate(t *testing.T) {
-	s := NewCMSketch(16)
+func TestCM4Estimate(t *testing.T) {
+	s := NewCM4(16)
 	s.Increment(1)
 	s.Increment(1)
 	require.Equal(t, int64(2), s.Estimate(1))
 	require.Equal(t, int64(0), s.Estimate(0))
 }
 
-func TestSketchReset(t *testing.T) {
-	s := NewCMSketch(16)
+func TestCM4Reset(t *testing.T) {
+	s := NewCM4(16)
 	s.Increment(1)
 	s.Increment(1)
 	s.Increment(1)
@@ -48,8 +48,8 @@ func TestSketchReset(t *testing.T) {
 	require.Equal(t, int64(2), s.Estimate(1))
 }
 
-func TestSketchClear(t *testing.T) {
-	s := NewCMSketch(16)
+func TestCM4Clear(t *testing.T) {
+	s := NewCM4(16)
 	for i := 0; i < 16; i++ {
 		s.Increment(uint64(i))
 	}
@@ -68,16 +68,16 @@ func TestNext2Power(t *testing.T) {
 	t.Logf("pow = %d. mult 4 = %d\n", pow, pow*4)
 }
 
-func BenchmarkSketchIncrement(b *testing.B) {
-	s := NewCMSketch(16)
+func BenchmarkCM4Increment(b *testing.B) {
+	s := NewCM4(16)
 	b.SetBytes(1)
 	for n := 0; n < b.N; n++ {
 		s.Increment(1)
 	}
 }
 
-func BenchmarkSketchEstimate(b *testing.B) {
-	s := NewCMSketch(16)
+func BenchmarkCM4Estimate(b *testing.B) {
+	s := NewCM4(16)
 	s.Increment(1)
 	b.SetBytes(1)
 	for n := 0; n < b.N; n++ {

@@ -10,26 +10,25 @@ const (
 	DefaultMaxFreq = 2 << 19
 )
 
-// LFUCache implements a Least Frequently Used cache with optional expiration.
-type LFUCache struct {
+type LFU struct {
 	cache
 	maxFreq  uint
 	mu       sync.RWMutex
 	items    map[string]*lfuItem
-	freqHeap freqHeap // Min-heap based on frequency.
+	freqHeap freqHeap
 }
 
 type lfuItem struct {
 	key       string
 	value     any
-	freqEntry *freqEntry // Reference to the item's frequency entry
+	freqEntry *freqEntry
 	expireAt  time.Time
 }
 
 type freqEntry struct {
 	freq      uint
 	items     map[*lfuItem]struct{}
-	heapIndex int // Index in the heap for efficient updates
+	heapIndex int
 }
 
 type freqHeap []*freqEntry
@@ -53,13 +52,13 @@ func (h *freqHeap) Pop() any {
 	old := *h
 	n := len(old)
 	entry := old[n-1]
-	old[n-1] = nil // Avoid memory leak
+	old[n-1] = nil
 	entry.heapIndex = -1
 	*h = old[0 : n-1]
 	return entry
 }
 
-func NewLFUCache(size uint, opts ...Option) Eviction {
+func NewLFU(size uint, opts ...Option) Eviction {
 	c := cache{
 		size:    size,
 		onEvict: func(s string, a any) {},
@@ -69,7 +68,7 @@ func NewLFUCache(size uint, opts ...Option) Eviction {
 		o(&c)
 	}
 
-	lfu := &LFUCache{
+	lfu := &LFU{
 		cache:    c,
 		maxFreq:  DefaultMaxFreq,
 		items:    make(map[string]*lfuItem, size),
@@ -79,13 +78,13 @@ func NewLFUCache(size uint, opts ...Option) Eviction {
 	return lfu
 }
 
-func (c *LFUCache) SetMaxFreq(max uint) {
+func (c *LFU) SetMaxFreq(max uint) {
 	if max > 0 {
 		c.maxFreq = max
 	}
 }
 
-func (c *LFUCache) Decay() {
+func (c *LFU) Decay() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	for _, item := range c.items {
@@ -93,11 +92,11 @@ func (c *LFUCache) Decay() {
 	}
 }
 
-func (c *LFUCache) Set(key string, value any) {
+func (c *LFU) Set(key string, value any) {
 	c.SetWithExpiration(key, value, c.expiration)
 }
 
-func (c *LFUCache) SetWithExpiration(key string, value any, expiration time.Duration) {
+func (c *LFU) SetWithExpiration(key string, value any, expiration time.Duration) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -120,16 +119,14 @@ func (c *LFUCache) SetWithExpiration(key string, value any, expiration time.Dura
 	}
 }
 
-func (c *LFUCache) addItemToFrequency(item *lfuItem, freq uint) {
+func (c *LFU) addItemToFrequency(item *lfuItem, freq uint) {
 	var entry *freqEntry
-	// Try finding the frequency entry in the heap
 	for _, e := range c.freqHeap {
 		if e.freq == freq {
 			entry = e
 			break
 		}
 	}
-	// Create a new frequency entry if none found
 	if entry == nil {
 		entry = &freqEntry{
 			freq:  freq,
@@ -137,39 +134,34 @@ func (c *LFUCache) addItemToFrequency(item *lfuItem, freq uint) {
 		}
 		heap.Push(&c.freqHeap, entry)
 	}
-	// Add item to frequency entry
 	entry.items[item] = struct{}{}
 	item.freqEntry = entry
 }
 
-func (c *LFUCache) decayFrequency(item *lfuItem) {
+func (c *LFU) decayFrequency(item *lfuItem) {
 	oldEntry := item.freqEntry
 	newFreq := oldEntry.freq / 2
 	c.addItemToFrequency(item, newFreq)
-
-	// Remove item from old frequency entry and delete entry if empty
 	delete(oldEntry.items, item)
 	if len(oldEntry.items) == 0 {
 		heap.Remove(&c.freqHeap, oldEntry.heapIndex)
 	}
 }
 
-func (c *LFUCache) incrementFrequency(item *lfuItem) {
+func (c *LFU) incrementFrequency(item *lfuItem) {
 	oldEntry := item.freqEntry
 	newFreq := oldEntry.freq + 1
 	if newFreq >= uint(c.maxFreq) {
 		newFreq = c.maxFreq
 	}
 	c.addItemToFrequency(item, newFreq)
-
-	// Remove item from old frequency entry and delete entry if empty
 	delete(oldEntry.items, item)
 	if len(oldEntry.items) == 0 {
 		heap.Remove(&c.freqHeap, oldEntry.heapIndex)
 	}
 }
 
-func (c *LFUCache) Get(key string) (any, bool) {
+func (c *LFU) Get(key string) (any, bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -184,7 +176,7 @@ func (c *LFUCache) Get(key string) (any, bool) {
 	return nil, false
 }
 
-func (c *LFUCache) evict(count int) {
+func (c *LFU) evict(count int) {
 	now := time.Now()
 	for _, entry := range c.freqHeap {
 		for item := range entry.items {
@@ -213,7 +205,7 @@ func (c *LFUCache) evict(count int) {
 	}
 }
 
-func (c *LFUCache) removeItem(item *lfuItem) {
+func (c *LFU) removeItem(item *lfuItem) {
 	if entry := item.freqEntry; entry != nil {
 		delete(entry.items, item)
 		if len(entry.items) == 0 {
@@ -226,14 +218,14 @@ func (c *LFUCache) removeItem(item *lfuItem) {
 	}
 }
 
-func (c *LFUCache) Has(key string) bool {
+func (c *LFU) Has(key string) bool {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	item, exists := c.items[key]
 	return exists && (item.expireAt.IsZero() || time.Now().Before(item.expireAt))
 }
 
-func (c *LFUCache) Remove(key string) bool {
+func (c *LFU) Remove(key string) bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if item, exists := c.items[key]; exists {
@@ -243,7 +235,7 @@ func (c *LFUCache) Remove(key string) bool {
 	return false
 }
 
-func (c *LFUCache) lookupWithCallbackLocked(includeExpired bool, cb func(*lfuItem)) {
+func (c *LFU) lookupWithCallbackLocked(includeExpired bool, cb func(*lfuItem)) {
 	now := time.Now()
 	for _, elem := range c.items {
 		if includeExpired || elem.expireAt.IsZero() || now.Before(elem.expireAt) {
@@ -252,7 +244,7 @@ func (c *LFUCache) lookupWithCallbackLocked(includeExpired bool, cb func(*lfuIte
 	}
 }
 
-func (c *LFUCache) GetAll(includeExpired bool) map[string]any {
+func (c *LFU) GetAll(includeExpired bool) map[string]any {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	result := make(map[string]any, len(c.items))
@@ -262,7 +254,7 @@ func (c *LFUCache) GetAll(includeExpired bool) map[string]any {
 	return result
 }
 
-func (c *LFUCache) Keys(includeExpired bool) []string {
+func (c *LFU) Keys(includeExpired bool) []string {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	keys := make([]string, 0, len(c.items))
@@ -272,7 +264,7 @@ func (c *LFUCache) Keys(includeExpired bool) []string {
 	return keys
 }
 
-func (c *LFUCache) Len(includeExpired bool) int {
+func (c *LFU) Len(includeExpired bool) int {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	count := 0
@@ -282,7 +274,7 @@ func (c *LFUCache) Len(includeExpired bool) int {
 	return count
 }
 
-func (c *LFUCache) Purge() {
+func (c *LFU) Purge() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	for key, item := range c.items {

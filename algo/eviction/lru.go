@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-type LRUCache struct {
+type LRU struct {
 	cache
 	mu        sync.RWMutex
 	items     map[string]*list.Element
@@ -20,7 +20,7 @@ type lruItem struct {
 	expireAt time.Time
 }
 
-func NewLRUCache(size uint, opts ...Option) Eviction {
+func NewLRU(size uint, opts ...Option) Eviction {
 	c := cache{
 		size:    size,
 		onEvict: func(s string, a any) {},
@@ -30,18 +30,18 @@ func NewLRUCache(size uint, opts ...Option) Eviction {
 		o(&c)
 	}
 
-	return &LRUCache{
+	return &LRU{
 		cache:     c,
 		items:     make(map[string]*list.Element, size),
 		evictList: list.New(),
 	}
 }
 
-func (c *LRUCache) Set(key string, value any) {
+func (c *LRU) Set(key string, value any) {
 	c.SetWithExpiration(key, value, c.expiration)
 }
 
-func (c *LRUCache) SetWithExpiration(key string, value any, expiration time.Duration) {
+func (c *LRU) SetWithExpiration(key string, value any, expiration time.Duration) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -67,7 +67,7 @@ func (c *LRUCache) SetWithExpiration(key string, value any, expiration time.Dura
 	}
 }
 
-func (c *LRUCache) Get(key string) (any, bool) {
+func (c *LRU) Get(key string) (any, bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -84,7 +84,7 @@ func (c *LRUCache) Get(key string) (any, bool) {
 	return nil, false
 }
 
-func (c *LRUCache) Has(key string) bool {
+func (c *LRU) Has(key string) bool {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
@@ -92,7 +92,7 @@ func (c *LRUCache) Has(key string) bool {
 	return exists && (elem.Value.(*lruItem).expireAt.IsZero() || time.Now().Before(elem.Value.(*lruItem).expireAt))
 }
 
-func (c *LRUCache) Remove(key string) bool {
+func (c *LRU) Remove(key string) bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -104,7 +104,7 @@ func (c *LRUCache) Remove(key string) bool {
 	return false
 }
 
-func (c *LRUCache) Purge() {
+func (c *LRU) Purge() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -117,7 +117,7 @@ func (c *LRUCache) Purge() {
 	c.evictList.Init()
 }
 
-func (c *LRUCache) evict(count int) {
+func (c *LRU) evict(count int) {
 	now := time.Now()
 	for _, elem := range c.items {
 		item := elem.Value.(*lruItem)
@@ -137,7 +137,7 @@ func (c *LRUCache) evict(count int) {
 	}
 }
 
-func (c *LRUCache) removeElement(e *list.Element) {
+func (c *LRU) removeElement(e *list.Element) {
 	item := e.Value.(*lruItem)
 	if c.onEvict != nil {
 		c.onEvict(item.key, item.value)
@@ -146,7 +146,7 @@ func (c *LRUCache) removeElement(e *list.Element) {
 	c.evictList.Remove(e)
 }
 
-func (c *LRUCache) lookupWithCallbackLocked(includeExpired bool, cb func(*lruItem)) {
+func (c *LRU) lookupWithCallbackLocked(includeExpired bool, cb func(*lruItem)) {
 	now := time.Now()
 	for _, elem := range c.items {
 		item := elem.Value.(*lruItem)
@@ -156,7 +156,7 @@ func (c *LRUCache) lookupWithCallbackLocked(includeExpired bool, cb func(*lruIte
 	}
 }
 
-func (c *LRUCache) GetAll(includeExpired bool) map[string]any {
+func (c *LRU) GetAll(includeExpired bool) map[string]any {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
@@ -167,7 +167,7 @@ func (c *LRUCache) GetAll(includeExpired bool) map[string]any {
 	return result
 }
 
-func (c *LRUCache) Keys(includeExpired bool) []string {
+func (c *LRU) Keys(includeExpired bool) []string {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
@@ -178,7 +178,7 @@ func (c *LRUCache) Keys(includeExpired bool) []string {
 	return result
 }
 
-func (c *LRUCache) Len(includeExpired bool) int {
+func (c *LRU) Len(includeExpired bool) int {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
@@ -189,7 +189,7 @@ func (c *LRUCache) Len(includeExpired bool) int {
 	return result
 }
 
-func (c *LRUCache) Frequency(key string) uint {
+func (c *LRU) Frequency(key string) uint {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
