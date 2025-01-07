@@ -152,7 +152,7 @@ func (dc *driverConn) validateConnection(needsReset bool) bool {
 // the dc.db's Mutex is held.
 func (dc *driverConn) closeDBLocked() func() error {
 	if dc.closed {
-		return nil
+		return func() error { return nil }
 	}
 
 	closer := func() error { return nil }
@@ -920,11 +920,13 @@ func (db *DB) retry(fn func(strategy connReuseStrategy) error) error {
 	return fn(alwaysNewConn)
 }
 
-func (db *DB) Do(f func(ci driver.Conn) error) error {
+type Handler func(ci driver.Conn) error
+
+func (db *DB) Do(f Handler) error {
 	return db.DoContext(context.Background(), f)
 }
 
-func (db *DB) DoContext(ctx context.Context, f func(ci driver.Conn) error) error {
+func (db *DB) DoContext(ctx context.Context, f Handler) error {
 	var dc *driverConn
 	var err error
 
@@ -942,7 +944,7 @@ func (db *DB) DoContext(ctx context.Context, f func(ci driver.Conn) error) error
 
 // doDC executes a query on the given connection.
 // The connection gets released by the releaseConn function.
-func (db *DB) doDC(ctx context.Context, dc *driverConn, releaseConn func(error), f func(ci driver.Conn) error) error {
+func (db *DB) doDC(ctx context.Context, dc *driverConn, releaseConn func(error), f Handler) error {
 	var err error
 	z.WithLock(dc, func() {
 		errchan := make(chan error, 1)
