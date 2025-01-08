@@ -2,105 +2,126 @@ package etcdkv_test
 
 import (
 	"context"
-	"io"
 	"testing"
 	"time"
 
 	"github.com/cocktail828/go-tools/pkg/kvstore"
+	"github.com/cocktail828/go-tools/pkg/kvstore/common"
 	"github.com/cocktail828/go-tools/pkg/kvstore/etcdkv"
+	"github.com/cocktail828/go-tools/z"
 	"github.com/stretchr/testify/assert"
+	clientv3 "go.etcd.io/etcd/client/v3"
 )
 
 var (
-	endpoint = "127.0.0.1:2379"
+	endpoint = "172.29.231.108:12379"
+	src      kvstore.KV
 )
 
-func TestEtcd(t *testing.T) {
-	src, err := etcdkv.New(etcdkv.WithAddress(endpoint),
-		etcdkv.WithPrefix("/caesar/"),
-		etcdkv.WithDialTimeout(time.Second*3))
-	assert.Nil(t, err)
-	defer src.Close()
-
-	cases := []struct {
-		Name string
-		Key  string
-		Val  []byte
-	}{
-		{"kv", "a", []byte("aaa")},
-		{"kv-tree", "a/123", []byte("a/123")},
-	}
-
-	for _, c := range cases {
-		assert.Equal(t, nil, src.Set(c.Key, c.Val))
-	}
-
-	for _, c := range cases {
-		t.Run(c.Name, func(t *testing.T) {
-			kv, err := src.Get(c.Key)
-			assert.Nil(t, err)
-			assert.ElementsMatch(t, []kvstore.KVPair{{Key: c.Key, Val: c.Val}}, kv)
-		})
-	}
-
-	kv, err := src.Get("a", etcdkv.MatchPrefix())
-	assert.Nil(t, err)
-	assert.Equal(t, []kvstore.KVPair{{Key: "a", Val: []byte("aaa")}, {Key: "a/123", Val: []byte("a/123")}}, kv)
-	assert.Equal(t, nil, src.Del("a", etcdkv.MatchPrefix()))
+func TestMain(b *testing.M) {
+	var err error
+	src, err = etcdkv.New(clientv3.Config{
+		Endpoints:   []string{endpoint},
+		DialTimeout: time.Second,
+	}, "aaa/bbb")
+	z.Must(err)
+	b.Run()
 }
 
-func TestEtcdWatch(t *testing.T) {
-	cases := []struct {
-		Name string
-		Key  string
-		Val  []byte
-		Opts []kvstore.Option
-	}{
-		{"watchkv", "a", []byte("aaa"), nil},
-		{"watchkv-del", "a", []byte(""), nil},
-		{"watchkv-tree", "a/123", []byte("a/123"), []kvstore.Option{etcdkv.MatchPrefix()}},
-		{"watchkv-tree-del", "a/123", []byte(""), []kvstore.Option{etcdkv.MatchPrefix()}},
+type Case struct {
+	IsPut bool
+	Name  string
+	Key   string
+}
+
+func (c Case) Event() kvstore.Event {
+	ev := common.Event{}
+	if c.IsPut {
+		ev.Append(kvstore.PUT, c.Key, []byte(c.Key))
+	} else {
+		ev.Append(kvstore.DELETE, c.Key, nil)
+	}
+
+	return ev
+}
+
+type Cases []Case
+
+func (cs Cases) Convert() kvstore.Result {
+	impl := common.Result{}
+	for _, c := range cs {
+		impl.Append(c.Key, []byte(c.Key))
+	}
+	return impl
+}
+
+func TestEtcdCount(t *testing.T) {
+	c := Case{Key: "a"}
+
+	assert.NoError(t, src.Set(context.TODO(), c.Key, []byte(c.Key)))
+	kv, err := src.Get(context.TODO(), c.Key, kvstore.Count(), kvstore.MatchPrefix())
+	assert.NoError(t, err)
+	assert.EqualValues(t, etcdkv.CountResult{Num: 1}, kv)
+}
+
+func TestEtcdTTL(t *testing.T) {
+	c := Case{Key: "a"}
+
+	assert.NoError(t, src.Set(context.TODO(), c.Key, []byte(c.Key), kvstore.TTL(1)))
+	kv, err := src.Get(context.TODO(), c.Key)
+	assert.NoError(t, err)
+	assert.EqualValues(t, common.Result{Keys: []string{c.Key}, Values: [][]byte{[]byte(c.Key)}}, kv)
+
+	// make sure key is expired
+	time.Sleep(time.Millisecond * 3000)
+	kv, err = src.Get(context.TODO(), c.Key)
+	assert.NoError(t, err)
+	assert.EqualValues(t, common.Result{}, kv)
+}
+
+func TestEtcdKV(t *testing.T) {
+	cases := Cases{
+		{false, "kv", "a"},
+		{false, "kv-tree", "a/123"},
 	}
 
 	for _, c := range cases {
 		t.Run(c.Name, func(t *testing.T) {
-			src, err := etcdkv.New(etcdkv.WithAddress(endpoint),
-				etcdkv.WithPrefix("/caesar/"),
-				etcdkv.WithDialTimeout(time.Second*3))
-			assert.Nil(t, err)
-			defer src.Close()
-
-			w := src.Watch(append(c.Opts, etcdkv.WatchKey(c.Key))...)
-			ctx, cancel := context.WithCancel(context.Background())
-			go func() {
-				defer cancel()
-				for {
-					events, err := w.Next()
-					if err == io.EOF {
-						return
-					}
-					if len(events) == 0 {
-						continue
-					}
-					assert.Nil(t, err)
-					if len(c.Val) == 0 {
-						assert.Equal(t, []kvstore.Event{{Type: kvstore.Del, Key: c.Key}}, events)
-					} else {
-						assert.Equal(t, []kvstore.Event{{Type: kvstore.Put, Key: c.Key, Val: c.Val}}, events)
-					}
-				}
-			}()
-
-			for i := 0; i < 2; i++ {
-				<-time.After(time.Millisecond * 100)
-				if len(c.Val) == 0 {
-					assert.Equal(t, nil, src.Del(c.Key))
-				} else {
-					assert.Equal(t, nil, src.Set(c.Key, c.Val))
-				}
-			}
-			w.Stop()
-			<-ctx.Done()
+			assert.NoError(t, src.Set(context.TODO(), c.Key, []byte(c.Key)))
+			kv, err := src.Get(context.TODO(), c.Key)
+			assert.NoError(t, err)
+			assert.EqualValues(t, common.Result{Keys: []string{c.Key}, Values: [][]byte{[]byte(c.Key)}}, kv)
 		})
+	}
+
+	kv, err := src.Get(context.TODO(), "a", kvstore.MatchPrefix())
+	assert.NoError(t, err)
+	assert.EqualValues(t, cases.Convert(), kv)
+	assert.NoError(t, src.Del(context.TODO(), "a", kvstore.MatchPrefix()))
+}
+
+func TestEtcdWatchPrefix(t *testing.T) {
+	cases := Cases{
+		{true, "", "a"}, // PUT first
+		{false, "", "a"},
+		{true, "", "a/b"},
+		{false, "", "a/b"},
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	w := src.Watch(ctx, kvstore.MatchPrefix())
+	for _, c := range cases {
+		if c.IsPut {
+			assert.NoError(t, src.Set(context.TODO(), c.Key, []byte(c.Key)))
+		} else {
+			assert.NoError(t, src.Del(context.TODO(), c.Key))
+		}
+	}
+
+	for _, c := range cases {
+		events, err := w.Next(context.Background())
+		assert.NoError(t, err)
+		assert.EqualValues(t, c.Event(), events)
 	}
 }

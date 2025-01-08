@@ -2,148 +2,211 @@ package etcdkv
 
 import (
 	"context"
+	"net/url"
+	"path"
 	"strings"
-	"time"
 
 	"github.com/cocktail828/go-tools/pkg/kvstore"
-	"github.com/pkg/errors"
+	"github.com/cocktail828/go-tools/pkg/kvstore/common"
+	"github.com/cocktail828/go-tools/z/environs"
 	clientv3 "go.etcd.io/etcd/client/v3"
 )
 
-var (
-	DefaultPrefix = "/caesar/kvstore/"
-)
-
-// Currently a single etcd reader.
-type etcd struct {
-	prefix string
+type etcdKV struct {
+	root   string
+	cfg    clientv3.Config
 	client *clientv3.Client
 }
 
-func New(opts ...kvstore.Option) (kvstore.KV, error) {
-	ctx := context.TODO()
-	for _, o := range opts {
-		ctx = o(ctx)
-	}
-
-	var endpoints []string
-	if addrs, ok := ctx.Value(addressKey{}).([]string); ok {
-		endpoints = addrs
-	}
-
-	// check dial timeout option
-	dialTimeout, ok := ctx.Value(dialTimeoutKey{}).(time.Duration)
-	if !ok {
-		dialTimeout = 3 * time.Second // default dial timeout
-	}
-
-	config := clientv3.Config{
-		Endpoints:   endpoints,
-		DialTimeout: dialTimeout,
-	}
-	if u, ok := ctx.Value(authKey{}).(*authCreds); ok {
-		config.Username = u.Username
-		config.Password = u.Password
-	}
-
-	client, err := clientv3.New(config)
+func New(cfg clientv3.Config, root string) (kvstore.KV, error) {
+	client, err := clientv3.New(cfg)
 	if err != nil {
 		return nil, err
 	}
 
-	prefix := DefaultPrefix
-	f, ok := ctx.Value(prefixKey{}).(string)
-	if ok {
-		prefix = f
-	}
-
-	return &etcd{
-		prefix: prefix,
-		client: client,
-	}, nil
+	return &etcdKV{client: client, root: root}, nil
 }
 
-func (c *etcd) Close() error {
-	return c.client.Close()
+func (e *etcdKV) String() string {
+	u := url.URL{
+		Scheme: "etcd",
+		User:   url.UserPassword(e.cfg.Username, e.cfg.Password),
+		Host:   strings.Join(e.cfg.Endpoints, ","),
+	}
+	return u.String()
 }
 
-func (c *etcd) String() string { return "etcd" }
+func (e *etcdKV) Set(ctx context.Context, key string, val []byte, opts ...kvstore.Option) (err error) {
+	options := []clientv3.OpOption{}
+	v := kvstore.Variadic(opts...)
 
-func (c *etcd) Del(key string, opts ...kvstore.Option) error {
-	ctx := context.TODO()
-	for _, o := range opts {
-		ctx = o(ctx)
+	var lease *clientv3.LeaseGrantResponse
+	if val := v.TTL(); val > 0 {
+		if lease, err = e.client.Grant(ctx, int64(val)); err != nil {
+			return err
+		}
 	}
 
-	ecopts := []clientv3.OpOption{}
-	if val := ctx.Value(matchPrefix{}); val != nil {
-		ecopts = append(ecopts, clientv3.WithPrefix())
+	if f := v.KeepAlive(); f != nil {
+		if lease == nil {
+			ttl := environs.Int64("ETCDKV_KEEPALIVE_TTL", environs.WithInt64(5))
+			if lease, err = e.client.Grant(ctx, ttl); err != nil {
+				return err
+			}
+		}
+
+		kaCtx, kaCancel := context.WithCancel(context.TODO())
+		keepAliveCh, err := e.client.KeepAlive(kaCtx, lease.ID)
+		if err != nil {
+			kaCancel()
+			return err
+		}
+
+		go func() {
+			defer kaCancel()
+			if f == nil {
+				f = func(id, ttl int64, cancel func()) {}
+			}
+
+			for {
+				select {
+				case resp := <-keepAliveCh:
+					if resp == nil {
+						f(int64(lease.ID), 0, kaCancel)
+						return
+					}
+					f(int64(lease.ID), lease.TTL, kaCancel)
+				case <-kaCtx.Done():
+					f(int64(lease.ID), 0, kaCancel)
+					return
+				}
+			}
+		}()
 	}
-	_, err := c.client.Delete(ctx, c.prefix+key, ecopts...)
+
+	if lease != nil {
+		options = append(options, clientv3.WithLease(lease.ID))
+	}
+
+	_, err = e.client.Put(ctx, path.Join(e.root, key), string(val), options...)
 	return err
 }
 
-func (c *etcd) Set(key string, data []byte, opts ...kvstore.Option) error {
-	ctx := context.TODO()
-	for _, o := range opts {
-		ctx = o(ctx)
+func (e *etcdKV) Get(ctx context.Context, key string, opts ...kvstore.Option) (kvstore.Result, error) {
+	options := []clientv3.OpOption{}
+	v := kvstore.Variadic(opts...)
+	if v.MatchPrefix() {
+		options = append(options, clientv3.WithPrefix())
 	}
 
-	_, err := c.client.Put(ctx, c.prefix+key, string(data))
-	return err
-}
-
-func (c *etcd) Get(key string, opts ...kvstore.Option) ([]kvstore.KVPair, error) {
-	ctx := context.TODO()
-	for _, o := range opts {
-		ctx = o(ctx)
+	if v.IgnoreLease() {
+		options = append(options, clientv3.WithIgnoreLease())
 	}
 
-	ecopts := []clientv3.OpOption{}
-	if val := ctx.Value(matchPrefix{}); val != nil {
-		ecopts = append(ecopts, clientv3.WithPrefix())
+	isCount := false
+	if v.Count() || v.KeyOnly() {
+		isCount = true
+		options = append(options, clientv3.WithKeysOnly())
 	}
 
-	rsp, err := c.client.Get(ctx, c.prefix+key, ecopts...)
+	if val := v.Limit(); val > 0 {
+		options = append(options, clientv3.WithLimit(int64(val)))
+	}
+
+	if v.FromKey() {
+		options = append(options, clientv3.WithFromKey())
+	}
+
+	ev, err := e.client.Get(ctx, path.Join(e.root, key), options...)
 	if err != nil {
 		return nil, err
 	}
 
-	if rsp == nil {
-		return nil, errors.Errorf("kvstore not found: %s/%s", c.prefix, key)
+	result := common.Result{}
+	for _, kv := range ev.Kvs {
+		result.Append(e.normlizeKey(kv.Key), kv.Value)
 	}
 
-	kvs := []kvstore.KVPair{}
-	for _, kv := range rsp.Kvs {
-		kvs = append(kvs, kvstore.KVPair{
-			Key: strings.TrimPrefix(string(kv.Key), c.prefix),
-			Val: kv.Value,
-		})
+	if isCount {
+		return CountResult{Num: result.Len()}, nil
 	}
-	return kvs, nil
+
+	return result, nil
 }
 
-func (c *etcd) Watch(opts ...kvstore.Option) kvstore.Watcher {
-	ctx := context.TODO()
-	for _, o := range opts {
-		ctx = o(ctx)
+func (e *etcdKV) normlizeKey(key []byte) string {
+	return strings.TrimPrefix(string(key), e.root+"/")
+}
+
+func (e *etcdKV) Del(ctx context.Context, key string, opts ...kvstore.Option) error {
+	options := []clientv3.OpOption{}
+	v := kvstore.Variadic(opts...)
+	if v.MatchPrefix() {
+		options = append(options, clientv3.WithPrefix())
 	}
 
-	key := ""
-	if val := ctx.Value(watchKey{}); val != nil {
-		key = val.(string)
+	_, err := e.client.Delete(ctx, path.Join(e.root, key), options...)
+	return err
+}
+
+func (e *etcdKV) Watch(ctx context.Context, opts ...kvstore.Option) kvstore.Watcher {
+	options := []clientv3.OpOption{}
+	v := kvstore.Variadic(opts...)
+	if v.MatchPrefix() {
+		options = append(options, clientv3.WithPrefix())
 	}
 
-	ecopts := []clientv3.OpOption{clientv3.WithCreatedNotify()}
-	if val := ctx.Value(matchPrefix{}); val != nil {
-		ecopts = append(ecopts, clientv3.WithPrefix())
+	ctx, cancel := context.WithCancel(ctx)
+	watchChan := e.client.Watch(ctx, e.root, options...)
+	return &etcdWatcher{
+		kv:            e,
+		runningCtx:    ctx,
+		runningCacnel: cancel,
+		watchChan:     watchChan,
 	}
+}
 
-	sctx, cancel := context.WithCancel(ctx)
-	return &watcher{
-		ctx:        sctx,
-		cancel:     cancel,
-		prefix:     c.prefix,
-		notifyChan: c.client.Watch(ctx, c.prefix+key, ecopts...),
+func (e *etcdKV) Close() error {
+	return e.client.Close()
+}
+
+type etcdWatcher struct {
+	kv            *etcdKV
+	runningCtx    context.Context
+	runningCacnel context.CancelFunc
+	watchChan     clientv3.WatchChan
+}
+
+func (w *etcdWatcher) Next(ctx context.Context) (kvstore.Event, error) {
+	select {
+	case etcdEvent, ok := <-w.watchChan:
+		if !ok {
+			return nil, kvstore.ErrWatcherStopped
+		}
+
+		event := common.Event{}
+		for _, ev := range etcdEvent.Events {
+			tp := kvstore.NONE
+			switch ev.Type {
+			case clientv3.EventTypePut:
+				tp = kvstore.PUT
+			case clientv3.EventTypeDelete:
+				tp = kvstore.DELETE
+			}
+
+			event.Append(tp, w.kv.normlizeKey(ev.Kv.Key), ev.Kv.Value)
+		}
+		return event, nil
+
+	case <-w.runningCtx.Done():
+		return nil, kvstore.ErrWatcherStopped
+
+	case <-ctx.Done():
+		return nil, context.DeadlineExceeded
 	}
+}
+
+func (w *etcdWatcher) Stop() error {
+	w.runningCacnel()
+	return nil
 }
