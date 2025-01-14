@@ -37,7 +37,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cocktail828/go-tools/pkg/cmux"
+	"github.com/cocktail828/go-tools/cmux"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/hpack"
 )

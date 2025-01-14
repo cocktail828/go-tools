@@ -12,7 +12,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/cocktail828/go-tools/pkg/httprouter/trie"
+	"github.com/cocktail828/go-tools/httprouter/trie"
 )
 
 type mockResponseWriter struct{}

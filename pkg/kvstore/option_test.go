@@ -5,10 +5,11 @@ import (
 	"testing"
 
 	"github.com/cocktail828/go-tools/pkg/kvstore"
+	"github.com/cocktail828/go-tools/z/variadic"
 )
 
 func TestOption(t *testing.T) {
-	v := kvstore.Variadic([]kvstore.Option{
+	v := kvstore.Variadic([]variadic.Option{
 		kvstore.TTL(500),
 		kvstore.MatchPrefix(),
 		kvstore.IgnoreLease(),

@@ -23,7 +23,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/cocktail828/go-tools/pkg/cmux"
+	"github.com/cocktail828/go-tools/cmux"
 )
 
 type anotherHTTPHandler struct{}

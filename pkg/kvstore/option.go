@@ -1,119 +1,58 @@
 package kvstore
 
-import (
-	"reflect"
-)
+import "github.com/cocktail828/go-tools/z/variadic"
 
-type Option func(Param) Param
-type Param interface {
-	Value(key any) any
-}
+type inVariadic struct{ variadic.Param }
 
-func WithValue(parent Param, key, val any) Param {
-	if parent == nil {
-		panic("cannot create Param from nil parent")
-	}
-	if key == nil {
-		panic("nil key")
-	}
-	if !reflect.TypeOf(key).Comparable() {
-		panic("key is not comparable")
-	}
-	return valueParam{parent, key, val}
-}
-
-// A valueParam carries a key-value pair. It implements Value for that key and
-// delegates all other calls to the embedded Param.
-type valueParam struct {
-	Param
-	key, val any
-}
-
-func (c valueParam) Value(key any) any {
-	if c.key == key {
-		return c.val
-	}
-	return c.Param.Value(key)
-}
-
-// implements...
-// It is the common base of nopParam.
-type nopParam struct{}
-
-func (nopParam) Value(key any) any {
-	return nil
-}
-
-// processing additional Parameters
-type variadic struct{ Param }
-
-func Variadic(opts ...Option) variadic {
-	var p Param = nopParam{}
-	for _, o := range opts {
-		p = o(p)
-	}
-	return variadic{p}
-}
-
-func setValue(key, val any) Option {
-	return func(parent Param) Param {
-		return valueParam{parent, key, val}
-	}
-}
-
-func getValue[T any](v variadic, key any) T {
-	if val, ok := v.Value(key).(T); ok {
-		return val
-	}
-	var zero T
-	return zero
+func Variadic(opts ...variadic.Option) inVariadic {
+	return inVariadic{variadic.Compose(opts...)}
 }
 
 type ttlKey struct{}
 
-func TTL(val uint32) Option    { return setValue(ttlKey{}, val) }
-func (v variadic) TTL() uint32 { return getValue[uint32](v, ttlKey{}) }
+func TTL(val uint32) variadic.Option { return variadic.SetValue(ttlKey{}, val) }
+func (iv inVariadic) TTL() uint32    { return variadic.GetValue[uint32](iv, ttlKey{}) }
 
 type keepaliveKey struct{}
 
 type KeepAliveCallback func(id, ttl int64, cancel func())
 
-func KeepAlive(f KeepAliveCallback) Option { return setValue(keepaliveKey{}, f) }
-func (v variadic) KeepAlive() KeepAliveCallback {
-	return getValue[KeepAliveCallback](v, keepaliveKey{})
+func KeepAlive(f KeepAliveCallback) variadic.Option { return variadic.SetValue(keepaliveKey{}, f) }
+func (iv inVariadic) KeepAlive() KeepAliveCallback {
+	return variadic.GetValue[KeepAliveCallback](iv, keepaliveKey{})
 }
 
 type prefixKey struct{}
 
-func MatchPrefix() Option            { return setValue(prefixKey{}, true) }
-func (v variadic) MatchPrefix() bool { return getValue[bool](v, prefixKey{}) }
+func MatchPrefix() variadic.Option      { return variadic.SetValue(prefixKey{}, true) }
+func (iv inVariadic) MatchPrefix() bool { return variadic.GetValue[bool](iv, prefixKey{}) }
 
 type noLeaseKey struct{}
 
 // ignore expired keys
-func IgnoreLease() Option            { return setValue(noLeaseKey{}, true) }
-func (v variadic) IgnoreLease() bool { return getValue[bool](v, noLeaseKey{}) }
+func IgnoreLease() variadic.Option      { return variadic.SetValue(noLeaseKey{}, true) }
+func (iv inVariadic) IgnoreLease() bool { return variadic.GetValue[bool](iv, noLeaseKey{}) }
 
 type limitKey struct{}
 
 // set the batch size of get
-func Limit(val uint32) Option    { return setValue(limitKey{}, val) }
-func (v variadic) Limit() uint32 { return getValue[uint32](v, limitKey{}) }
+func Limit(val uint32) variadic.Option { return variadic.SetValue(limitKey{}, val) }
+func (iv inVariadic) Limit() uint32    { return variadic.GetValue[uint32](iv, limitKey{}) }
 
 type countKey struct{}
 
 // get num of key-value pairs
-func Count() Option            { return setValue(countKey{}, true) }
-func (v variadic) Count() bool { return getValue[bool](v, countKey{}) }
+func Count() variadic.Option      { return variadic.SetValue(countKey{}, true) }
+func (iv inVariadic) Count() bool { return variadic.GetValue[bool](iv, countKey{}) }
 
 type fromKey struct{}
 
 // 分页查询开始key, 如果为空则从第一个开始
 // nextKey = $(lastKey) + "\x00", 在 etcd 中，键是按字典序排序的。通过追加 \x00，可以确保下一个键是当前键的后一个键
-func FromKey() Option            { return setValue(fromKey{}, true) }
-func (v variadic) FromKey() bool { return getValue[bool](v, fromKey{}) }
+func FromKey() variadic.Option      { return variadic.SetValue(fromKey{}, true) }
+func (iv inVariadic) FromKey() bool { return variadic.GetValue[bool](iv, fromKey{}) }
 
 type keyonlyKey struct{}
 
-func KeyOnly() Option            { return setValue(keyonlyKey{}, true) }
-func (v variadic) KeyOnly() bool { return getValue[bool](v, keyonlyKey{}) }
+func KeyOnly() variadic.Option      { return variadic.SetValue(keyonlyKey{}, true) }
+func (iv inVariadic) KeyOnly() bool { return variadic.GetValue[bool](iv, keyonlyKey{}) }

@@ -9,6 +9,7 @@ import (
 	"github.com/cocktail828/go-tools/pkg/kvstore"
 	"github.com/cocktail828/go-tools/pkg/kvstore/common"
 	"github.com/cocktail828/go-tools/z/environs"
+	"github.com/cocktail828/go-tools/z/variadic"
 	clientv3 "go.etcd.io/etcd/client/v3"
 )
 
@@ -36,7 +37,7 @@ func (e *etcdKV) String() string {
 	return u.String()
 }
 
-func (e *etcdKV) Set(ctx context.Context, key string, val []byte, opts ...kvstore.Option) (err error) {
+func (e *etcdKV) Set(ctx context.Context, key string, val []byte, opts ...variadic.Option) (err error) {
 	options := []clientv3.OpOption{}
 	v := kvstore.Variadic(opts...)
 
@@ -92,7 +93,7 @@ func (e *etcdKV) Set(ctx context.Context, key string, val []byte, opts ...kvstor
 	return err
 }
 
-func (e *etcdKV) Get(ctx context.Context, key string, opts ...kvstore.Option) (kvstore.Result, error) {
+func (e *etcdKV) Get(ctx context.Context, key string, opts ...variadic.Option) (kvstore.Result, error) {
 	options := []clientv3.OpOption{}
 	v := kvstore.Variadic(opts...)
 	if v.MatchPrefix() {
@@ -138,7 +139,7 @@ func (e *etcdKV) normlizeKey(key []byte) string {
 	return strings.TrimPrefix(string(key), e.root+"/")
 }
 
-func (e *etcdKV) Del(ctx context.Context, key string, opts ...kvstore.Option) error {
+func (e *etcdKV) Del(ctx context.Context, key string, opts ...variadic.Option) error {
 	options := []clientv3.OpOption{}
 	v := kvstore.Variadic(opts...)
 	if v.MatchPrefix() {
@@ -149,7 +150,7 @@ func (e *etcdKV) Del(ctx context.Context, key string, opts ...kvstore.Option) er
 	return err
 }
 
-func (e *etcdKV) Watch(ctx context.Context, opts ...kvstore.Option) kvstore.Watcher {
+func (e *etcdKV) Watch(ctx context.Context, opts ...variadic.Option) kvstore.Watcher {
 	options := []clientv3.OpOption{}
 	v := kvstore.Variadic(opts...)
 	if v.MatchPrefix() {

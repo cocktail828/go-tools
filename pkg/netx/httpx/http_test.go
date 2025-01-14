@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/cocktail828/go-tools/netx/httpx"
+	"github.com/cocktail828/go-tools/pkg/netx/httpx"
 	"github.com/cocktail828/go-tools/z"
 	"github.com/stretchr/testify/assert"
 )

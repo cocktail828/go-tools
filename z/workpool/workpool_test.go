@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cocktail828/go-tools/pkg/workpool"
+	"github.com/cocktail828/go-tools/z/workpool"
 	"github.com/stretchr/testify/assert"
 )
 

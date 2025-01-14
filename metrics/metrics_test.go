@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cocktail828/go-tools/pkg/metrics"
+	"github.com/cocktail828/go-tools/metrics"
 )
 
 func TestMetrics(t *testing.T) {

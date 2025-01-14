@@ -85,7 +85,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/cocktail828/go-tools/pkg/httprouter/trie"
+	"github.com/cocktail828/go-tools/httprouter/trie"
 )
 
 // Handle is a function that can be registered to a route to handle HTTP

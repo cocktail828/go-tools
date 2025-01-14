@@ -3,7 +3,7 @@ package router
 import (
 	"sync"
 
-	"github.com/cocktail828/go-tools/pkg/httprouter/trie"
+	"github.com/cocktail828/go-tools/httprouter/trie"
 )
 
 type Handler func(path string, ps trie.Params)

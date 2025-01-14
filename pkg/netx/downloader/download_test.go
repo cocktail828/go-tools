@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cocktail828/go-tools/netx/downloader"
+	"github.com/cocktail828/go-tools/pkg/netx/downloader"
 	"github.com/cocktail828/go-tools/z"
 	"github.com/stretchr/testify/assert"
 )
