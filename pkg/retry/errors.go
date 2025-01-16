@@ -15,7 +15,7 @@ func (e Error) Error() string {
 	logWithNumber := make([]string, len(e))
 	for i, l := range e {
 		if l != nil {
-			logWithNumber[i] = fmt.Sprintf("#%d: %s", i+1, l.Error())
+			logWithNumber[i] = fmt.Sprintf("  #%d: %s", i+1, l.Error())
 		}
 	}
 

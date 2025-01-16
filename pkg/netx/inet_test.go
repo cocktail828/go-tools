@@ -1,4 +1,4 @@
-package inet
+package netx
 
 import (
 	"log"

@@ -2,14 +2,14 @@ package variadic
 
 import "reflect"
 
-type Option func(Param) Param
-type Param interface {
+type Option func(Assigned) Assigned
+type Assigned interface {
 	Value(key any) any
 }
 
-func WithValue(parent Param, key, val any) Param {
+func WithValue(parent Assigned, key, val any) Assigned {
 	if parent == nil {
-		panic("cannot create Param from nil parent")
+		panic("cannot create Assigned from nil parent")
 	}
 	if key == nil {
 		panic("nil key")
@@ -21,9 +21,9 @@ func WithValue(parent Param, key, val any) Param {
 }
 
 // A valueParam carries a key-value pair. It implements Value for that key and
-// delegates all other calls to the embedded Param.
+// delegates all other calls to the embedded Assigned.
 type valueParam struct {
-	Param
+	Assigned
 	key, val any
 }
 
@@ -31,7 +31,7 @@ func (c valueParam) Value(key any) any {
 	if c.key == key {
 		return c.val
 	}
-	return c.Param.Value(key)
+	return c.Assigned.Value(key)
 }
 
 // implements...
@@ -42,8 +42,8 @@ func (nopParam) Value(key any) any {
 	return nil
 }
 
-func Compose(opts ...Option) Param {
-	var p Param = nopParam{}
+func Compose(opts ...Option) Assigned {
+	var p Assigned = nopParam{}
 	for _, o := range opts {
 		p = o(p)
 	}
@@ -51,12 +51,12 @@ func Compose(opts ...Option) Param {
 }
 
 func SetValue(key, val any) Option {
-	return func(parent Param) Param {
+	return func(parent Assigned) Assigned {
 		return valueParam{parent, key, val}
 	}
 }
 
-func GetValue[T any](p Param, key any) T {
+func GetValue[T any](p Assigned, key any) T {
 	if val, ok := p.Value(key).(T); ok {
 		return val
 	}

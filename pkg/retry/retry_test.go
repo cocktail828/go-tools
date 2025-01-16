@@ -27,7 +27,7 @@ func TestDelay(t *testing.T) {
 			"random",
 			func(t *testing.T) {
 				for i := 0; i < 10; i++ {
-					// log.Println(retry.RandomDelay(time.Second)(uint(i), nil))
+					assert.Greater(t, time.Second, retry.RandomDelay(time.Second)(uint(i), nil))
 				}
 			},
 		},

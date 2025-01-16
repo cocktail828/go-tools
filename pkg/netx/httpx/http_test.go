@@ -13,9 +13,9 @@ import (
 
 func TestHTTPX(t *testing.T) {
 	req, err := httpx.NewRequest(context.Background(), "GET", "https://baidu.com",
-		httpx.WithBody([]byte("xxx")),
-		httpx.WithHeaders(map[string]string{"k": "v"}),
-		httpx.WithCallback(func(r *http.Request) { fmt.Println("xxx") }),
+		httpx.Body([]byte("xxx")),
+		httpx.Headers(map[string]string{"k": "v"}),
+		httpx.Callback(func(r *http.Request) { fmt.Println("xxx") }),
 	)
 	z.Must(err)
 

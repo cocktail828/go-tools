@@ -6,60 +6,57 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+
+	"github.com/cocktail828/go-tools/z/variadic"
 )
 
-// define a real type of Option, to make sure the type is exactly what we want.
-type Option struct{ e any }
+type inVariadic struct{ variadic.Assigned }
 
-func WithBody(d []byte) Option {
-	return Option{bytes.NewReader(d)}
+type bodyKey struct{}
+
+// populate request body
+func Body(val []byte) variadic.Option { return variadic.SetValue(bodyKey{}, val) }
+func (iv inVariadic) Body() []byte    { return variadic.GetValue[[]byte](iv, bodyKey{}) }
+
+type headerKey struct{}
+
+// populate HTTP headers
+func Headers(val map[string]string) variadic.Option { return variadic.SetValue(headerKey{}, val) }
+func (iv inVariadic) Headers() map[string]string {
+	return variadic.GetValue[map[string]string](iv, headerKey{})
 }
 
-func WithHeaders(headers map[string]string) Option {
-	return Option{func(r *http.Request) {
-		for k, v := range headers {
-			r.Header.Set(k, v)
-		}
-	}}
+type CallbackFunc func(*http.Request)
+type callbackKey struct{}
+
+// user defined
+func Callback(val CallbackFunc) variadic.Option { return variadic.SetValue(callbackKey{}, val) }
+func (iv inVariadic) Callback() CallbackFunc {
+	return variadic.GetValue[CallbackFunc](iv, callbackKey{})
 }
 
-func WithCallback(f func(*http.Request)) Option {
-	return Option{f}
-}
+func NewRequest(ctx context.Context, method string, url string, opts ...variadic.Option) (*http.Request, error) {
+	iv := inVariadic{variadic.Compose(opts...)}
 
-func NewRequest(ctx context.Context, method string, url string, opts ...Option) (*http.Request, error) {
-	var reader io.Reader
-	for _, o := range opts {
-		if o.e != nil {
-			if val, ok := o.e.(io.Reader); ok {
-				reader = val
-			}
-		}
-	}
-
-	req, err := http.NewRequestWithContext(ctx, method, url, reader)
+	req, err := http.NewRequestWithContext(ctx, method, url, bytes.NewReader(iv.Body()))
 	if err != nil {
 		return nil, err
 	}
 
-	for _, o := range opts {
-		if o.e != nil {
-			if val, ok := o.e.(func(*http.Request)); ok {
-				val(req)
-			}
-		}
+	if f := iv.Callback(); f != nil {
+		f(req)
 	}
 
 	return req, nil
 }
 
-type Caller struct {
+type SimpleHTTP struct {
 	Client    *http.Client
 	Request   *http.Request
 	Unmarshal func(status int, body []byte, i interface{}) error
 }
 
-func (c *Caller) Do(dst interface{}) error {
+func (c *SimpleHTTP) Fire(dst interface{}) error {
 	if c.Unmarshal == nil {
 		c.Unmarshal = func(status int, body []byte, i interface{}) error {
 			return json.Unmarshal(body, i)

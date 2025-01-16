@@ -2,7 +2,7 @@ package kvstore
 
 import "github.com/cocktail828/go-tools/z/variadic"
 
-type inVariadic struct{ variadic.Param }
+type inVariadic struct{ variadic.Assigned }
 
 func Variadic(opts ...variadic.Option) inVariadic {
 	return inVariadic{variadic.Compose(opts...)}
