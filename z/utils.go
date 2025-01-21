@@ -1,6 +1,8 @@
 package z
 
-import "sync"
+import (
+	"sync"
+)
 
 type Locker sync.Locker
 type RWLocker interface {
@@ -20,11 +22,24 @@ func WithRLock(locker RWLocker, f func()) {
 	f()
 }
 
-func Contains[E comparable](s []E, e E) bool {
-	for _, v := range s {
-		if v == e {
-			return true
-		}
+func TryPut[T chan E, E any](c T, e E) bool {
+	select {
+	case c <- e:
+		return true
+	default:
+		return false
 	}
-	return false
+}
+
+func TryGet[T chan E, E any](c T) (E, bool) {
+	select {
+	case e, ok := <-c:
+		if ok {
+			return e, true
+		}
+	default:
+	}
+
+	var e E
+	return e, false
 }

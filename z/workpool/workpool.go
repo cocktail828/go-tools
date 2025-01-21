@@ -5,6 +5,7 @@ import (
 	"io"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/cocktail828/go-tools/z"
 )
@@ -41,19 +42,20 @@ func NewHybridPool(minWorkers, maxWorkers int) *HybridPool {
 
 func (p *HybridPool) spawn() {
 	defer p.wg.Done()
+	defer func() { z.TryGet(p.tickets) }()
 
+	timer := time.NewTimer(time.Minute)
+	defer timer.Stop()
 	for {
-		if task, ok := <-p.taskChan; !ok {
-			select { // elastic worker stoped for idle
-			case <-p.tickets:
+		select {
+		case <-timer.C: // elastic worker stoped for idle
+			return
+		case task, ok := <-p.taskChan:
+			if !ok {
 				return
-			default: // closed?
-				if p.closed.Load() {
-					return
-				}
 			}
-		} else {
 			task.Do()
+			timer.Reset(time.Minute)
 		}
 	}
 }

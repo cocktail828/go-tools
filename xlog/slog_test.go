@@ -10,7 +10,7 @@ import (
 func TestLog(t *testing.T) {
 	cases := []struct {
 		name string
-		lg   *xlog.Logger
+		lg   xlog.Logger
 	}{
 		{
 			"New-json",

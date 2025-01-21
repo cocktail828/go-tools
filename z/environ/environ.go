@@ -1,6 +1,7 @@
-package environs
+package environ
 
 import (
+	"log"
 	"os"
 	"regexp"
 	"strconv"
@@ -32,7 +33,7 @@ func init() {
 	}
 }
 
-func Lookup(name string) (string, bool) {
+func Getenv(name string) (string, bool) {
 	if mode == PreLoad {
 		val, ok := environVars[name]
 		return val, ok
@@ -41,20 +42,23 @@ func Lookup(name string) (string, bool) {
 }
 
 func Exist(name string) bool {
-	_, ok := Lookup(name)
+	_, ok := Getenv(name)
 	return ok
 }
 
 type option struct {
-	bv   bool
-	sv   string
-	f32v float32
-	f64v float64
-	i64v int64
+	bv      bool
+	sv      string
+	f32v    float32
+	f64v    float64
+	i64v    int64
+	require bool
 }
 
 type Option func(*option)
 
+// the env is required and must be set
+func Required() Option             { return func(o *option) { o.require = true } }
 func WithBool(v bool) Option       { return func(o *option) { o.bv = v } }
 func WithString(v string) Option   { return func(o *option) { o.sv = v } }
 func WithFloat32(v float32) Option { return func(o *option) { o.f32v = v } }
@@ -69,9 +73,12 @@ func newOption(opts ...Option) option {
 	return o
 }
 
-func parseValue[T any](name string, parseFunc func(string) (T, error), defaultValue T) T {
-	val, ok := Lookup(name)
+func parseValue[T any](name string, parseFunc func(string) (T, error), defaultValue T, req bool) T {
+	val, ok := Getenv(name)
 	if !ok {
+		if req {
+			log.Fatalf("env '%q' is required but not found", name)
+		}
 		return defaultValue
 	}
 
@@ -82,32 +89,37 @@ func parseValue[T any](name string, parseFunc func(string) (T, error), defaultVa
 }
 
 func String(name string, opts ...Option) string {
+	o := newOption(opts...)
 	return parseValue(name, func(s string) (string, error) {
 		return s, nil
-	}, newOption(opts...).sv)
+	}, o.sv, o.require)
 }
 
 func Float32(name string, opts ...Option) float32 {
+	o := newOption(opts...)
 	return parseValue(name, func(s string) (float32, error) {
 		v, err := strconv.ParseFloat(s, 32)
 		return float32(v), err
-	}, newOption(opts...).f32v)
+	}, o.f32v, o.require)
 }
 
 func Float64(name string, opts ...Option) float64 {
+	o := newOption(opts...)
 	return parseValue(name, func(s string) (float64, error) {
 		v, err := strconv.ParseFloat(s, 32)
 		return v, err
-	}, newOption(opts...).f64v)
+	}, o.f64v, o.require)
 }
 
 func Int64(name string, opts ...Option) int64 {
+	o := newOption(opts...)
 	return parseValue(name, func(s string) (int64, error) {
 		return strconv.ParseInt(s, 0, 64)
-	}, newOption(opts...).i64v)
+	}, o.i64v, o.require)
 }
 
 func Bool(name string, opts ...Option) bool {
+	o := newOption(opts...)
 	return parseValue(name, func(s string) (bool, error) {
 		if v, err := strconv.ParseBool(s); err == nil {
 			return v, nil
@@ -116,5 +128,5 @@ func Bool(name string, opts ...Option) bool {
 			return v != 0, nil
 		}
 		return false, nil
-	}, newOption(opts...).bv)
+	}, o.bv, o.require)
 }

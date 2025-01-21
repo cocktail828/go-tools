@@ -8,7 +8,7 @@ import (
 
 	"github.com/cocktail828/go-tools/pkg/kvstore"
 	"github.com/cocktail828/go-tools/pkg/kvstore/common"
-	"github.com/cocktail828/go-tools/z/environs"
+	"github.com/cocktail828/go-tools/z/environ"
 	"github.com/cocktail828/go-tools/z/variadic"
 	clientv3 "go.etcd.io/etcd/client/v3"
 )
@@ -50,7 +50,7 @@ func (e *etcdKV) Set(ctx context.Context, key string, val []byte, opts ...variad
 
 	if f := v.KeepAlive(); f != nil {
 		if lease == nil {
-			ttl := environs.Int64("ETCDKV_KEEPALIVE_TTL", environs.WithInt64(5))
+			ttl := environ.Int64("ETCDKV_KEEPALIVE_TTL", environ.WithInt64(5))
 			if lease, err = e.client.Grant(ctx, ttl); err != nil {
 				return err
 			}

@@ -2,9 +2,8 @@ package regular
 
 import (
 	"regexp"
+	"slices"
 	"strings"
-
-	"github.com/cocktail828/go-tools/z"
 )
 
 type DirEntry interface {
@@ -28,7 +27,7 @@ func WithSuffix(ext string) Filter {
 }
 
 func WithRegular(fname ...string) Filter {
-	return func(de DirEntry) bool { return !z.Contains(fname, de.Name()) }
+	return func(de DirEntry) bool { return !slices.Contains(fname, de.Name()) }
 }
 
 func WithRegex(expr *regexp.Regexp) Filter {

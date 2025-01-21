@@ -1,4 +1,4 @@
-package graceful_test
+package cmd_test
 
 import (
 	"context"
@@ -7,11 +7,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cocktail828/go-tools/z/graceful"
+	"github.com/cocktail828/go-tools/z/cmd"
 )
 
 func TestGS(t *testing.T) {
-	gs := graceful.Graceful{
+	gs := cmd.Graceful{
 		Start: func() error {
 			time.Sleep(time.Second * 1)
 			return http.ErrBodyNotAllowed
@@ -20,6 +20,7 @@ func TestGS(t *testing.T) {
 			return http.ErrContentLength
 		},
 	}
-	ctx, _ := context.WithTimeout(context.TODO(), time.Second*3)
+	ctx, cancel := context.WithTimeout(context.TODO(), time.Second*3)
+	defer cancel()
 	fmt.Println(gs.Do(ctx))
 }

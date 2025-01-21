@@ -7,7 +7,7 @@ import (
 	"sync"
 
 	"github.com/cocktail828/go-tools/xlog"
-	"github.com/cocktail828/go-tools/z/environs"
+	"github.com/cocktail828/go-tools/z/environ"
 	"gopkg.in/natefinch/lumberjack.v2"
 )
 
@@ -56,7 +56,7 @@ func (w *BufferWriter) Write(p []byte) (n int, err error) {
 	return w.wr.Write(p)
 }
 
-func NewLumberjack(cfg Config) *xlog.Logger {
+func NewLumberjack(cfg Config) xlog.Logger {
 	var w io.Writer
 	if cfg.Filename == "/dev/null" {
 		w = io.Discard
@@ -72,7 +72,7 @@ func NewLumberjack(cfg Config) *xlog.Logger {
 
 	if cfg.Async {
 		bufsize := MinBufSize
-		if val := int(environs.Int64("XLOG_BUF_SIZE")); val > MinBufSize {
+		if val := int(environ.Int64("XLOG_BUF_SIZE")); val > MinBufSize {
 			bufsize = val
 		}
 		w = &BufferWriter{
