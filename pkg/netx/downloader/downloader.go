@@ -9,19 +9,20 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/cocktail828/go-tools/pkg/retry"
 	"github.com/pkg/errors"
 	"golang.org/x/sync/errgroup"
 )
 
 var (
-	DefaultMinSize = 5 * 1024 * 1024 // object bigger than this will be downloaded parallely
+	DefaultMinSize = 5 * 1024 * 1024 // Default minimum file size to trigger parallel download
 )
 
-// Downloader 文件下载器
+// Downloader is a file downloader that supports both single and parallel downloads.
 type Downloader struct {
 	Client         *http.Client
-	MaxConcurrency int // 最大并发
-	SizeThreshold  int // 触发并发的最小大小, default 5MB
+	MaxConcurrency int // Maximum number of concurrent downloads
+	SizeThreshold  int // Minimum file size to trigger parallel download
 }
 
 func (dl *Downloader) init() {
@@ -30,130 +31,127 @@ func (dl *Downloader) init() {
 	}
 }
 
-// head 获取要下载的文件的基本信息(header) 使用HTTP Method Head
-func (dl *Downloader) FileSize(ctx context.Context, url string) (int, error) {
+// GetFileSize retrieves the file size and checks if the server supports range requests.
+func (dl *Downloader) GetFileSize(ctx context.Context, url string) (int, error) {
 	dl.init()
-	r, err := http.NewRequestWithContext(ctx, "HEAD", url, nil)
+	req, err := http.NewRequestWithContext(ctx, "HEAD", url, nil)
 	if err != nil {
-		return 0, err
-	}
-
-	resp, err := dl.Client.Do(r)
-	if err != nil {
-		return 0, err
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		return 0, errors.Errorf("range requests disallow for: http.Status=%v", resp.StatusCode)
-	}
-
-	//检查是否支持 断点续传
-	//https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Accept-Ranges
-	if strings.ToLower(resp.Header.Get("Accept-Ranges")) != "bytes" {
-		return 0, errors.Errorf("range requests disallow for: Accept-Ranges != bytes")
-	}
-
-	//https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Length
-	return strconv.Atoi(resp.Header.Get("Content-Length"))
-}
-
-func (dl *Downloader) Single(ctx context.Context, url string) (*bytes.Buffer, error) {
-	dl.init()
-	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
-	if err != nil {
-		return nil, err
+		return 0, errors.Wrap(err, "failed to create HEAD request")
 	}
 
 	resp, err := dl.Client.Do(req)
 	if err != nil {
-		return nil, err
+		return 0, errors.Wrap(err, "failed to execute HEAD request")
 	}
 	defer resp.Body.Close()
 
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
+	if resp.StatusCode != http.StatusOK {
+		return 0, errors.Errorf("request failed: HTTP status %d", resp.StatusCode)
 	}
-	return bytes.NewBuffer(body), nil
+
+	// Check if the server supports range requests
+	if strings.ToLower(resp.Header.Get("Accept-Ranges")) != "bytes" {
+		return 0, errors.New("server does not support range requests")
+	}
+
+	// Get the file size
+	contentLength := resp.Header.Get("Content-Length")
+	size, err := strconv.Atoi(contentLength)
+	if err != nil {
+		return 0, errors.Wrap(err, "failed to parse Content-Length")
+	}
+
+	return size, nil
 }
 
-func (dl *Downloader) Multi(ctx context.Context, url string) (*bytes.Buffer, error) {
+// download performs a generic download operation with a given range.
+func (dl *Downloader) download(ctx context.Context, url string, start, end int) (io.Reader, error) {
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to create GET request")
+	}
+
+	if start >= 0 && end >= 0 {
+		req.Header.Set("Range", fmt.Sprintf("bytes=%d-%d", start, end))
+	}
+
+	resp, err := dl.Client.Do(req)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to execute GET request")
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusPartialContent {
+		return nil, errors.Errorf("download failed: HTTP status %d", resp.StatusCode)
+	}
+
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to read response body")
+	}
+
+	return bytes.NewReader(data), nil
+}
+
+// Sequential downloads a file sequentially (single-threaded).
+func (dl *Downloader) Sequential(ctx context.Context, url string) (io.Reader, error) {
 	dl.init()
-	minsize := dl.SizeThreshold
-	if minsize <= 0 {
-		minsize = DefaultMinSize
+	return dl.download(ctx, url, -1, -1)
+}
+
+// Parallel downloads a file in parallel using multiple goroutines.
+func (dl *Downloader) Parallel(ctx context.Context, url string) (io.Reader, error) {
+	dl.init()
+
+	// Set the minimum file size threshold
+	minSize := dl.SizeThreshold
+	if minSize <= 0 {
+		minSize = DefaultMinSize
 	}
 
+	// Fallback to sequential download if MaxConcurrency is 1 or less
 	if dl.MaxConcurrency <= 1 {
-		return dl.Single(ctx, url)
+		return dl.Sequential(ctx, url)
 	}
 
-	size, err := dl.FileSize(ctx, url)
-	if err != nil || minsize > size {
-		return dl.Single(ctx, url)
+	// Get the file size and check if parallel download is supported
+	size, err := dl.GetFileSize(ctx, url)
+	if err != nil || minSize > size {
+		return dl.Sequential(ctx, url)
 	}
 
+	// Calculate the size of each part
 	partNum := dl.MaxConcurrency
 	partSize := size / partNum
 
-	eg := errgroup.Group{}
+	eg, ctx := errgroup.WithContext(ctx)
 	eg.SetLimit(dl.MaxConcurrency)
-	parts := []*Partial{}
+
+	// Download parts in parallel
+	parts := make([]io.Reader, partNum)
 	for i := 0; i < partNum; i++ {
-		t := &Partial{
-			Client: dl.Client,
-			Url:    url,
-			Start:  partSize * i,
-			End: func() int {
-				if (i + 1) == partNum {
-					return size - 1
-				}
-				return partSize*(i+1) - 1
-			}(),
+		i := i // Avoid closure capture issue
+		start := partSize * i
+		end := start + partSize - 1
+		if i == partNum-1 {
+			end = size - 1 // The last part includes the remaining data
 		}
-		parts = append(parts, t)
-		eg.Go(func() error { return t.Download(ctx) })
+
+		eg.Go(func() error {
+			return retry.Do(func() error {
+				reader, err := dl.download(ctx, url, start, end)
+				if err != nil {
+					return errors.Wrapf(err, "failed to download part %d", i)
+				}
+				parts[i] = reader
+				return nil
+			}, retry.Attempts(3))
+		})
 	}
 
 	if err := eg.Wait(); err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "parallel download failed")
 	}
 
-	buffer := bytes.NewBuffer(make([]byte, 0, size))
-	for _, part := range parts {
-		buffer.Write(part.data)
-	}
-	return buffer, nil
+	return io.MultiReader(parts...), nil
 }
-
-// filePart 文件分片
-type Partial struct {
-	Client     *http.Client
-	Url        string
-	Start, End int
-	data       []byte
-}
-
-// 下载分片
-func (dl *Partial) Download(ctx context.Context) error {
-	r, err := http.NewRequestWithContext(ctx, "GET", dl.Url, nil)
-	if err != nil {
-		return err
-	}
-	r.Header.Set("Range", fmt.Sprintf("bytes=%v-%v", dl.Start, dl.End))
-
-	resp, err := dl.Client.Do(r)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusPartialContent {
-		return errors.Errorf("download fail for: http.Status=%v", resp.StatusCode)
-	}
-
-	dl.data, err = io.ReadAll(resp.Body)
-	return err
-}
-
-func (dl *Partial) Data() []byte { return dl.data }

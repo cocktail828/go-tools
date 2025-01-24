@@ -58,7 +58,7 @@ type SimpleHTTP struct {
 
 func (c *SimpleHTTP) Fire(dst interface{}) error {
 	if c.Unmarshal == nil {
-		c.Unmarshal = func(status int, body []byte, i interface{}) error {
+		c.Unmarshal = func(_ int, body []byte, i interface{}) error {
 			return json.Unmarshal(body, i)
 		}
 	}
