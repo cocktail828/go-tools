@@ -1,121 +1,110 @@
 package rolling
 
 import (
+	"fmt"
+	"strings"
 	"sync/atomic"
-	"time"
-	_ "unsafe"
+
+	"github.com/cocktail828/go-tools/z/mathx"
 )
+
+type counter struct {
+	tm atomic.Int64 // 时间戳，单位为毫秒
+	n  atomic.Uint32
+}
 
 const (
-	BucketNum     = 64 // 默认64个桶
-	SlotPerBucket = 10 // 默认slot个数
-	MaxCalcWnSize = 30 // 最大计算窗口(s)
+	MIN_COUNTER_NUM  = 128
+	MIN_COUNTER_SIZE = 64 // counter 精度, 单位 ms
 )
 
-//go:linkname now time.now
-func now() (sec int64, nsec int32, mono int64)
-
-// Rolling 滑动窗口计数器
 type Rolling struct {
-	buckets [BucketNum][SlotPerBucket]atomic.Int64 // 计数器槽
+	num      int   // Counter 数量，为了快速计算要求为 2 的幂次方
+	size     int64 // 计数窗口大小，单位 ms
+	bitMask  int   // num-1
+	counters []counter
 }
 
-// bucketIdx 计算桶索引
-func (r *Rolling) bucketIdx(sec int64) int { return int((sec + BucketNum) % BucketNum) }
+func NewRolling(num, size int) *Rolling {
+	num = int(mathx.Next2Power(int64(num)))
+	if num <= MIN_COUNTER_NUM {
+		num = MIN_COUNTER_NUM
+	}
 
-// slotIdx 计算槽索引
-func (r *Rolling) slotIdx(msec int64) int { return int(((msec + 1e3) % 1e3) / 1e2) }
+	if size <= MIN_COUNTER_SIZE {
+		size = MIN_COUNTER_SIZE
+	}
 
-// Recycle 清理过期的桶
-// The ticker interval should not exceed `MaxCalcWnSize`
-func (r *Rolling) Recycle(c <-chan time.Time) {
-	go func() {
-		for {
-			now, ok := <-c
-			if !ok {
-				return
-			}
-			r.SafeReset(now.Unix())
+	return &Rolling{
+		num:      num,
+		size:     int64(size),
+		bitMask:  num - 1,
+		counters: make([]counter, num),
+	}
+}
+
+func (r *Rolling) String() string {
+	sb := &strings.Builder{}
+	fmt.Fprintf(sb, "Rolling: size:%d, num:%d\n", r.size, r.num)
+	for i := 0; i < r.num; i++ {
+		current := &r.counters[i]
+		fmt.Fprintf(sb, "%02d => %03d (%d)\n", i, current.n.Load(), current.tm.Load())
+	}
+	return sb.String()
+}
+
+func (r *Rolling) Incrby(msec int64, n int) {
+	pos := msec / r.size & int64(r.bitMask)
+	current := &r.counters[pos]
+
+	for {
+		oldTime := current.tm.Load()
+		if oldTime+r.size > msec {
+			break
 		}
-	}()
-}
 
-// SafeReset 安全重置过期桶
-func (r *Rolling) SafeReset(sec int64) {
-	for i := 4; i > 1; i-- {
-		bucketIdx := r.bucketIdx(sec - MaxCalcWnSize - int64(i))
-		for j := 0; j < SlotPerBucket; j++ {
-			r.buckets[bucketIdx][j].Store(0)
-		}
-	}
-}
-
-// sum 计算指定时间窗口内的总和
-func (r *Rolling) sum(sec, msec int64, winsize int) int64 {
-	if winsize <= 0 || winsize > MaxCalcWnSize {
-		winsize = 1 // 默认1秒
-	}
-
-	sum := int64(0)
-	gap := r.slotIdx(msec)
-	for i := 0; i <= winsize; i++ {
-		bucketIdx := r.bucketIdx(sec - int64(i))
-		for j := 0; j < SlotPerBucket; j++ {
-			if (i == winsize && j <= int(gap)) || (i == 0 && j > int(gap)) {
-				continue
-			}
-			sum += r.buckets[bucketIdx][j].Load()
+		if current.tm.CompareAndSwap(oldTime, msec) {
+			current.n.Store(0)
+			break
 		}
 	}
 
-	return sum
+	current.n.Add(uint32(n))
 }
 
-// SumAt 计算指定时间点的总和
-func (r *Rolling) SumAt(now time.Time, winsize int) int64 {
-	return r.sum(now.Unix(), now.UnixMilli(), winsize)
-}
-
-// Sum 计算当前时间点的总和
-func (r *Rolling) Sum(winsize int) int64 {
-	sec, nsec, _ := now()
-	return r.sum(sec, int64(nsec)/1e6, winsize)
-}
-
-// rate 计算指定时间窗口内的速率
-func (r *Rolling) rate(sec, msec int64, winsize int) float32 {
-	if winsize <= 0 || winsize > MaxCalcWnSize {
-		winsize = 1 // 默认1秒
+func (r *Rolling) Count(msec int64, winsize int) (int64, int64) {
+	if winsize > r.num {
+		winsize = r.num
 	}
-	return float32(r.sum(sec, msec, winsize)) / float32(winsize)
+
+	pos := msec / r.size & int64(r.bitMask)
+	cnt, win := int64(0), int64(0)
+
+	floor := (msec / r.size) * r.size
+
+	for i := 0; i < winsize; i++ {
+		index := (pos - int64(i) + int64(r.num)) & int64(r.bitMask)
+		current := &r.counters[index]
+
+		// check whether the counter is expired
+		if current.tm.Load()+r.size*int64(i) < floor {
+			break
+		}
+
+		win++
+		cnt += int64(current.n.Load())
+	}
+	return cnt, win
 }
 
-// RateAt 计算指定时间点的速率
-func (r *Rolling) RateAt(now time.Time, winsize int) float32 {
-	return r.rate(now.Unix(), now.UnixMilli(), winsize)
+func (r *Rolling) Rate(msec int64, winsize int) float64 {
+	cnt, win := r.Count(msec, winsize)
+	if win == 0 {
+		return 0
+	}
+	return float64(cnt) / float64(win)
 }
 
-// Rate 计算当前时间点的速率
-func (r *Rolling) Rate(winsize int) float32 {
-	sec, nsec, _ := now()
-	return r.rate(sec, int64(nsec)/1e6, winsize)
-}
-
-// QPS 计算当前QPS
-func (r *Rolling) QPS() float32 {
-	sec, nsec, _ := now()
-	return r.rate(sec, int64(nsec)/1e6, 1)
-}
-
-// Incr 增加计数器
-func (r *Rolling) Incr() int64 {
-	return r.IncrBy(1)
-}
-
-// IncrBy 按指定值增加计数器
-func (r *Rolling) IncrBy(delta int) int64 {
-	sec, nsec, _ := now()
-	bucketIdx := r.bucketIdx(sec)
-	slotIdx := r.slotIdx(int64(nsec) / 1e6)
-	return r.buckets[bucketIdx][slotIdx].Add(int64(delta))
+func (r *Rolling) QPS(msec int64, winsize int) float64 {
+	return r.Rate(msec, winsize) * 1e3 / float64(r.size)
 }
