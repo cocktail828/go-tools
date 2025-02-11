@@ -1158,17 +1158,25 @@ func (u *URL) RequestURI() string {
 //
 // If the result is enclosed in square brackets, as literal IPv6 addresses are,
 // the square brackets are removed from the result.
-func (u *URL) Hostname() string {
-	host, _ := splitHostPort(u.Host)
-	return host
+func (u *URL) Hostname() []string {
+	hosts := []string{}
+	for _, host := range strings.Split(u.Host, ",") {
+		h, _ := splitHostPort(host)
+		hosts = append(hosts, h)
+	}
+	return hosts
 }
 
 // Port returns the port part of u.Host, without the leading colon.
 //
 // If u.Host doesn't contain a valid numeric port, Port returns an empty string.
-func (u *URL) Port() string {
-	_, port := splitHostPort(u.Host)
-	return port
+func (u *URL) Port() []string {
+	ports := []string{}
+	for _, host := range strings.Split(u.Host, ",") {
+		_, p := splitHostPort(host)
+		ports = append(ports, p)
+	}
+	return ports
 }
 
 // splitHostPort separates host and port. If the port is not valid, it returns

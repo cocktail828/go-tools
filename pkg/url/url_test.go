@@ -1857,10 +1857,10 @@ func TestURLHostnameAndPort(t *testing.T) {
 	for _, tt := range tests {
 		u := &URL{Host: tt.in}
 		host, port := u.Hostname(), u.Port()
-		if host != tt.host {
+		if len(host) != 1 || host[0] != tt.host {
 			t.Errorf("Hostname for Host %q = %q; want %q", tt.in, host, tt.host)
 		}
-		if port != tt.port {
+		if len(port) != 1 || port[0] != tt.port {
 			t.Errorf("Port for Host %q = %q; want %q", tt.in, port, tt.port)
 		}
 	}
@@ -2216,6 +2216,36 @@ func TestJoinPath(t *testing.T) {
 		}
 		if out != tt.out || (err == nil) != (tt.out != "") {
 			t.Errorf("Parse(%q).JoinPath(%q) = %q, %v, want %q, %v", tt.base, tt.elem, out, err, tt.out, wantErr)
+		}
+	}
+}
+
+func TestMultiHost(t *testing.T) {
+	tests := []struct {
+		uri      string
+		hostport string
+	}{
+		{
+			uri:      "mongodb://aaa:xxx@127.0.0.1:10001,127.0.0.2:10001,127.0.0.3:10001/dbproxy",
+			hostport: "127.0.0.1:10001,127.0.0.2:10001,127.0.0.3:10001",
+		},
+	}
+
+	for _, tt := range tests {
+		u, err := Parse(tt.uri)
+		if err != nil {
+			t.Errorf("Parse(%q) fail with message:%v\n", tt.uri, err)
+		}
+
+		hosts := u.Hostname()
+		ports := u.Port()
+		actual := []string{}
+		for i := 0; i < len(hosts); i++ {
+			actual = append(actual, net.JoinHostPort(hosts[i], ports[i]))
+		}
+
+		if u.Host != strings.Join(actual, ",") {
+			t.Errorf("Check host port(%q) fail\n", tt.uri)
 		}
 	}
 }
