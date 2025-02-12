@@ -15,7 +15,7 @@ type counter struct {
 
 const (
 	MIN_COUNTER_NUM  = 128
-	MIN_COUNTER_SIZE = 64 // counter 精度, 单位 ms
+	MIN_COUNTER_SIZE = 128 // counter 精度, 单位 ms
 )
 
 type Rolling struct {
@@ -27,11 +27,11 @@ type Rolling struct {
 
 func NewRolling(num, size int) *Rolling {
 	num = int(mathx.Next2Power(int64(num)))
-	if num <= MIN_COUNTER_NUM {
+	if num < MIN_COUNTER_NUM {
 		num = MIN_COUNTER_NUM
 	}
 
-	if size <= MIN_COUNTER_SIZE {
+	if size < MIN_COUNTER_SIZE {
 		size = MIN_COUNTER_SIZE
 	}
 
@@ -48,7 +48,9 @@ func (r *Rolling) String() string {
 	fmt.Fprintf(sb, "Rolling: size:%d, num:%d\n", r.size, r.num)
 	for i := 0; i < r.num; i++ {
 		current := &r.counters[i]
-		fmt.Fprintf(sb, "%02d => %03d (%d)\n", i, current.n.Load(), current.tm.Load())
+		if n := current.n.Load(); n > 0 {
+			fmt.Fprintf(sb, "%03d => %d\t%vms\n", i, n, current.tm.Load())
+		}
 	}
 	return sb.String()
 }
@@ -107,4 +109,12 @@ func (r *Rolling) Rate(msec int64, winsize int) float64 {
 
 func (r *Rolling) QPS(msec int64, winsize int) float64 {
 	return r.Rate(msec, winsize) * 1e3 / float64(r.size)
+}
+
+func (r *Rolling) Reset() {
+	for i := 0; i < r.num; i++ {
+		current := &r.counters[i]
+		current.n.Store(0)
+		current.tm.Store(0)
+	}
 }

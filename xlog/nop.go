@@ -2,8 +2,6 @@ package xlog
 
 type NopLogger struct{}
 
-func NewNopLogger() Logger { return NopLogger{} }
-
 func (nop NopLogger) Debugf(format string, args ...any) {}
 func (nop NopLogger) Debugln(msg string, args ...any)   {}
 func (nop NopLogger) Errorf(format string, args ...any) {}
