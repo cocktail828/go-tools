@@ -22,7 +22,6 @@ import (
 	"fmt"
 	"go/build"
 	"io"
-	"io/ioutil"
 	"log"
 	"net"
 	"net/http"
@@ -48,7 +47,7 @@ const (
 )
 
 func safeServe(errCh chan<- error, muxl cmux.CMux) {
-	if err := muxl.Serve(); !strings.Contains(err.Error(), "use of closed") {
+	if err := muxl.Serve(); err != nil && !strings.Contains(err.Error(), "use of closed") {
 		errCh <- err
 	}
 }
@@ -106,7 +105,7 @@ func testListener(t *testing.T) (net.Listener, func()) {
 type testHTTP1Handler struct{}
 
 func (h *testHTTP1Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintf(w, testHTTP1Resp)
+	fmt.Fprint(w, testHTTP1Resp)
 }
 
 func runTestHTTPServer(errCh chan<- error, l net.Listener) {
@@ -138,24 +137,6 @@ func runTestHTTPServer(errCh chan<- error, l net.Listener) {
 	}
 	if err := s.Serve(l); err != cmux.ErrServerClosed {
 		errCh <- err
-	}
-}
-
-func generateTLSCert(t *testing.T) {
-	err := exec.Command("go", "run", build.Default.GOROOT+"/src/crypto/tls/generate_cert.go", "--host", "*").Run()
-	if err != nil {
-		t.Fatal(err)
-	}
-}
-
-func cleanupTLSCert(t *testing.T) {
-	err := os.Remove("cert.pem")
-	if err != nil {
-		t.Error(err)
-	}
-	err = os.Remove("key.pem")
-	if err != nil {
-		t.Error(err)
 	}
 }
 
@@ -202,7 +183,7 @@ func runTestHTTPClient(t *testing.T, proto string, addr net.Addr) {
 		}
 	}()
 
-	b, err := ioutil.ReadAll(r.Body)
+	b, err := io.ReadAll(r.Body)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -343,10 +324,10 @@ func TestRead(t *testing.T) {
 	writer, reader := net.Pipe()
 	go func() {
 		if _, err := io.WriteString(writer, strings.Repeat(payload, mult)); err != nil {
-			t.Fatal(err)
+			panic(err)
 		}
 		if err := writer.Close(); err != nil {
-			t.Fatal(err)
+			panic(err)
 		}
 	}()
 
@@ -408,8 +389,19 @@ func TestAny(t *testing.T) {
 }
 
 func TestTLS(t *testing.T) {
-	generateTLSCert(t)
-	defer cleanupTLSCert(t)
+	// generateTLSCert
+	err := exec.Command("go", "run", build.Default.GOROOT+"/src/crypto/tls/generate_cert.go", "--host", "*").Run()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// cleanupTLSCert()
+	defer func() {
+		if err := errors.Join(os.Remove("cert.pem"), os.Remove("key.pem")); err != nil {
+			t.Error(err)
+		}
+	}()
+
 	defer leakCheck(t)()
 	errCh := make(chan error)
 	defer func() {
@@ -447,10 +439,10 @@ func TestHTTP2(t *testing.T) {
 	writer, reader := net.Pipe()
 	go func() {
 		if _, err := io.WriteString(writer, http2.ClientPreface); err != nil {
-			t.Fatal(err)
+			panic(err)
 		}
 		if err := writer.Close(); err != nil {
-			t.Fatal(err)
+			panic(err)
 		}
 	}()
 
@@ -513,12 +505,12 @@ func testHTTP2MatchHeaderField(
 	writer, reader := net.Pipe()
 	go func() {
 		if _, err := io.WriteString(writer, http2.ClientPreface); err != nil {
-			t.Fatal(err)
+			panic(err)
 		}
 		var buf bytes.Buffer
 		enc := hpack.NewEncoder(&buf)
 		if err := enc.WriteField(hpack.HeaderField{Name: name, Value: headerValue}); err != nil {
-			t.Fatal(err)
+			panic(err)
 		}
 		framer := http2.NewFramer(writer, nil)
 		err := framer.WriteHeaders(http2.HeadersFrameParam{
@@ -528,10 +520,10 @@ func testHTTP2MatchHeaderField(
 			EndHeaders:    true,
 		})
 		if err != nil {
-			t.Fatal(err)
+			panic(err)
 		}
 		if err := writer.Close(); err != nil {
-			t.Fatal(err)
+			panic(err)
 		}
 	}()
 

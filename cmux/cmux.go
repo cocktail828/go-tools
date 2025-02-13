@@ -132,31 +132,24 @@ func (m *cMux) SetReadTimeout(t time.Duration) {
 }
 
 func (m *cMux) Serve() (err error) {
-	wg := sync.WaitGroup{}
 	for {
-		var c net.Conn
-		c, err = m.root.Accept()
+		c, err := m.root.Accept()
 		if err != nil {
 			if !m.handleErr(err) {
 				break
 			}
 			continue
 		}
-
-		wg.Add(1)
-		go m.serve(c, &wg)
+		go m.serve(c)
 	}
 
 	for _, sl := range m.children {
 		sl.Close()
 	}
-	wg.Wait()
 	return err
 }
 
-func (m *cMux) serve(c net.Conn, wg *sync.WaitGroup) {
-	defer wg.Done()
-
+func (m *cMux) serve(c net.Conn) {
 	muc := newMuxConn(c)
 	if m.readTimeout > noTimeout {
 		_ = c.SetReadDeadline(time.Now().Add(m.readTimeout))

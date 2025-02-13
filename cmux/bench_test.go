@@ -18,7 +18,6 @@ import (
 	"bytes"
 	"io"
 	"net"
-	"sync"
 	"testing"
 	"time"
 
@@ -62,16 +61,12 @@ func BenchmarkCMuxConnHTTP1(b *testing.B) {
 
 	go discard(l)
 
-	var wg sync.WaitGroup
-	wg.Add(b.N)
-
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
-			wg.Add(1)
 			m.serve(&mockConn{
 				r: bytes.NewReader(benchHTTP1Payload),
-			}, &wg)
+			})
 		}
 	})
 }
@@ -81,16 +76,12 @@ func BenchmarkCMuxConnHTTP2(b *testing.B) {
 	l := m.Match(HTTP2())
 	go discard(l)
 
-	var wg sync.WaitGroup
-	wg.Add(b.N)
-
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
-			wg.Add(1)
 			m.serve(&mockConn{
 				r: bytes.NewReader(benchHTTP2Payload),
-			}, &wg)
+			})
 		}
 	})
 }
@@ -103,15 +94,12 @@ func BenchmarkCMuxConnHTTP1n2(b *testing.B) {
 	go discard(l1)
 	go discard(l2)
 
-	var wg sync.WaitGroup
-
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
-			wg.Add(1)
 			m.serve(&mockConn{
 				r: bytes.NewReader(benchHTTP2Payload),
-			}, &wg)
+			})
 		}
 	})
 }
@@ -124,15 +112,12 @@ func BenchmarkCMuxConnHTTP2n1(b *testing.B) {
 	go discard(l1)
 	go discard(l2)
 
-	var wg sync.WaitGroup
-
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
-			wg.Add(1)
 			m.serve(&mockConn{
 				r: bytes.NewReader(benchHTTP1Payload),
-			}, &wg)
+			})
 		}
 	})
 }
