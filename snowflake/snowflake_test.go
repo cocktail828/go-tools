@@ -2,7 +2,8 @@ package snowflake
 
 import (
 	"bytes"
-	"reflect"
+	"encoding/json"
+	"errors"
 	"testing"
 )
 
@@ -333,21 +334,29 @@ func TestMarshalsIntBytes(t *testing.T) {
 
 func TestUnmarshalJSON(t *testing.T) {
 	tt := []struct {
-		json        string
-		expectedID  ID
-		expectedErr error
+		json       string
+		expectedID ID
+		f          func(error)
 	}{
-		{`"13587"`, 13587, nil},
-		{`1`, 0, JSONSyntaxError{[]byte(`1`)}},
-		{`"invalid`, 0, JSONSyntaxError{[]byte(`"invalid`)}},
+		{`"13587"`, 13587, func(err error) {}},
+		{`1`, 0, func(err error) {
+			var unmarshalErr = &json.UnmarshalTypeError{}
+			if !errors.As(err, &unmarshalErr) {
+				t.Fatalf("Expected to get error 'json.UnmarshalTypeError{}', but got '%s'", err)
+			}
+		}},
+		{`"invalid`, 0, func(err error) {
+			var unmarshalErr = &json.SyntaxError{}
+			if !errors.As(err, &unmarshalErr) {
+				t.Fatalf("Expected to get error 'json.SyntaxError{}', but got '%s'", err)
+			}
+		}},
 	}
 
 	for _, tc := range tt {
 		var id ID
 		err := id.UnmarshalJSON([]byte(tc.json))
-		if !reflect.DeepEqual(err, tc.expectedErr) {
-			t.Fatalf("Expected to get error '%s' decoding JSON, but got '%s'", tc.expectedErr, err)
-		}
+		tc.f(err)
 
 		if id != tc.expectedID {
 			t.Fatalf("Expected to get ID '%s' decoding JSON, but got '%s'", tc.expectedID, id)
@@ -409,11 +418,9 @@ func BenchmarkBase58(b *testing.B) {
 	}
 }
 func BenchmarkGenerate(b *testing.B) {
-
 	node, _ := NewNode(1)
 
 	b.ReportAllocs()
-
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
 		_ = node.Generate()
