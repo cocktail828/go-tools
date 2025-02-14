@@ -9,48 +9,53 @@ import (
 	"github.com/fatih/color"
 )
 
-type printer struct {
+type Color struct {
 	*color.Color
-	level xlog.Level
+	Level xlog.Level
 }
-
-func (p printer) Level() xlog.Level { return p.level }
 
 type Logger struct {
 	*log.Logger
-	debu, info, warn, erro, fata printer
+	debu, info, warn, erro, fata Color
 }
 
 // an wrapper of *log.Logger with colorful output
 func NewColorful(out io.Writer, prefix string, flag int) *Logger {
-	cl := &Logger{Logger: log.New(out, prefix, flag)}
-	cl.init()
-	return cl
+	return NewColorfulLog(log.New(out, prefix, flag))
 }
 
 func NewColorfulLog(l *log.Logger) *Logger {
-	cl := &Logger{Logger: l}
-	cl.init()
-	return cl
+	return &Logger{
+		Logger: l,
+		debu:   Color{color.New().Add(color.Italic, color.Bold), xlog.LevelDebug},
+		info:   Color{color.New(), xlog.LevelInfo},
+		warn:   Color{color.New(color.FgYellow), xlog.LevelWarn},
+		erro:   Color{color.New(color.FgRed), xlog.LevelError},
+		fata:   Color{color.New(color.FgRed, color.Bold), xlog.LevelFatal},
+	}
 }
 
-func (l *Logger) init() {
-	l.debu = printer{color.New().Add(color.Underline), xlog.LevelDebug}
-	l.info = printer{color.New(), xlog.LevelInfo}
-	l.warn = printer{color.New(color.FgYellow), xlog.LevelWarn}
-	l.erro = printer{color.New(color.FgRed), xlog.LevelError}
-	l.fata = printer{color.New(color.FgRed, color.Bold), xlog.LevelFatal}
+func (l *Logger) WithColor(c Color) {
+	switch c.Level {
+	case xlog.LevelDebug:
+		l.debu.Color = c.Color
+	case xlog.LevelInfo:
+		l.info.Color = c.Color
+	case xlog.LevelWarn:
+		l.warn.Color = c.Color
+	case xlog.LevelError:
+		l.erro.Color = c.Color
+	case xlog.LevelFatal:
+		l.fata.Color = c.Color
+	}
 }
 
 // disable all color if no level is passed
 func (l *Logger) DisableColor(levels ...xlog.Level) {
-	if len(levels) == 0 {
-		levels = xlog.AllLevels
-	}
-	pr := []printer{l.debu, l.info, l.warn, l.erro, l.fata}
+	pr := []Color{l.debu, l.info, l.warn, l.erro, l.fata}
 	for _, p := range pr {
 		for _, lv := range levels {
-			if p.Level() == lv {
+			if p.Level == lv {
 				p.DisableColor()
 			}
 		}
@@ -59,13 +64,10 @@ func (l *Logger) DisableColor(levels ...xlog.Level) {
 
 // enable all color if no level is passed
 func (l *Logger) EnableColor(levels ...xlog.Level) {
-	if len(levels) == 0 {
-		levels = xlog.AllLevels
-	}
-	pr := []printer{l.debu, l.info, l.warn, l.erro, l.fata}
+	pr := []Color{l.debu, l.info, l.warn, l.erro, l.fata}
 	for _, p := range pr {
 		for _, lv := range levels {
-			if p.Level() == lv {
+			if p.Level == lv {
 				p.EnableColor()
 			}
 		}

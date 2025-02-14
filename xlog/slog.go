@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"os"
 	"runtime"
 	"time"
 )
@@ -65,28 +64,6 @@ func (wl *WrapperLogger) log(level slog.Level, msg string, args ...any) {
 	_ = wl.logger.Handler().Handle(context.Background(), r)
 }
 
-// always dump log, ignore log level
-func (wl *WrapperLogger) alwayslog(level slog.Level, msg string, args ...any) {
-	var pc uintptr
-	if wl.AddSource {
-		var pcs [1]uintptr
-		// skip [runtime.Callers, this function, this function's caller]
-		runtime.Callers(3, pcs[:])
-		pc = pcs[0]
-	}
-	r := slog.NewRecord(time.Now(), level, msg, pc)
-	r.Add(args...)
-	_ = wl.logger.Handler().Handle(context.Background(), r)
-}
-
-func (wl *WrapperLogger) Println(msg string, args ...any) {
-	wl.alwayslog(slog.LevelInfo, msg, args...)
-}
-
-func (wl *WrapperLogger) Printf(format string, args ...any) {
-	wl.alwayslog(slog.LevelInfo, fmt.Sprintf(format, args...))
-}
-
 func (wl *WrapperLogger) Debugln(msg string, args ...any) {
 	wl.log(slog.LevelDebug, msg, args...)
 }
@@ -117,14 +94,4 @@ func (wl *WrapperLogger) Errorln(msg string, args ...any) {
 
 func (wl *WrapperLogger) Errorf(format string, args ...any) {
 	wl.log(slog.LevelError, fmt.Sprintf(format, args...))
-}
-
-func (wl *WrapperLogger) Fatalln(msg string, args ...any) {
-	wl.alwayslog(slog.LevelError, msg, args...)
-	os.Exit(1)
-}
-
-func (wl *WrapperLogger) Fatalf(format string, args ...any) {
-	wl.alwayslog(slog.LevelError, fmt.Sprintf(format, args...))
-	os.Exit(1)
 }

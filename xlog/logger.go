@@ -36,18 +36,23 @@ type HandlerOptions struct {
 }
 
 type Logger interface {
-	Debugf(format string, args ...any)
-	Debugln(msg string, args ...any)
-	Errorf(format string, args ...any)
-	Errorln(msg string, args ...any)
-	Fatalf(format string, args ...any)
-	Fatalln(msg string, args ...any)
-	Infof(format string, args ...any)
-	Infoln(msg string, args ...any)
-	Printf(format string, args ...any)
-	Println(msg string, args ...any)
-	Warnf(format string, args ...any)
-	Warnln(msg string, args ...any)
 	With(args ...any) Logger
 	WithGroup(name string) Logger
+
+	Debugf(format string, args ...any)
+	Debugln(msg string, args ...any)
+	Infof(format string, args ...any)
+	Infoln(msg string, args ...any)
+	Warnf(format string, args ...any)
+	Warnln(msg string, args ...any)
+	Errorf(format string, args ...any)
+	Errorln(msg string, args ...any)
 }
+
+type Printer interface {
+	Printf(format string, v ...any)
+}
+
+type NoopPrinter struct{}
+
+func (p NoopPrinter) Printf(format string, v ...any) {}

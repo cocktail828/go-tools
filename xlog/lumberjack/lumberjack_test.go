@@ -9,7 +9,7 @@ import (
 	"github.com/cocktail828/go-tools/z"
 )
 
-func BenchmarkLog(b *testing.B) {
+func BenchmarkLumberjack(b *testing.B) {
 	cfg := lumberjack.Config{}
 	z.Must(configor.Load(&cfg, []byte(`
 level = "INFO"
@@ -17,26 +17,13 @@ filename = "/log/server/xxx.log"
 async = true
 `)))
 
-	os.RemoveAll("/log/server/*")
+	os.RemoveAll("/log/server/xxx.log")
 	b.Run("no-cache", func(b *testing.B) {
-		cfg.Async = false
-		l := lumberjack.NewLumberjack(cfg)
+		l := lumberjack.NewWriter(cfg)
 		b.ResetTimer()
 		b.RunParallel(func(p *testing.PB) {
 			for p.Next() {
-				l.Errorln("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx")
-			}
-		})
-	})
-
-	os.RemoveAll("/log/server/*")
-	b.Run("cache", func(b *testing.B) {
-		cfg.Async = true
-		l := lumberjack.NewLumberjack(cfg)
-		b.ResetTimer()
-		b.RunParallel(func(p *testing.PB) {
-			for p.Next() {
-				l.Errorln("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx")
+				l.Write([]byte("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n"))
 			}
 		})
 	})
