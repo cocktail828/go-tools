@@ -5,12 +5,13 @@ import (
 	"testing"
 
 	"github.com/cocktail828/go-tools/configor"
+	"github.com/cocktail828/go-tools/xlog"
 	"github.com/cocktail828/go-tools/xlog/lumberjack"
 	"github.com/cocktail828/go-tools/z"
 )
 
 func BenchmarkLumberjack(b *testing.B) {
-	cfg := lumberjack.Config{}
+	cfg := xlog.Config{}
 	z.Must(configor.Load(&cfg, []byte(`
 level = "INFO"
 filename = "/log/server/xxx.log"
