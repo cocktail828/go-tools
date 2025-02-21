@@ -1,6 +1,7 @@
 package colorful
 
 import (
+	"fmt"
 	"io"
 	"log"
 	"os"
@@ -76,6 +77,18 @@ func (l *Logger) EnableColor(levels ...xlog.Level) {
 
 func (l *Logger) log(depth int, msg string) {
 	l.Logger.Output(depth, msg)
+}
+
+func (l *Logger) Print(v ...any) {
+	l.log(3, fmt.Sprint(v...))
+}
+
+func (l *Logger) Println(v ...any) {
+	l.log(3, fmt.Sprintln(v...))
+}
+
+func (l *Logger) Printf(format string, v ...any) {
+	l.log(3, fmt.Sprintf(format, v...))
 }
 
 func (l *Logger) Debug(v ...any) {

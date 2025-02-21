@@ -1,6 +1,7 @@
 package colorful
 
 import (
+	"fmt"
 	"log"
 	"os"
 
@@ -21,6 +22,18 @@ func DisableColor(levels ...xlog.Level) {
 // enable all color if no level is passed
 func EnableColor(levels ...xlog.Level) {
 	std.EnableColor(levels...)
+}
+
+func Print(v ...any) {
+	std.log(3, fmt.Sprint(v...))
+}
+
+func Println(v ...any) {
+	std.log(3, fmt.Sprintln(v...))
+}
+
+func Printf(format string, v ...any) {
+	std.log(3, fmt.Sprintf(format, v...))
 }
 
 func Debug(v ...any) {
