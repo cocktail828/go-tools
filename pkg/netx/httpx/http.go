@@ -43,6 +43,10 @@ func NewRequest(ctx context.Context, method string, url string, opts ...variadic
 		return nil, err
 	}
 
+	for k, v := range iv.Headers() {
+		req.Header.Add(k, v)
+	}
+
 	if f := iv.Callback(); f != nil {
 		f(req)
 	}
