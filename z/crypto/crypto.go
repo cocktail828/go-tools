@@ -13,9 +13,9 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-func SHA256(src string, salt string) string {
+func SHA256(src string) string {
 	h := sha256.New()
-	h.Write([]byte(src + salt))
+	h.Write([]byte(src))
 	sum := h.Sum(nil)
 	return hex.EncodeToString(sum)
 }

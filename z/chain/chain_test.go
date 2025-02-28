@@ -25,18 +25,18 @@ func (n anop) Execute(c chain.Context) {
 }
 
 type T struct {
-	req  any
-	meta map[string][]any
+	req   any
+	array []any
 }
 
-func (t *T) Set(key string, value any)  { t.meta[key] = append(t.meta[key], value) }
-func (t *T) Get(key string) (any, bool) { val, ok := t.meta[key]; return val, ok }
+func (t *T) Set(key string, value any)  { t.array = append(t.array, value) }
+func (t *T) Get(key string) (any, bool) { return t.array, true }
 func (t *T) Request() any               { return t.req }
 
 func TestChain(t *testing.T) {
 	c := chain.Chain{}
 	z.Must(c.Use(nop{"a"}, nop{"b"}, nop{"c"}))
-	x := &T{meta: map[string][]any{}}
+	x := &T{}
 	c.Handle(x)
 	val, _ := x.Get("t")
 	assert.EqualValues(t, []any{"a", "b", "c", "c", "b", "a"}, val)
@@ -45,7 +45,7 @@ func TestChain(t *testing.T) {
 func TestAbort(t *testing.T) {
 	c := chain.Chain{}
 	z.Must(c.Use(nop{"a"}, nop{"b"}, anop{"xx"}, nop{"c"}))
-	x := &T{meta: map[string][]any{}}
+	x := &T{}
 	c.Handle(x)
 	val, _ := x.Get("t")
 	assert.EqualValues(t, []any{"a", "b", "xx", "xx", "b", "a"}, val)

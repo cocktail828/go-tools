@@ -7,6 +7,7 @@ import (
 	"unicode"
 
 	"github.com/cocktail828/go-tools/z"
+	"github.com/cocktail828/go-tools/z/variadic"
 )
 
 type random struct {
@@ -19,36 +20,29 @@ var (
 	chars = "0123456789abcdefghijklmnopqrstuvwxyz"
 )
 
-type inOption struct {
-	width    int
-	withCase bool
-}
+type inVariadic struct{ variadic.Assigned }
+type widthKey struct{}
 
-type option func(*inOption)
+func WithWidth(v int) variadic.Option { return variadic.SetValue(widthKey{}, v) }
+func (iv inVariadic) WithWidth() int  { return variadic.GetValue[int](iv, widthKey{}) }
 
-func WithWidth(n int) option {
-	return func(io *inOption) {
-		io.width = n
+type caseKey struct{}
+
+func WithCase() variadic.Option      { return variadic.SetValue(caseKey{}, true) }
+func (iv inVariadic) WithCase() bool { return variadic.GetValue[bool](iv, caseKey{}) }
+
+func RandomName(opts ...variadic.Option) string {
+	iv := inVariadic{variadic.Compose(opts...)}
+	width := 8
+
+	if w := iv.WithWidth(); w > 0 {
+		width = w
 	}
-}
-
-func WithCase() option {
-	return func(io *inOption) {
-		io.withCase = true
-	}
-}
-
-func RandomName(opts ...option) string {
-	o := inOption{width: 8}
-	for _, f := range opts {
-		f(&o)
-	}
-
-	bytes := make([]byte, o.width)
+	bytes := make([]byte, width)
 	z.WithLock(r, func() {
 		for i := range bytes {
 			char := chars[r.R.Intn(len(chars))]
-			if o.withCase {
+			if iv.WithCase() {
 				if rn := r.R.Intn(100); rn > 50 {
 					char = byte(unicode.ToUpper(rune(char)))
 				}
