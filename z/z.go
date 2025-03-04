@@ -8,24 +8,6 @@ import (
 	"github.com/cocktail828/go-tools/z/reflectx"
 )
 
-type Mode string
-
-const (
-	Debug   = Mode("debug")
-	Test    = Mode("test")
-	Release = Mode("release")
-)
-
-var (
-	// indicates environment name for work mode
-	mode = Debug
-)
-
-func DebugMode() bool   { return mode == Debug }
-func TestMode() bool    { return mode == Test }
-func ReleaseMode() bool { return mode == Release }
-func SetMode(m Mode)    { mode = m }
-
 // Abort: main.main
 //   - Location:/root/github/go-tools/xlog/example/log.go:34 +0x48e649
 //   - Detail: xxx 123
