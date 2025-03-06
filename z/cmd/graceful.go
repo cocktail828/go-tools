@@ -18,7 +18,11 @@ func (g *Graceful) Do(ctx context.Context) error {
 	}()
 
 	<-runningCtx.Done()
-	return errors.Join(g.Stop(), context.Cause(runningCtx))
+	err := context.Cause(ctx)
+	if err == context.Canceled {
+		err = nil
+	}
+	return errors.Join(err, g.Stop())
 }
 
 func Timed(d time.Duration, f func(context.Context) error) error {

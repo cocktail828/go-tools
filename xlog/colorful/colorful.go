@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/cocktail828/go-tools/xlog"
+	"github.com/cocktail828/go-tools/z"
 	"github.com/fatih/color"
 )
 
@@ -92,15 +93,21 @@ func (l *Logger) Printf(format string, v ...any) {
 }
 
 func (l *Logger) Debug(v ...any) {
-	l.log(3, l.debu.Sprint(v...))
+	if z.GetMode() == z.Debug {
+		l.log(3, l.debu.Sprintln(v...))
+	}
 }
 
 func (l *Logger) Debugln(v ...any) {
-	l.log(3, l.debu.Sprintln(v...))
+	if z.GetMode() == z.Debug {
+		l.log(3, l.debu.Sprintln(v...))
+	}
 }
 
 func (l *Logger) Debugf(format string, v ...any) {
-	l.log(3, l.debu.Sprintf(format, v...))
+	if z.GetMode() == z.Debug {
+		l.log(3, l.debu.Sprintln(v...))
+	}
 }
 
 func (l *Logger) Info(v ...any) {

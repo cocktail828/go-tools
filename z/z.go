@@ -2,6 +2,7 @@ package z
 
 import (
 	"fmt"
+	"os"
 	"runtime"
 	"strings"
 
@@ -12,58 +13,62 @@ import (
 //   - Location:/root/github/go-tools/xlog/example/log.go:34 +0x48e649
 //   - Detail: xxx 123
 func Must(err error, args ...any) {
-	if !reflectx.IsNil(err) {
-		funcname := ""
-		file := "???"
-		line := 0
-		pc, _, _, ok := runtime.Caller(1)
-		if ok {
-			fs := runtime.CallersFrames([]uintptr{pc})
-			f, _ := fs.Next()
-			file = f.File
-			if file == "" {
-				file = "???"
-			}
-			line = f.Line
-			funcname = f.Function
-		}
-
-		reason := "<No message provided>"
-		if len(args) == 0 {
-			reason = fmt.Sprintln(args...)
-		}
-		fmt.Printf("Abort: %s\n  - Location: %s:%d +0x%x\n  - Detail: %s\n",
-			funcname, file, line, pc, reason)
-		panic(err)
+	if reflectx.IsNil(err) {
+		return
 	}
+
+	funcname := ""
+	file := "???"
+	line := 0
+	pc, _, _, ok := runtime.Caller(1)
+	if ok {
+		fs := runtime.CallersFrames([]uintptr{pc})
+		f, _ := fs.Next()
+		funcname = f.Function
+		line = f.Line
+		file = f.File
+		if file == "" {
+			file = "???"
+		}
+	}
+
+	reason := "<No message provided>"
+	if len(args) != 0 {
+		reason = fmt.Sprintln(args...)
+	}
+	fmt.Printf("Abort: %s\n  - Location: %s:%d +0x%x\n  - Detail: %s\n",
+		funcname, file, line, pc, reason)
+	os.Exit(1)
 }
 
 func Mustf(err error, format string, args ...any) {
-	if !reflectx.IsNil(err) {
-		funcname := ""
-		file := "???"
-		line := 0
-		pc, _, _, ok := runtime.Caller(1)
-		if ok {
-			fs := runtime.CallersFrames([]uintptr{pc})
-			f, _ := fs.Next()
-			file = f.File
-			if file == "" {
-				file = "???"
-			}
-			line = f.Line
-			funcname = f.Function
-		}
-
-		fmt.Printf("Abort: %s\n  - Location: %s:%d +0x%x\n  - Detail: %s\n",
-			funcname, file, line, pc, fmt.Sprintf(format, args...))
-		panic(err)
+	if reflectx.IsNil(err) {
+		return
 	}
+
+	funcname := ""
+	file := "???"
+	line := 0
+	pc, _, _, ok := runtime.Caller(1)
+	if ok {
+		fs := runtime.CallersFrames([]uintptr{pc})
+		f, _ := fs.Next()
+		funcname = f.Function
+		line = f.Line
+		file = f.File
+		if file == "" {
+			file = "???"
+		}
+	}
+
+	fmt.Printf("Abort: %s\n  - Location: %s:%d +0x%x\n  - Detail: %s\n",
+		funcname, file, line, pc, fmt.Sprintf(format, args...))
+	os.Exit(1)
 }
 
-func DumpStack(depth, skip int) string {
+func DumpStack(depth, skip int) {
 	pc := make([]uintptr, depth)
-	n := runtime.Callers(skip+1, pc)
+	n := runtime.Callers(skip+2, pc)
 	pc = pc[:n]
 
 	sb := strings.Builder{}
@@ -75,5 +80,5 @@ func DumpStack(depth, skip int) string {
 			break
 		}
 	}
-	return sb.String()
+	fmt.Print(sb.String())
 }

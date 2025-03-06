@@ -21,6 +21,6 @@ func TestZ(t *testing.T) {
 	a()
 }
 
-func c() { fmt.Println(z.DumpStack(5, 1)) }
+func c() { z.DumpStack(5, 1) }
 func b() { c() }
 func a() { b() }
