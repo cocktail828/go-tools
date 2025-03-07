@@ -2,6 +2,7 @@ package mathx
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -37,4 +38,9 @@ func TestNumOfOnes(t *testing.T) {
 	} {
 		assert.Equalf(t, v, NumOfOnes(k), "k=%v, expt=%v", k, v)
 	}
+}
+
+func TestBase62(t *testing.T) {
+	n := time.Now().UnixNano()
+	assert.Equal(t, n, FromBase62(ToBase62(n)))
 }
