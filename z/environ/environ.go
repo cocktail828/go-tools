@@ -10,34 +10,22 @@ import (
 )
 
 var (
-	re          = regexp.MustCompile(`(\w+)=([^\s]+)`)
-	environVars = map[string]string{}
-	mode        = PreLoad
+	re      = regexp.MustCompile(`(\w+)=([^\s]+)`)
+	envVars = map[string]string{}
 )
-
-type Mode int
-
-const (
-	PreLoad    Mode = iota // 性能优先, 预加载模式, 后续设置的环境变量不能获取到
-	AlwaysLoad Mode = iota
-)
-
-func SetPolicy(m Mode) { mode = m }
-func GetPolicy() Mode  { return mode }
 
 func init() {
 	for _, str := range os.Environ() {
 		match := re.FindStringSubmatch(str)
 		if len(match) > 0 {
 			key, value := match[1], match[2]
-			environVars[key] = value
+			envVars[key] = value
 		}
 	}
 }
 
 func Getenv(name string) (string, bool) {
-	if mode == PreLoad {
-		val, ok := environVars[name]
+	if val, ok := envVars[name]; ok {
 		return val, ok
 	}
 	return os.LookupEnv(name)

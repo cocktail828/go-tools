@@ -2,6 +2,7 @@ package workpool
 
 import (
 	"context"
+	"errors"
 	"io"
 	"sync"
 	"sync/atomic"
@@ -10,6 +11,8 @@ import (
 	"github.com/cocktail828/go-tools/z"
 	"golang.org/x/sync/semaphore"
 )
+
+var ErrFull = errors.New("pool is full")
 
 const (
 	pendingTaskNum = 1000
@@ -89,7 +92,7 @@ func (p *HybridPool) Wait() {
 	p.wg.Wait()
 }
 
-func (p *HybridPool) Submit(ctx context.Context, task Task) (err error) {
+func (p *HybridPool) Submit(task Task) (err error) {
 	z.WithRLock(&p.mu, func() {
 		if p.closed.Load() {
 			err = io.ErrClosedPipe
@@ -97,9 +100,9 @@ func (p *HybridPool) Submit(ctx context.Context, task Task) (err error) {
 		}
 
 		select {
-		case <-ctx.Done():
-			err = ctx.Err()
 		case p.taskChan <- task:
+		default:
+			err = ErrFull
 		}
 	})
 	return

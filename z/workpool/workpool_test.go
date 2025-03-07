@@ -1,7 +1,6 @@
 package workpool_test
 
 import (
-	"context"
 	"io"
 	"testing"
 	"time"
@@ -17,12 +16,12 @@ func TestPool(t *testing.T) {
 	defer pool.Close()
 
 	for i := 0; i < 10; i++ {
-		assert.NoError(t, pool.Submit(context.Background(), noop))
+		assert.NoError(t, pool.Submit(noop))
 	}
 
 	pool.Close()
 	pool.Wait()
 
 	// 尝试在关闭后提交任务
-	assert.Error(t, io.ErrClosedPipe, pool.Submit(context.Background(), noop))
+	assert.Error(t, io.ErrClosedPipe, pool.Submit(noop))
 }

@@ -4,7 +4,6 @@ import (
 	"math/rand"
 	"sync"
 	"time"
-	"unicode"
 
 	"github.com/cocktail828/go-tools/z"
 	"github.com/cocktail828/go-tools/z/variadic"
@@ -16,8 +15,9 @@ type random struct {
 }
 
 var (
-	r     = &random{R: rand.New(rand.NewSource(time.Now().UnixNano()))}
-	chars = "0123456789abcdefghijklmnopqrstuvwxyz"
+	r        = &random{R: rand.New(rand.NewSource(time.Now().UnixNano()))}
+	lowChars = "0123456789abcdefghijklmnopqrstuvwxyz"
+	upChars  = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 )
 
 type inVariadic struct{ variadic.Assigned }
@@ -38,16 +38,16 @@ func RandomName(opts ...variadic.Option) string {
 	if w := iv.WithWidth(); w > 0 {
 		width = w
 	}
+
+	chars := lowChars
+	if iv.WithCase() {
+		chars = upChars
+	}
+
 	bytes := make([]byte, width)
 	z.WithLock(r, func() {
 		for i := range bytes {
-			char := chars[r.R.Intn(len(chars))]
-			if iv.WithCase() {
-				if rn := r.R.Intn(100); rn > 50 {
-					char = byte(unicode.ToUpper(rune(char)))
-				}
-			}
-			bytes[i] = char
+			bytes[i] = chars[r.R.Intn(len(chars))]
 		}
 	})
 	return string(bytes)
