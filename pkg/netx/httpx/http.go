@@ -3,8 +3,6 @@ package httpx
 import (
 	"bytes"
 	"context"
-	"encoding/json"
-	"io"
 	"net/http"
 
 	"github.com/cocktail828/go-tools/z/variadic"
@@ -52,34 +50,4 @@ func NewRequest(ctx context.Context, method string, url string, opts ...variadic
 	}
 
 	return req, nil
-}
-
-type SimpleHTTP struct {
-	Client    *http.Client
-	Request   *http.Request
-	Unmarshal func(status int, body []byte, i interface{}) error
-}
-
-func (c *SimpleHTTP) Fire(dst interface{}) error {
-	if c.Unmarshal == nil {
-		c.Unmarshal = func(_ int, body []byte, i interface{}) error {
-			return json.Unmarshal(body, i)
-		}
-	}
-
-	if c.Client == nil {
-		c.Client = http.DefaultClient
-	}
-
-	resp, err := c.Client.Do(c.Request)
-	if err != nil {
-		return err
-	}
-
-	defer resp.Body.Close()
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return err
-	}
-	return c.Unmarshal(resp.StatusCode, body, dst)
 }
