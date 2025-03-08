@@ -56,7 +56,7 @@ func discard(l net.Listener) {
 }
 
 func BenchmarkCMuxConnHTTP1(b *testing.B) {
-	m := New(nil).(*cMux)
+	var m *CMux
 	l := m.Match(HTTP1Fast())
 
 	go discard(l)
@@ -72,7 +72,7 @@ func BenchmarkCMuxConnHTTP1(b *testing.B) {
 }
 
 func BenchmarkCMuxConnHTTP2(b *testing.B) {
-	m := New(nil).(*cMux)
+	var m *CMux
 	l := m.Match(HTTP2())
 	go discard(l)
 
@@ -87,7 +87,7 @@ func BenchmarkCMuxConnHTTP2(b *testing.B) {
 }
 
 func BenchmarkCMuxConnHTTP1n2(b *testing.B) {
-	m := New(nil).(*cMux)
+	var m *CMux
 	l1 := m.Match(HTTP1Fast())
 	l2 := m.Match(HTTP2())
 
@@ -105,7 +105,7 @@ func BenchmarkCMuxConnHTTP1n2(b *testing.B) {
 }
 
 func BenchmarkCMuxConnHTTP2n1(b *testing.B) {
-	m := New(nil).(*cMux)
+	var m *CMux
 	l2 := m.Match(HTTP2())
 	l1 := m.Match(HTTP1Fast())
 

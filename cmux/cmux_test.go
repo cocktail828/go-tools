@@ -16,6 +16,7 @@ package cmux_test
 
 import (
 	"bytes"
+	"context"
 	"crypto/rand"
 	"crypto/tls"
 	"errors"
@@ -46,8 +47,8 @@ const (
 	rpcVal        = 1234
 )
 
-func safeServe(errCh chan<- error, muxl cmux.CMux) {
-	if err := muxl.Serve(); err != nil && !strings.Contains(err.Error(), "use of closed") {
+func safeServe(errCh chan<- error, muxl *cmux.CMux) {
+	if err := muxl.Serve(); err != nil && err != context.Canceled && !strings.Contains(err.Error(), "use of closed") {
 		errCh <- err
 	}
 }
@@ -92,13 +93,11 @@ func testListener(t *testing.T) (net.Listener, func()) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var once sync.Once
+
 	return l, func() {
-		once.Do(func() {
-			if err := l.Close(); err != nil {
-				t.Fatal(err)
-			}
-		})
+		if err := l.Close(); err != nil {
+			t.Fatal(err)
+		}
 	}
 }
 
@@ -239,8 +238,8 @@ const (
 
 func TestTimeout(t *testing.T) {
 	defer leakCheck(t)()
-	lis, Close := testListener(t)
-	defer Close()
+	lis, closer := testListener(t)
+
 	result := make(chan int, 5)
 	testDuration := time.Millisecond * 500
 	m := cmux.New(lis)
@@ -289,7 +288,7 @@ func TestTimeout(t *testing.T) {
 	if err != nil {
 		t.Fatal("testTimeout failed: client error: ", err, rl)
 	}
-	Close()
+	closer()
 	if rl != 3 {
 		log.Print("testTimeout failed: response from wrong service ", rl)
 	}
@@ -376,8 +375,8 @@ func TestAny(t *testing.T) {
 		default:
 		}
 	}()
-	l, cleanup := testListener(t)
-	defer cleanup()
+	l, closer := testListener(t)
+	defer closer()
 
 	muxl := cmux.New(l)
 	httpl := muxl.Match(cmux.Any())
@@ -411,8 +410,8 @@ func TestTLS(t *testing.T) {
 		default:
 		}
 	}()
-	l, cleanup := testListener(t)
-	defer cleanup()
+	l, closer := testListener(t)
+	defer closer()
 
 	muxl := cmux.New(l)
 	tlsl := muxl.Match(cmux.TLS())
@@ -566,8 +565,8 @@ func TestHTTPGoRPC(t *testing.T) {
 		default:
 		}
 	}()
-	l, cleanup := testListener(t)
-	defer cleanup()
+	l, closer := testListener(t)
+	defer closer()
 
 	muxl := cmux.New(l)
 	httpl := muxl.Match(cmux.HTTP2(), cmux.HTTP1Fast())
@@ -591,8 +590,8 @@ func TestErrorHandler(t *testing.T) {
 		default:
 		}
 	}()
-	l, cleanup := testListener(t)
-	defer cleanup()
+	l, closer := testListener(t)
+	defer closer()
 
 	muxl := cmux.New(l)
 	httpl := muxl.Match(cmux.HTTP2(), cmux.HTTP1Fast())
@@ -601,7 +600,7 @@ func TestErrorHandler(t *testing.T) {
 	go safeServe(errCh, muxl)
 
 	var errCount uint32
-	muxl.HandleError(func(err error) bool {
+	muxl.SetErrorHandler(func(err error) bool {
 		if atomic.AddUint32(&errCount, 1) == 1 {
 			if _, ok := err.(cmux.ErrNotMatched); !ok {
 				t.Errorf("unexpected error: %v", err)
@@ -632,8 +631,8 @@ func TestMultipleMatchers(t *testing.T) {
 		default:
 		}
 	}()
-	l, cleanup := testListener(t)
-	defer cleanup()
+	l, closer := testListener(t)
+	defer closer()
 
 	matcher := func(r io.Reader) bool {
 		return true
@@ -705,8 +704,8 @@ func TestClose(t *testing.T) {
 		default:
 		}
 	}()
-	l, cleanup := testListener(t)
-	defer cleanup()
+	l, closer := testListener(t)
+	defer closer()
 
 	muxl := cmux.New(l)
 	anyl := muxl.Match(cmux.Any())
