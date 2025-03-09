@@ -17,7 +17,6 @@ package cmux
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"net"
 	"sync"
@@ -31,38 +30,17 @@ type Matcher func(io.Reader) bool
 // MatchWriter is a match that can also write response (say to do handshake).
 type MatchWriter func(io.Writer, io.Reader) bool
 
-// ErrorHandler handles an error and returns whether
-// the mux should continue serving the listener.
-type ErrorHandler func(error) bool
-
-var _ net.Error = ErrNotMatched{}
-
-// ErrNotMatched is returned whenever a connection is not matched by any of
-// the matchers registered in the multiplexer.
-type ErrNotMatched struct {
-	c net.Conn
-}
-
-func (e ErrNotMatched) Error() string {
-	return fmt.Sprintf("mux: connection %v not matched by an matcher", e.c.RemoteAddr())
-}
-
-// Temporary implements the net.Error interface.
-func (e ErrNotMatched) Temporary() bool { return true }
-
-// Timeout implements the net.Error interface.
-func (e ErrNotMatched) Timeout() bool { return false }
-
 // ErrServerClosed is returned from muxListener.Accept when mux server is closed.
 var ErrServerClosed = errors.New("mux: server closed")
+var ErrMissMatch = errors.New("mux: no handler for the conn")
 
 type CMux struct {
-	ctx         context.Context
-	cancel      context.CancelCauseFunc
-	root        net.Listener
-	errh        ErrorHandler
-	children    []*muxListener
-	readTimeout time.Duration
+	ctx              context.Context
+	cancel           context.CancelCauseFunc
+	root             net.Listener
+	children         []*muxListener
+	readTimeout      time.Duration
+	abortOnMissMatch bool
 }
 
 // New instantiates a new connection multiplexer.
@@ -72,7 +50,6 @@ func New(ln net.Listener) *CMux {
 		ctx:    ctx,
 		cancel: cancel,
 		root:   ln,
-		errh:   func(_ error) bool { return true },
 	}
 }
 
@@ -80,9 +57,7 @@ func (m *CMux) Match(matchers ...Matcher) net.Listener {
 	mws := make([]MatchWriter, 0, len(matchers))
 	for _, m := range matchers {
 		cm := m
-		mws = append(mws, func(w io.Writer, r io.Reader) bool {
-			return cm(r)
-		})
+		mws = append(mws, func(w io.Writer, r io.Reader) bool { return cm(r) })
 	}
 	return m.MatchWithWriters(mws...)
 }
@@ -97,28 +72,16 @@ func (m *CMux) MatchWithWriters(matchers ...MatchWriter) net.Listener {
 	return ml
 }
 
+func (m *CMux) AbortOnMissMatch() {
+	m.abortOnMissMatch = true
+}
+
 func (m *CMux) SetReadTimeout(t time.Duration) {
 	m.readTimeout = t
 }
 
 func (m *CMux) Close() {
 	m.cancel(nil)
-}
-
-func (m *CMux) SetErrorHandler(h ErrorHandler) {
-	m.errh = h
-}
-
-func (m *CMux) handleErr(err error) bool {
-	if !m.errh(err) {
-		return false
-	}
-
-	if ne, ok := err.(net.Error); ok {
-		return ne.Temporary()
-	}
-
-	return false
 }
 
 func (m *CMux) Serve() error {
@@ -129,14 +92,11 @@ loop:
 			break loop
 		default:
 			c, err := m.root.Accept()
-			if err == nil {
-				go m.serve(c)
-			} else {
-				if !m.handleErr(err) {
-					m.cancel(err)
-					break loop
-				}
+			if err != nil {
+				m.cancel(err)
+				break loop
 			}
+			go m.serve(c)
 		}
 	}
 
@@ -167,9 +127,8 @@ func (m *CMux) serve(c net.Conn) {
 	}
 
 	_ = c.Close()
-	err := ErrNotMatched{c: c}
-	if !m.handleErr(err) {
-		m.cancel(err)
+	if m.abortOnMissMatch {
+		m.cancel(ErrMissMatch)
 	}
 }
 
