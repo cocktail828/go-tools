@@ -13,20 +13,20 @@ const (
 	node3 = "192.168.1.3"
 )
 
-func getNodesCount(nodes nodesArray) (int, int, int) {
+func getNodesCount(nodes nodeArray) (int, int, int) {
 	node1Count := 0
 	node2Count := 0
 	node3Count := 0
 
 	for _, node := range nodes {
-		if node.nodeKey == node1 {
+		if node.key == node1 {
 			node1Count += 1
 		}
-		if node.nodeKey == node2 {
+		if node.key == node2 {
 			node2Count += 1
 
 		}
-		if node.nodeKey == node3 {
+		if node.key == node3 {
 			node3Count += 1
 
 		}
@@ -41,46 +41,46 @@ func TestHashRing(t *testing.T) {
 	nodeWeight[node3] = 3
 
 	hring := New()
-	hring.AddNodes(nodeWeight)
+	hring.AddMany(nodeWeight)
 	_, _, c3 := getNodesCount(hring.nodes)
 
 	func() {
-		if hring.GetNode("1") != node3 {
-			t.Fatalf("expetcd %v got %v", node3, hring.GetNode("1"))
+		if hring.Get("1") != node3 {
+			t.Fatalf("expetcd %v got %v", node3, hring.Get("1"))
 		}
-		if hring.GetNode("2") != node3 {
-			t.Fatalf("expetcd %v got %v", node3, hring.GetNode("2"))
+		if hring.Get("2") != node3 {
+			t.Fatalf("expetcd %v got %v", node3, hring.Get("2"))
 		}
-		if hring.GetNode("3") != node2 {
-			t.Fatalf("expetcd %v got %v", node2, hring.GetNode("3"))
+		if hring.Get("3") != node2 {
+			t.Fatalf("expetcd %v got %v", node2, hring.Get("3"))
 		}
 	}()
 
 	func() {
-		hring.RemoveNode(node3)
-		if hring.GetNode("1") != node1 {
-			t.Fatalf("expetcd %v got %v", node1, hring.GetNode("1"))
+		hring.Remove(node3)
+		if hring.Get("1") != node1 {
+			t.Fatalf("expetcd %v got %v", node1, hring.Get("1"))
 		}
-		if hring.GetNode("2") != node2 {
-			t.Fatalf("expetcd %v got %v", node1, hring.GetNode("2"))
+		if hring.Get("2") != node2 {
+			t.Fatalf("expetcd %v got %v", node1, hring.Get("2"))
 		}
-		if hring.GetNode("3") != node2 {
-			t.Fatalf("expetcd %v got %v", node2, hring.GetNode("3"))
+		if hring.Get("3") != node2 {
+			t.Fatalf("expetcd %v got %v", node2, hring.Get("3"))
 		}
 		_, _, _c3 := getNodesCount(hring.nodes)
 		assert.Equal(t, 0, _c3)
 	}()
 
 	func() {
-		hring.AddNode(node3, 3)
-		if hring.GetNode("1") != node3 {
-			t.Fatalf("expetcd %v got %v", node3, hring.GetNode("1"))
+		hring.Add(node3, 3)
+		if hring.Get("1") != node3 {
+			t.Fatalf("expetcd %v got %v", node3, hring.Get("1"))
 		}
-		if hring.GetNode("2") != node3 {
-			t.Fatalf("expetcd %v got %v", node3, hring.GetNode("2"))
+		if hring.Get("2") != node3 {
+			t.Fatalf("expetcd %v got %v", node3, hring.Get("2"))
 		}
-		if hring.GetNode("3") != node2 {
-			t.Fatalf("expetcd %v got %v", node2, hring.GetNode("3"))
+		if hring.Get("3") != node2 {
+			t.Fatalf("expetcd %v got %v", node2, hring.Get("3"))
 		}
 		_, _, _c3 := getNodesCount(hring.nodes)
 		assert.Equal(t, c3, _c3)
@@ -96,14 +96,14 @@ func TestHashRing_Func(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			hring := New(WithHash(fn))
 			// 添加节点实例
-			hring.AddNodes(map[string]int{
+			hring.AddMany(map[string]int{
 				"xspark13b6k1": 1,
 				"xspark13b6k2": 1,
 				"xspark13b6k3": 1,
 			})
 			n1, n2, n3 := 0, 0, 0
 			for _, patchid := range patchids {
-				switch hring.GetNode(patchid) {
+				switch hring.Get(patchid) {
 				case "xspark13b6k1":
 					n1++
 				case "xspark13b6k2":
@@ -123,24 +123,24 @@ func TestHashRing_Func(t *testing.T) {
 
 func TestHashRingX(t *testing.T) {
 	// 新建 hash 实例
-	hring := New(WithHash(Sha256), WithSpots(100))
+	hring := New(WithHash(Sha256), WithVirtualSpots(100))
 	// 添加节点实例
-	hring.AddNodes(map[string]int{
+	hring.AddMany(map[string]int{
 		"xspark13b6k1": 1,
 		"xspark13b6k2": 1,
 		"xspark13b6k3": 1,
 	})
 
-	v := hring.GetNode(patchids[0])
+	v := hring.Get(patchids[0])
 	for i := 0; i < 10000; i++ {
-		if v != hring.GetNode(patchids[0]) {
+		if v != hring.Get(patchids[0]) {
 			panic("not equal")
 		}
 	}
 
 	n1, n2, n3 := 0, 0, 0
 	for _, patchid := range patchids {
-		switch hring.GetNode(patchid) {
+		switch hring.Get(patchid) {
 		case "xspark13b6k1":
 			n1++
 		case "xspark13b6k2":

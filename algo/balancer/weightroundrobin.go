@@ -12,15 +12,11 @@ type wrrBalancer struct {
 	busyArray []int
 }
 
-func NewWRR() Balancer {
-	return &wrrBalancer{}
-}
-
-func (b *wrrBalancer) Update(array []Node) {
-	z.WithLock(b, func() {
-		b.array = array
-		b.busyArray = make([]int, len(b.array))
-	})
+func NewWRR(array []Node) Balancer {
+	return &wrrBalancer{
+		array:     array,
+		busyArray: make([]int, len(array)),
+	}
 }
 
 // nginx weighted round-robin balancing

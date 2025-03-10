@@ -15,8 +15,8 @@
 package cmux
 
 import (
+	"context"
 	"errors"
-	"fmt"
 	"io"
 	"net"
 	"sync"
@@ -30,94 +30,39 @@ type Matcher func(io.Reader) bool
 // MatchWriter is a match that can also write response (say to do handshake).
 type MatchWriter func(io.Writer, io.Reader) bool
 
-// ErrorHandler handles an error and returns whether
-// the mux should continue serving the listener.
-type ErrorHandler func(error) bool
-
-var _ net.Error = ErrNotMatched{}
-
-// ErrNotMatched is returned whenever a connection is not matched by any of
-// the matchers registered in the multiplexer.
-type ErrNotMatched struct {
-	c net.Conn
-}
-
-func (e ErrNotMatched) Error() string {
-	return fmt.Sprintf("mux: connection %v not matched by an matcher",
-		e.c.RemoteAddr())
-}
-
-// Temporary implements the net.Error interface.
-func (e ErrNotMatched) Temporary() bool { return true }
-
-// Timeout implements the net.Error interface.
-func (e ErrNotMatched) Timeout() bool { return false }
-
 // ErrServerClosed is returned from muxListener.Accept when mux server is closed.
 var ErrServerClosed = errors.New("mux: server closed")
+var ErrMissMatch = errors.New("mux: no handler for the conn")
 
-// for readability of readTimeout
-var noTimeout time.Duration
+type CMux struct {
+	ctx              context.Context
+	cancel           context.CancelCauseFunc
+	root             net.Listener
+	children         []*muxListener
+	readTimeout      time.Duration
+	abortOnMissMatch bool
+}
 
 // New instantiates a new connection multiplexer.
-func New(ln net.Listener) CMux {
-	return &cMux{
-		root:        ln,
-		errh:        func(_ error) bool { return true },
-		readTimeout: noTimeout,
+func New(ln net.Listener) *CMux {
+	ctx, cancel := context.WithCancelCause(context.Background())
+	return &CMux{
+		ctx:    ctx,
+		cancel: cancel,
+		root:   ln,
 	}
 }
 
-// CMux is a multiplexer for network connections.
-type CMux interface {
-	// Match returns a net.Listener that sees (i.e., accepts) only
-	// the connections matched by at least one of the matcher.
-	//
-	// The order used to call Match determines the priority of matchers.
-	Match(...Matcher) net.Listener
-	// MatchWithWriters returns a net.Listener that accepts only the
-	// connections that matched by at least of the matcher writers.
-	//
-	// Prefer Matchers over MatchWriters, since the latter can write on the
-	// connection before the actual handler.
-	//
-	// The order used to call Match determines the priority of matchers.
-	MatchWithWriters(...MatchWriter) net.Listener
-	// Serve starts multiplexing the listener. Serve blocks and perhaps
-	// should be invoked concurrently within a go routine.
-	Serve() error
-	// Closes cmux server and stops accepting any connections on listener
-	Close()
-	// HandleError registers an error handler that handles listener errors.
-	HandleError(ErrorHandler)
-	// sets a timeout for the read of matchers
-	SetReadTimeout(time.Duration)
-}
-
-type cMux struct {
-	root        net.Listener
-	errh        ErrorHandler
-	children    []*muxListener
-	readTimeout time.Duration
-}
-
-func matchersToMatchWriters(matchers []Matcher) []MatchWriter {
+func (m *CMux) Match(matchers ...Matcher) net.Listener {
 	mws := make([]MatchWriter, 0, len(matchers))
 	for _, m := range matchers {
 		cm := m
-		mws = append(mws, func(w io.Writer, r io.Reader) bool {
-			return cm(r)
-		})
+		mws = append(mws, func(w io.Writer, r io.Reader) bool { return cm(r) })
 	}
-	return mws
-}
-
-func (m *cMux) Match(matchers ...Matcher) net.Listener {
-	mws := matchersToMatchWriters(matchers)
 	return m.MatchWithWriters(mws...)
 }
 
-func (m *cMux) MatchWithWriters(matchers ...MatchWriter) net.Listener {
+func (m *CMux) MatchWithWriters(matchers ...MatchWriter) net.Listener {
 	ml := &muxListener{
 		Listener: m.root,
 		matchers: matchers,
@@ -127,43 +72,52 @@ func (m *cMux) MatchWithWriters(matchers ...MatchWriter) net.Listener {
 	return ml
 }
 
-func (m *cMux) SetReadTimeout(t time.Duration) {
+func (m *CMux) AbortOnMissMatch() {
+	m.abortOnMissMatch = true
+}
+
+func (m *CMux) SetReadTimeout(t time.Duration) {
 	m.readTimeout = t
 }
 
-func (m *cMux) Serve() (err error) {
+func (m *CMux) Close() {
+	m.cancel(nil)
+}
+
+func (m *CMux) Serve() error {
+loop:
 	for {
-		c, err := m.root.Accept()
-		if err != nil {
-			if !m.handleErr(err) {
-				break
+		select {
+		case <-m.ctx.Done():
+			break loop
+		default:
+			c, err := m.root.Accept()
+			if err != nil {
+				m.cancel(err)
+				break loop
 			}
-			continue
+			go m.serve(c)
 		}
-		go m.serve(c)
 	}
 
 	for _, sl := range m.children {
 		sl.Close()
 	}
-	return err
+	return context.Cause(m.ctx)
 }
 
-func (m *cMux) serve(c net.Conn) {
+func (m *CMux) serve(c net.Conn) {
 	muc := newMuxConn(c)
-	if m.readTimeout > noTimeout {
+	if m.readTimeout > 0 {
 		_ = c.SetReadDeadline(time.Now().Add(m.readTimeout))
 	}
 
 	for _, sl := range m.children {
-		if sl.isClosed.Load() {
-			continue
-		}
 		for _, s := range sl.matchers {
 			matched := s(muc.Conn, muc.startSniffing())
 			if matched {
 				muc.doneSniffing()
-				if m.readTimeout > noTimeout {
+				if m.readTimeout > 0 {
 					_ = c.SetReadDeadline(time.Time{})
 				}
 				sl.onMatch(muc)
@@ -173,31 +127,9 @@ func (m *cMux) serve(c net.Conn) {
 	}
 
 	_ = c.Close()
-	if !m.handleErr(ErrNotMatched{c: c}) {
-		_ = m.root.Close()
+	if m.abortOnMissMatch {
+		m.cancel(ErrMissMatch)
 	}
-}
-
-func (m *cMux) Close() {
-	for _, sl := range m.children {
-		sl.Close()
-	}
-}
-
-func (m *cMux) HandleError(h ErrorHandler) {
-	m.errh = h
-}
-
-func (m *cMux) handleErr(err error) bool {
-	if !m.errh(err) {
-		return false
-	}
-
-	if ne, ok := err.(net.Error); ok {
-		return ne.Temporary()
-	}
-
-	return false
 }
 
 type muxListener struct {
@@ -211,6 +143,7 @@ type muxListener struct {
 func (l *muxListener) onMatch(muc *MuxConn) {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
+
 	if l.isClosed.Load() {
 		_ = muc.Close()
 		return

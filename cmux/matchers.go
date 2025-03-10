@@ -18,7 +18,6 @@ import (
 	"bufio"
 	"crypto/tls"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"strings"
 
@@ -71,7 +70,6 @@ func HTTP1Fast(extMethods ...string) Matcher {
 func TLS(versions ...int) Matcher {
 	if len(versions) == 0 {
 		versions = []int{
-			tls.VersionSSL30,
 			tls.VersionTLS10,
 			tls.VersionTLS11,
 			tls.VersionTLS12,
@@ -148,7 +146,7 @@ func HTTP1HeaderFieldPrefix(name, valuePrefix string) Matcher {
 // headers frame.
 func HTTP2HeaderField(name, value string) Matcher {
 	return func(r io.Reader) bool {
-		return matchHTTP2Field(ioutil.Discard, r, name, func(gotValue string) bool {
+		return matchHTTP2Field(io.Discard, r, name, func(gotValue string) bool {
 			return gotValue == value
 		})
 	}
@@ -159,7 +157,7 @@ func HTTP2HeaderField(name, value string) Matcher {
 // valuePrefix, this will match.
 func HTTP2HeaderFieldPrefix(name, valuePrefix string) Matcher {
 	return func(r io.Reader) bool {
-		return matchHTTP2Field(ioutil.Discard, r, name, func(gotValue string) bool {
+		return matchHTTP2Field(io.Discard, r, name, func(gotValue string) bool {
 			return strings.HasPrefix(gotValue, valuePrefix)
 		})
 	}

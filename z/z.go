@@ -36,8 +36,8 @@ func Must(err error, args ...any) {
 	if len(args) != 0 {
 		reason = fmt.Sprintln(args...)
 	}
-	fmt.Printf("Abort: %s\n  - Location: %s:%d +0x%x\n  - Detail: %s\n",
-		funcname, file, line, pc, reason)
+	fmt.Printf("Abort: %s\n  - Location: %s:%d +0x%x\n  - Cause: %v\n  - Detail: %s\n",
+		funcname, file, line, pc, err, reason)
 	os.Exit(1)
 }
 
@@ -61,14 +61,14 @@ func Mustf(err error, format string, args ...any) {
 		}
 	}
 
-	fmt.Printf("Abort: %s\n  - Location: %s:%d +0x%x\n  - Detail: %s\n",
-		funcname, file, line, pc, fmt.Sprintf(format, args...))
+	fmt.Printf("Abort: %s\n  - Location: %s:%d +0x%x\n  - Cause: %v\n  - Detail: %s\n",
+		funcname, file, line, pc, err, fmt.Sprintf(format, args...))
 	os.Exit(1)
 }
 
-func DumpStack(depth, skip int) {
+func DumpStack(depth int) {
 	pc := make([]uintptr, depth)
-	n := runtime.Callers(skip+2, pc)
+	n := runtime.Callers(2, pc)
 	pc = pc[:n]
 
 	sb := strings.Builder{}

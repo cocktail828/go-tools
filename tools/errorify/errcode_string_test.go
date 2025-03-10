@@ -53,6 +53,6 @@ func (i errcode) WithMessage(message string) error {
 	return errorx.New(i, errors.New(message))
 }
 
-func (i errcode) WithMessagef(err error, format string, args ...any) error {
+func (i errcode) WithMessagef(format string, args ...any) error {
 	return errorx.New(i, errors.Errorf(format, args...))
 }

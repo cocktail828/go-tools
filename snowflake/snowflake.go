@@ -1,9 +1,10 @@
 package snowflake
 
 import (
-	"fmt"
 	"sync"
 	"time"
+
+	"github.com/AthenZ/athenz/libs/go/athenz-common/log"
 )
 
 const (
@@ -30,21 +31,21 @@ const (
 type Node struct {
 	mu    sync.Mutex
 	epoch time.Time
-	time  int64
+	now   int64
 	node  int64
 	step  int64
 }
 
 // NewNode returns a new snowflake node that can be used to generate snowflake IDs.
-func NewNode(node int64) (*Node, error) {
+func NewNode(node int64) *Node {
 	if node < 0 || node > maxNode {
-		return nil, fmt.Errorf("node number must be between 0 and %d", maxNode)
+		log.Fatalf("node number must be between 0 and %d", maxNode)
 	}
 
 	return &Node{
 		epoch: time.UnixMilli(Epoch),
 		node:  node,
-	}, nil
+	}
 }
 
 // Generate creates and returns a unique snowflake ID.
@@ -56,10 +57,10 @@ func (n *Node) Generate() int64 {
 	defer n.mu.Unlock()
 
 	now := time.Since(n.epoch).Milliseconds()
-	if now == n.time {
+	if now == n.now {
 		n.step = (n.step + 1) & maxStep
 		if n.step == 0 {
-			for now <= n.time {
+			for now <= n.now {
 				now = time.Since(n.epoch).Milliseconds()
 			}
 		}
@@ -67,6 +68,6 @@ func (n *Node) Generate() int64 {
 		n.step = 0
 	}
 
-	n.time = now
+	n.now = now
 	return (now << timeShift) | (n.node << nodeShift) | (n.step)
 }

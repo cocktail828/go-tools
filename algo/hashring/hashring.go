@@ -16,42 +16,42 @@ const (
 )
 
 type node struct {
-	nodeKey   string
+	key       string
 	spotValue uint32
 }
 
-type nodesArray []node
+type nodeArray []node
 
-func (p nodesArray) Len() int           { return len(p) }
-func (p nodesArray) Less(i, j int) bool { return p[i].spotValue < p[j].spotValue }
-func (p nodesArray) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
-func (p nodesArray) Sort()              { sort.Sort(p) }
+func (p nodeArray) Len() int           { return len(p) }
+func (p nodeArray) Less(i, j int) bool { return p[i].spotValue < p[j].spotValue }
+func (p nodeArray) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
+func (p nodeArray) Sort()              { sort.Sort(p) }
 
 // HashRing store nodes and weigths
 type HashRing struct {
 	hashFunc    HashFunc
 	virualSpots int
 	mu          sync.RWMutex
-	nodes       nodesArray
+	nodes       nodeArray
 	weights     map[string]int
 }
 
 type HashFunc func(string) uint32
 
-func Crc32(nodeKey string) uint32 {
-	return crc32.ChecksumIEEE([]byte(nodeKey))
+func Crc32(key string) uint32 {
+	return crc32.ChecksumIEEE([]byte(key))
 }
 
-func Sha256(nodeKey string) uint32 {
+func Sha256(key string) uint32 {
 	hash := sha256.New()
-	hash.Write([]byte(nodeKey))
+	hash.Write([]byte(key))
 	hashBytes := hash.Sum(nil)[6:10]
 	return (uint32(hashBytes[3]) << 24) | (uint32(hashBytes[2]) << 16) | (uint32(hashBytes[1]) << 8) | (uint32(hashBytes[0]))
 }
 
-func Md5(nodeKey string) uint32 {
+func Md5(key string) uint32 {
 	hash := md5.New()
-	hash.Write([]byte(nodeKey))
+	hash.Write([]byte(key))
 	hashBytes := hash.Sum(nil)[6:10]
 	return (uint32(hashBytes[3]) << 24) | (uint32(hashBytes[2]) << 16) | (uint32(hashBytes[1]) << 8) | (uint32(hashBytes[0]))
 }
@@ -66,7 +66,7 @@ func WithHash(f HashFunc) Option {
 }
 
 // set num of virtual nodes
-func WithSpots(n int) Option {
+func WithVirtualSpots(n int) Option {
 	return func(hr *HashRing) {
 		hr.virualSpots = n
 	}
@@ -88,31 +88,27 @@ func New(opts ...Option) *HashRing {
 	return hring
 }
 
-// AddNode add node to hash ring
-func (h *HashRing) AddNode(nodeKey string, weight int) {
-	h.AddNodes(map[string]int{nodeKey: weight})
-}
-
-// AddNodes add nodes to hash ring
-func (h *HashRing) AddNodes(nodeWeight map[string]int) {
+func (h *HashRing) AddMany(nodeWeight map[string]int) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	for nodeKey, w := range nodeWeight {
-		h.weights[nodeKey] = w
+	for key, w := range nodeWeight {
+		h.weights[key] = w
 	}
 	h.updateLocked()
 }
 
-// UpdateNode update node with weight
-func (h *HashRing) UpdateNode(nodeKey string, weight int) {
-	h.AddNode(nodeKey, weight)
+func (h *HashRing) Add(key string, weight int) {
+	h.AddMany(map[string]int{key: weight})
 }
 
-// RemoveNode remove node
-func (h *HashRing) RemoveNode(nodeKey string) {
+func (h *HashRing) Update(key string, weight int) {
+	h.Add(key, weight)
+}
+
+func (h *HashRing) Remove(key string) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	delete(h.weights, nodeKey)
+	delete(h.weights, key)
 	h.updateLocked()
 }
 
@@ -125,20 +121,19 @@ func (h *HashRing) updateLocked() {
 	totalVirtualSpots := h.virualSpots * len(h.weights)
 	h.nodes = h.nodes[:0]
 
-	for nodeKey, w := range h.weights {
+	for key, w := range h.weights {
 		spots := int(math.Floor(float64(w) / float64(totalW) * float64(totalVirtualSpots)))
 		for i := 1; i <= spots; i++ {
 			h.nodes = append(h.nodes, node{
-				nodeKey:   nodeKey,
-				spotValue: h.hashFunc(nodeKey + ":" + strconv.Itoa(i)),
+				key:       key,
+				spotValue: h.hashFunc(key + ":" + strconv.Itoa(i)),
 			})
 		}
 	}
 	h.nodes.Sort()
 }
 
-// GetNode get node with key
-func (h *HashRing) GetNode(s string) string {
+func (h *HashRing) Get(s string) string {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 	if len(h.nodes) == 0 {
@@ -150,5 +145,5 @@ func (h *HashRing) GetNode(s string) string {
 	if i >= len(h.nodes) || i < 0 {
 		i = 0
 	}
-	return h.nodes[i].nodeKey
+	return h.nodes[i].key
 }

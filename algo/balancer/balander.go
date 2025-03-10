@@ -7,5 +7,4 @@ type Node interface {
 
 type Balancer interface {
 	Pick() Node
-	Update([]Node)
 }

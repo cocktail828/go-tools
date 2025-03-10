@@ -12,12 +12,8 @@ type rrBalancer struct {
 	array []Node
 }
 
-func NewRR() Balancer {
-	return &rrBalancer{}
-}
-
-func (b *rrBalancer) Update(array []Node) {
-	z.WithLock(b, func() { b.array = array })
+func NewRR(array []Node) Balancer {
+	return &rrBalancer{array: array}
 }
 
 func (b *rrBalancer) Pick() (n Node) {

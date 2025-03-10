@@ -16,23 +16,23 @@ package cmux_test
 
 import (
 	"bytes"
+	"context"
 	"crypto/rand"
 	"crypto/tls"
 	"errors"
 	"fmt"
 	"go/build"
 	"io"
-	"log"
 	"net"
 	"net/http"
 	"net/rpc"
 	"os"
 	"os/exec"
 	"runtime"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -46,8 +46,18 @@ const (
 	rpcVal        = 1234
 )
 
-func safeServe(errCh chan<- error, muxl cmux.CMux) {
-	if err := muxl.Serve(); err != nil && !strings.Contains(err.Error(), "use of closed") {
+func abortOnErr(t *testing.T, errCh <-chan error) {
+	select {
+	case err := <-errCh:
+		t.Fatal(err)
+	default:
+	}
+}
+
+func safeServe(errCh chan<- error, muxl *cmux.CMux) {
+	if err := muxl.Serve(); err != nil &&
+		!slices.Contains([]error{context.Canceled, net.ErrClosed}, err) &&
+		!strings.Contains(err.Error(), "use of closed") {
 		errCh <- err
 	}
 }
@@ -76,7 +86,7 @@ func (l *chanListener) Accept() (net.Conn, error) {
 	if c, ok := <-l.connCh; ok {
 		return c, nil
 	}
-	return nil, errors.New("use of closed network connection")
+	return nil, net.ErrClosed
 }
 
 func (l *chanListener) Addr() net.Addr {
@@ -92,13 +102,11 @@ func testListener(t *testing.T) (net.Listener, func()) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var once sync.Once
+
 	return l, func() {
-		once.Do(func() {
-			if err := l.Close(); err != nil {
-				t.Fatal(err)
-			}
-		})
+		if err := l.Close(); err != nil {
+			t.Fatal(err)
+		}
 	}
 }
 
@@ -144,17 +152,14 @@ func runTestTLSServer(errCh chan<- error, l net.Listener) {
 	certificate, err := tls.LoadX509KeyPair("cert.pem", "key.pem")
 	if err != nil {
 		errCh <- err
-		log.Printf("1")
 		return
 	}
 
-	config := &tls.Config{
-		Certificates: []tls.Certificate{certificate},
-		Rand:         rand.Reader,
-	}
-
-	tlsl := tls.NewListener(l, config)
-	runTestHTTPServer(errCh, tlsl)
+	runTestHTTPServer(errCh,
+		tls.NewListener(l, &tls.Config{
+			Certificates: []tls.Certificate{certificate},
+			Rand:         rand.Reader,
+		}))
 }
 
 func runTestHTTP1Client(t *testing.T, addr net.Addr) {
@@ -176,12 +181,7 @@ func runTestHTTPClient(t *testing.T, proto string, addr net.Addr) {
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	defer func() {
-		if err = r.Body.Close(); err != nil {
-			t.Fatal(err)
-		}
-	}()
+	defer r.Body.Close()
 
 	b, err := io.ReadAll(r.Body)
 	if err != nil {
@@ -239,17 +239,15 @@ const (
 
 func TestTimeout(t *testing.T) {
 	defer leakCheck(t)()
-	lis, Close := testListener(t)
-	defer Close()
+	lis, closer := testListener(t)
+
 	result := make(chan int, 5)
-	testDuration := time.Millisecond * 500
+	testDuration := time.Millisecond * 100
 	m := cmux.New(lis)
 	m.SetReadTimeout(testDuration)
 	http1 := m.Match(cmux.HTTP1Fast())
 	anyl := m.Match(cmux.Any())
-	go func() {
-		_ = m.Serve()
-	}()
+	go m.Serve()
 	go func() {
 		con, err := http1.Accept()
 		if err != nil {
@@ -273,15 +271,13 @@ func TestTimeout(t *testing.T) {
 	time.Sleep(testDuration) // wait to prevent timeouts on slow test-runners
 	client, err := net.Dial("tcp", lis.Addr().String())
 	if err != nil {
-		log.Fatal("testTimeout client failed: ", err)
+		t.Fatal("testTimeout client failed: ", err)
 	}
-	defer func() {
-		_ = client.Close()
-	}()
+	defer client.Close()
+
 	time.Sleep(testDuration / 2)
 	if len(result) != 0 {
-		log.Print("tcp ")
-		t.Fatal("testTimeout failed: accepted to fast: ", len(result))
+		t.Fatal("testTimeout failed: accepted(tcp) to fast: ", len(result))
 	}
 	_ = client.SetReadDeadline(time.Now().Add(testDuration * 3))
 	buffer := make([]byte, 10)
@@ -289,12 +285,12 @@ func TestTimeout(t *testing.T) {
 	if err != nil {
 		t.Fatal("testTimeout failed: client error: ", err, rl)
 	}
-	Close()
+	closer()
 	if rl != 3 {
-		log.Print("testTimeout failed: response from wrong service ", rl)
+		t.Fatal("testTimeout failed: response from wrong service ", rl)
 	}
 	if string(buffer[0:3]) != "any" {
-		log.Print("testTimeout failed: response from wrong service ")
+		t.Fatal("testTimeout failed: response from wrong service ")
 	}
 	time.Sleep(testDuration * 2)
 	if len(result) != 2 {
@@ -311,13 +307,7 @@ func TestTimeout(t *testing.T) {
 func TestRead(t *testing.T) {
 	defer leakCheck(t)()
 	errCh := make(chan error)
-	defer func() {
-		select {
-		case err := <-errCh:
-			t.Fatal(err)
-		default:
-		}
-	}()
+	defer abortOnErr(t, errCh)
 	const payload = "hello world\r\n"
 	const mult = 2
 
@@ -369,15 +359,9 @@ func TestRead(t *testing.T) {
 func TestAny(t *testing.T) {
 	defer leakCheck(t)()
 	errCh := make(chan error)
-	defer func() {
-		select {
-		case err := <-errCh:
-			t.Fatal(err)
-		default:
-		}
-	}()
-	l, cleanup := testListener(t)
-	defer cleanup()
+	defer abortOnErr(t, errCh)
+	l, closer := testListener(t)
+	defer closer()
 
 	muxl := cmux.New(l)
 	httpl := muxl.Match(cmux.Any())
@@ -389,13 +373,11 @@ func TestAny(t *testing.T) {
 }
 
 func TestTLS(t *testing.T) {
-	// generateTLSCert
 	err := exec.Command("go", "run", build.Default.GOROOT+"/src/crypto/tls/generate_cert.go", "--host", "*").Run()
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	// cleanupTLSCert()
 	defer func() {
 		if err := errors.Join(os.Remove("cert.pem"), os.Remove("key.pem")); err != nil {
 			t.Error(err)
@@ -404,15 +386,9 @@ func TestTLS(t *testing.T) {
 
 	defer leakCheck(t)()
 	errCh := make(chan error)
-	defer func() {
-		select {
-		case err := <-errCh:
-			t.Fatal(err)
-		default:
-		}
-	}()
-	l, cleanup := testListener(t)
-	defer cleanup()
+	defer abortOnErr(t, errCh)
+	l, closer := testListener(t)
+	defer closer()
 
 	muxl := cmux.New(l)
 	tlsl := muxl.Match(cmux.TLS())
@@ -429,13 +405,7 @@ func TestTLS(t *testing.T) {
 func TestHTTP2(t *testing.T) {
 	defer leakCheck(t)()
 	errCh := make(chan error)
-	defer func() {
-		select {
-		case err := <-errCh:
-			t.Fatal(err)
-		default:
-		}
-	}()
+	defer abortOnErr(t, errCh)
 	writer, reader := net.Pipe()
 	go func() {
 		if _, err := io.WriteString(writer, http2.ClientPreface); err != nil {
@@ -494,13 +464,7 @@ func testHTTP2MatchHeaderField(
 ) {
 	defer leakCheck(t)()
 	errCh := make(chan error)
-	defer func() {
-		select {
-		case err := <-errCh:
-			t.Fatal(err)
-		default:
-		}
-	}()
+	defer abortOnErr(t, errCh)
 	name := "name"
 	writer, reader := net.Pipe()
 	go func() {
@@ -559,15 +523,9 @@ func testHTTP2MatchHeaderField(
 func TestHTTPGoRPC(t *testing.T) {
 	defer leakCheck(t)()
 	errCh := make(chan error)
-	defer func() {
-		select {
-		case err := <-errCh:
-			t.Fatal(err)
-		default:
-		}
-	}()
-	l, cleanup := testListener(t)
-	defer cleanup()
+	defer abortOnErr(t, errCh)
+	l, closer := testListener(t)
+	defer closer()
 
 	muxl := cmux.New(l)
 	httpl := muxl.Match(cmux.HTTP2(), cmux.HTTP1Fast())
@@ -581,90 +539,30 @@ func TestHTTPGoRPC(t *testing.T) {
 	runTestRPCClient(t, l.Addr())
 }
 
-func TestErrorHandler(t *testing.T) {
-	defer leakCheck(t)()
-	errCh := make(chan error)
-	defer func() {
-		select {
-		case err := <-errCh:
-			t.Fatal(err)
-		default:
-		}
-	}()
-	l, cleanup := testListener(t)
-	defer cleanup()
-
-	muxl := cmux.New(l)
-	httpl := muxl.Match(cmux.HTTP2(), cmux.HTTP1Fast())
-
-	go runTestHTTPServer(errCh, httpl)
-	go safeServe(errCh, muxl)
-
-	var errCount uint32
-	muxl.HandleError(func(err error) bool {
-		if atomic.AddUint32(&errCount, 1) == 1 {
-			if _, ok := err.(cmux.ErrNotMatched); !ok {
-				t.Errorf("unexpected error: %v", err)
-			}
-		}
-		return true
-	})
-
-	c, cleanup := safeDial(t, l.Addr())
-	defer cleanup()
-
-	var num int
-	for atomic.LoadUint32(&errCount) == 0 {
-		if err := c.Call("TestRPCRcvr.Test", rpcVal, &num); err == nil {
-			// The connection is simply closed.
-			t.Errorf("unexpected rpc success after %d errors", atomic.LoadUint32(&errCount))
-		}
-	}
-}
-
 func TestMultipleMatchers(t *testing.T) {
 	defer leakCheck(t)()
 	errCh := make(chan error)
-	defer func() {
-		select {
-		case err := <-errCh:
-			t.Fatal(err)
-		default:
-		}
-	}()
-	l, cleanup := testListener(t)
-	defer cleanup()
-
-	matcher := func(r io.Reader) bool {
-		return true
-	}
-	unmatcher := func(r io.Reader) bool {
-		return false
-	}
+	defer abortOnErr(t, errCh)
+	l, closer := testListener(t)
+	defer closer()
 
 	muxl := cmux.New(l)
-	lis := muxl.Match(unmatcher, matcher, unmatcher)
+	unmatcher := func(r io.Reader) bool { return false }
 
-	go runTestHTTPServer(errCh, lis)
 	go safeServe(errCh, muxl)
-
+	go runTestHTTPServer(errCh, muxl.Match(unmatcher, func(r io.Reader) bool {
+		return true
+	}, unmatcher))
 	runTestHTTP1Client(t, l.Addr())
 }
 
 func TestListenerClose(t *testing.T) {
 	defer leakCheck(t)()
 	errCh := make(chan error)
-	defer func() {
-		select {
-		case err := <-errCh:
-			t.Fatal(err)
-		default:
-		}
-	}()
+	defer abortOnErr(t, errCh)
 	l := newChanListener()
 
 	c1, c2 := net.Pipe()
-
 	muxl := cmux.New(l)
 	anyl := muxl.Match(cmux.Any())
 
@@ -698,15 +596,9 @@ func TestListenerClose(t *testing.T) {
 func TestClose(t *testing.T) {
 	defer leakCheck(t)()
 	errCh := make(chan error)
-	defer func() {
-		select {
-		case err := <-errCh:
-			t.Fatal(err)
-		default:
-		}
-	}()
-	l, cleanup := testListener(t)
-	defer cleanup()
+	defer abortOnErr(t, errCh)
+	l, closer := testListener(t)
+	defer closer()
 
 	muxl := cmux.New(l)
 	anyl := muxl.Match(cmux.Any())
@@ -714,7 +606,6 @@ func TestClose(t *testing.T) {
 	go safeServe(errCh, muxl)
 
 	muxl.Close()
-
 	if _, err := anyl.Accept(); err != cmux.ErrServerClosed {
 		t.Fatal(err)
 	}

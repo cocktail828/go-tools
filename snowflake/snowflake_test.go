@@ -6,7 +6,7 @@ import (
 
 func TestGenerateDuplicateID(t *testing.T) {
 	var x, y int64
-	node, _ := NewNode(1)
+	node := NewNode(1)
 	for i := 0; i < 1000000; i++ {
 		y = node.Generate()
 		if x == y {

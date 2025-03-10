@@ -1,7 +1,6 @@
 package httpx_test
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 	"testing"
@@ -11,15 +10,16 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+var (
+	rc httpx.RestClient
+)
+
 func TestHTTPX(t *testing.T) {
-	req, err := httpx.NewRequest(context.Background(), "GET", "https://baidu.com",
+	_, err := rc.Get("https://baidu.com",
 		httpx.Body([]byte("xxx")),
 		httpx.Headers(map[string]string{"k": "v"}),
-		httpx.Callback(func(r *http.Request) { fmt.Println("xxx") }),
+		httpx.Callback(func(r *http.Request) { fmt.Println("xxx", r.Header) }),
 	)
-	z.Must(err)
-
-	_, err = http.DefaultClient.Do(req)
 	z.Must(err)
 }
 

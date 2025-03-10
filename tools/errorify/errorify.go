@@ -585,7 +585,7 @@ func (i %[1]s) WithMessage(message string) error {
 	return errorx.New(i, errors.New(message))
 }
 
-func (i %[1]s) WithMessagef(err error, format string, args ...any) error {
+func (i %[1]s) WithMessagef(format string, args ...any) error {
 	return errorx.New(i, errors.Errorf(format, args...))
 }
 
