@@ -4,7 +4,7 @@ package nacs
 type ServiceInstance struct {
 	ID       string            // 服务实例ID
 	Name     string            // 服务名称
-	Address  string            // 服务地址
+	IP       string            // 服务地址
 	Port     int               // 服务端口
 	Metadata map[string]string // 元数据
 }

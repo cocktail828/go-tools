@@ -58,12 +58,13 @@ func (f *FileConfigor) loadConfigLocked(path string, d DirEntry) (err error) {
 		}
 	}
 
+	var payload []byte
+	payload, err = os.ReadFile(path)
+	if err != nil {
+		return
+	}
+
 	z.WithLock(&f.mu, func() {
-		var payload []byte
-		payload, err = os.ReadFile(path)
-		if err != nil {
-			return
-		}
 		f.configs[d.Name()] = payload
 	})
 

@@ -25,7 +25,11 @@ func New(cfg clientv3.Config, root string) (kvstore.KV, error) {
 		return nil, err
 	}
 
-	return &etcdKV{client: client, root: root}, nil
+	return &etcdKV{
+		root:   root,
+		cfg:    cfg,
+		client: client,
+	}, nil
 }
 
 func (e *etcdKV) String() string {
