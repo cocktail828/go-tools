@@ -41,6 +41,10 @@ func (i errcode) Code() uint32 {
 	return uint32(i)
 }
 
+func (i errcode) With(err error) error {
+	return errorx.New(i, err)
+}
+
 func (i errcode) Wrap(err error, message string) error {
 	return errorx.New(i, errors.Wrap(err, message))
 }

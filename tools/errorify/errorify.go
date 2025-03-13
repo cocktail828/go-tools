@@ -573,6 +573,10 @@ const stringFuncs = `func (i %[1]s) Code() uint32 {
 	return uint32(i)
 }
 
+func (i %[1]s) With(err error) error {
+	return errorx.New(i, err)
+}
+
 func (i %[1]s) Wrap(err error, message string) error {
 	return errorx.New(i, errors.Wrap(err, message))
 }
