@@ -4,7 +4,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/AthenZ/athenz/libs/go/athenz-common/log"
+	"github.com/pkg/errors"
 )
 
 const (
@@ -37,15 +37,15 @@ type Node struct {
 }
 
 // NewNode returns a new snowflake node that can be used to generate snowflake IDs.
-func NewNode(node int64) *Node {
+func NewNode(node int64) (*Node, error) {
 	if node < 0 || node > maxNode {
-		log.Fatalf("node number must be between 0 and %d", maxNode)
+		return nil, errors.Errorf("node number must be between 0 and %d", maxNode)
 	}
 
 	return &Node{
 		epoch: time.UnixMilli(Epoch),
 		node:  node,
-	}
+	}, nil
 }
 
 // Generate creates and returns a unique snowflake ID.

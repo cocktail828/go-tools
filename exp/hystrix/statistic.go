@@ -39,22 +39,22 @@ func (s *Statistic) Reset() {
 
 func (s *Statistic) Update(ev Event) {
 	msec := ev.stopAt.UnixMilli()
-	s.requests.Incrby(msec, 1)
+	s.requests.At(msec).Incrby(1)
 	if ev.eventType == SuccessEvent {
-		s.success.Incrby(msec, 1)
+		s.success.At(msec).Incrby(1)
 	} else {
-		s.failure.Incrby(msec, 1)
+		s.failure.At(msec).Incrby(1)
 	}
 }
 
 func (s *Statistic) QPS(msec int64) float64 {
-	return s.requests.QPS(msec, 10)
+	return s.requests.At(msec).QPS(10)
 }
 
 func (s *Statistic) FailRate(msec int64) int {
 	var errPct float64
-	if reqs := s.requests.QPS(msec, 10); reqs > 0 {
-		errs := s.failure.QPS(msec, 10)
+	if reqs := s.requests.At(msec).QPS(10); reqs > 0 {
+		errs := s.failure.At(msec).QPS(10)
 		errPct = errs / reqs * 100
 	}
 

@@ -2,13 +2,13 @@ package workpool
 
 import (
 	"context"
-	"errors"
 	"io"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/cocktail828/go-tools/z"
+	"github.com/pkg/errors"
 	"golang.org/x/sync/semaphore"
 )
 
@@ -29,9 +29,9 @@ type HybridPool struct {
 	mu       sync.RWMutex
 }
 
-func NewHybridPool(minWorkers, maxWorkers int) *HybridPool {
+func NewHybridPool(minWorkers, maxWorkers int) (*HybridPool, error) {
 	if maxWorkers < minWorkers || minWorkers < 0 || maxWorkers == 0 {
-		panic("invalid parameters")
+		return nil, errors.Errorf("invalid parameters, maxWorkers(%d) >= minWorkers(%d) >= 0", maxWorkers, minWorkers)
 	}
 
 	pool := &HybridPool{
@@ -45,7 +45,7 @@ func NewHybridPool(minWorkers, maxWorkers int) *HybridPool {
 		pool.wg.Add(1)
 		go pool.spawn(false)
 	}
-	return pool
+	return pool, nil
 }
 
 func (p *HybridPool) spawn(isElastic bool) {

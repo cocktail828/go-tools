@@ -29,9 +29,9 @@ func TestStatistic_Success(t *testing.T) {
 	assert.NoError(t, <-errChan)
 
 	msec := time.Now().UnixMilli()
-	assert.Equal(t, 7.8125, GetCircuit(t.Name()).statistic.requests.QPS(msec, 1))
-	assert.Equal(t, 7.8125, GetCircuit(t.Name()).statistic.success.QPS(msec, 1))
-	assert.Equal(t, float64(0), GetCircuit(t.Name()).statistic.failure.QPS(msec, 1))
+	assert.Equal(t, 7.8125, GetCircuit(t.Name()).statistic.requests.At(msec).QPS(1))
+	assert.Equal(t, 7.8125, GetCircuit(t.Name()).statistic.success.At(msec).QPS(1))
+	assert.Equal(t, float64(0), GetCircuit(t.Name()).statistic.failure.At(msec).QPS(1))
 }
 
 func TestStatistic_Timeout(t *testing.T) {
@@ -44,9 +44,9 @@ func TestStatistic_Timeout(t *testing.T) {
 	assert.Equal(t, ErrTimeout, <-errChan)
 
 	msec := time.Now().UnixMilli()
-	assert.Equal(t, 7.8125, GetCircuit(t.Name()).statistic.requests.QPS(msec, 1))
-	assert.Equal(t, float64(0), GetCircuit(t.Name()).statistic.success.QPS(msec, 1))
-	assert.Equal(t, 7.8125, GetCircuit(t.Name()).statistic.failure.QPS(msec, 1))
+	assert.Equal(t, 7.8125, GetCircuit(t.Name()).statistic.requests.At(msec).QPS(1))
+	assert.Equal(t, float64(0), GetCircuit(t.Name()).statistic.success.At(msec).QPS(1))
+	assert.Equal(t, 7.8125, GetCircuit(t.Name()).statistic.failure.At(msec).QPS(1))
 }
 
 func TestStatistic_Canceled(t *testing.T) {
@@ -58,9 +58,9 @@ func TestStatistic_Canceled(t *testing.T) {
 	assert.Equal(t, ErrCanceled, <-errChan)
 
 	msec := time.Now().UnixMilli()
-	assert.Equal(t, 7.8125, GetCircuit(t.Name()).statistic.requests.QPS(msec, 1))
-	assert.Equal(t, float64(0), GetCircuit(t.Name()).statistic.success.QPS(msec, 1))
-	assert.Equal(t, 7.8125, GetCircuit(t.Name()).statistic.failure.QPS(msec, 1))
+	assert.Equal(t, 7.8125, GetCircuit(t.Name()).statistic.requests.At(msec).QPS(1))
+	assert.Equal(t, float64(0), GetCircuit(t.Name()).statistic.success.At(msec).QPS(1))
+	assert.Equal(t, 7.8125, GetCircuit(t.Name()).statistic.failure.At(msec).QPS(1))
 }
 
 func TestStatistic_CircuitOpen(t *testing.T) {
@@ -72,9 +72,9 @@ func TestStatistic_CircuitOpen(t *testing.T) {
 	assert.Equal(t, ErrCircuitOpen, <-errChan)
 
 	msec := time.Now().UnixMilli()
-	assert.Equal(t, 7.8125, GetCircuit(t.Name()).statistic.requests.QPS(msec, 1))
-	assert.Equal(t, float64(0), GetCircuit(t.Name()).statistic.success.QPS(msec, 1))
-	assert.Equal(t, 7.8125, GetCircuit(t.Name()).statistic.failure.QPS(msec, 1))
+	assert.Equal(t, 7.8125, GetCircuit(t.Name()).statistic.requests.At(msec).QPS(1))
+	assert.Equal(t, float64(0), GetCircuit(t.Name()).statistic.success.At(msec).QPS(1))
+	assert.Equal(t, 7.8125, GetCircuit(t.Name()).statistic.failure.At(msec).QPS(1))
 }
 
 func TestStatistic_MaxConcurrency(t *testing.T) {
@@ -87,7 +87,7 @@ func TestStatistic_MaxConcurrency(t *testing.T) {
 	assert.Equal(t, ErrMaxConcurrency, <-errChan)
 
 	msec := time.Now().UnixMilli()
-	assert.Equal(t, 7.8125, GetCircuit(t.Name()).statistic.requests.QPS(msec, 1))
-	assert.Equal(t, float64(0), GetCircuit(t.Name()).statistic.success.QPS(msec, 1))
-	assert.Equal(t, 7.8125, GetCircuit(t.Name()).statistic.failure.QPS(msec, 1))
+	assert.Equal(t, 7.8125, GetCircuit(t.Name()).statistic.requests.At(msec).QPS(1))
+	assert.Equal(t, float64(0), GetCircuit(t.Name()).statistic.success.At(msec).QPS(1))
+	assert.Equal(t, 7.8125, GetCircuit(t.Name()).statistic.failure.At(msec).QPS(1))
 }

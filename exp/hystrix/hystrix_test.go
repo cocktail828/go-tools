@@ -17,8 +17,7 @@ func TestSuccess(t *testing.T) {
 	})
 
 	assert.NoError(t, <-errChan)
-	now := time.Now()
-	cnt, _ := GetCircuit(t.Name()).statistic.success.Count(now.UnixMilli(), 1)
+	cnt, _ := GetCircuit(t.Name()).statistic.success.Count(1)
 	assert.EqualValues(t, 1, cnt)
 }
 

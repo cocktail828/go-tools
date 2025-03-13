@@ -12,7 +12,7 @@ import (
 func noop() { time.Sleep(100 * time.Millisecond) }
 
 func TestPool(t *testing.T) {
-	pool := workpool.NewHybridPool(3, 5)
+	pool, _ := workpool.NewHybridPool(3, 5)
 	defer pool.Close()
 
 	for i := 0; i < 10; i++ {
