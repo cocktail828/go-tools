@@ -1,4 +1,4 @@
-package cmd
+package runnable
 
 import (
 	"context"
@@ -11,21 +11,23 @@ type Graceful struct {
 	Stop  func() error
 }
 
-func (g *Graceful) Do(ctx context.Context) error {
-	runningCtx, cancel := context.WithCancelCause(ctx)
-	go func() {
-		cancel(g.Start())
-	}()
+func (g *Graceful) Do(pctx context.Context) error {
+	sctx, scancel := context.WithCancelCause(pctx)
+	go func() { scancel(g.Start()) }()
 
-	<-runningCtx.Done()
-	err := context.Cause(ctx)
+	if g.Stop == nil {
+		g.Start = func() error { return nil }
+	}
+
+	<-sctx.Done()
+	err := context.Cause(sctx)
 	if err == context.Canceled {
 		err = nil
 	}
 	return errors.Join(err, g.Stop())
 }
 
-func Timed(d time.Duration, f func(context.Context) error) error {
+func Timeout(d time.Duration, f func(context.Context) error) error {
 	ctx, cancel := context.WithTimeout(context.TODO(), d)
 	defer cancel()
 

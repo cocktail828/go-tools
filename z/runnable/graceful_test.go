@@ -1,4 +1,4 @@
-package cmd_test
+package runnable
 
 import (
 	"context"
@@ -6,12 +6,10 @@ import (
 	"net/http"
 	"testing"
 	"time"
-
-	"github.com/cocktail828/go-tools/z/cmd"
 )
 
 func TestGS(t *testing.T) {
-	gs := cmd.Graceful{
+	gs := Graceful{
 		Start: func() error {
 			time.Sleep(time.Second * 1)
 			return http.ErrBodyNotAllowed

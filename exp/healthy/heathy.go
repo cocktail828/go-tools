@@ -12,7 +12,7 @@ import (
 
 type Evaluater interface {
 	Check(error) // 记录成功或失败
-	OK() bool    // 返回当前健康状态, 不允许并发调用
+	Alive() bool // 返回当前健康状态, 不允许并发调用
 }
 
 // 基于计数的健康状态评估
@@ -43,7 +43,7 @@ func (e *counterEvaluater) Check(err error) {
 	}
 }
 
-func (e *counterEvaluater) OK() bool {
+func (e *counterEvaluater) Alive() bool {
 	posi, nega, _ := e.Count(50) // 获取过期 128ms*50=6.4s 的计数器信息
 	if e.healthy && nega > e.MaxFailure {
 		e.healthy = false
@@ -85,7 +85,7 @@ func (e *percentageEvaluater) Check(err error) {
 	}
 }
 
-func (e *percentageEvaluater) OK() bool {
+func (e *percentageEvaluater) Alive() bool {
 	posi, nega, _ := e.Count(50)
 	var pct float32
 	if sum := posi + nega; sum > 0 {
@@ -136,7 +136,7 @@ func (ka *keepaliveImpl) Alive() bool {
 	if now.Sub(tv.tm) > time.Millisecond*100 {
 		if ka.mu.TryLock() {
 			defer ka.mu.Unlock()
-			tv = ttled{ka.Evaluater.OK(), now}
+			tv = ttled{ka.Evaluater.Alive(), now}
 			ka.healthy = tv
 		}
 	}
