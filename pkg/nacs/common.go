@@ -39,3 +39,8 @@ func LookupConfigor(name string) (ConfigorBuilder, bool) {
 	builder, ok := configorRepo[strings.ToLower(name)]
 	return builder, ok
 }
+
+type Endpoint struct {
+	IP   string
+	Port int
+}

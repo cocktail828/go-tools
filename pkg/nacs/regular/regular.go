@@ -2,12 +2,13 @@ package regular
 
 import (
 	"bytes"
+	"context"
 	"io/fs"
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
 	"sync"
-	"sync/atomic"
 
 	"github.com/cocktail828/go-tools/pkg/nacs"
 	"github.com/cocktail828/go-tools/z"
@@ -15,22 +16,23 @@ import (
 	"gopkg.in/fsnotify.v1"
 )
 
-var _ nacs.Configor = &FileConfigor{}
-
-type FileConfigor struct {
-	closed  atomic.Bool
-	filters []Filter
-	root    string
-	watcher *fsnotify.Watcher
-	mu      sync.RWMutex
-	configs map[string][]byte
+type fileConfigor struct {
+	runningCtx context.Context
+	cancel     context.CancelFunc
+	filters    []Filter
+	root       string
+	mu         sync.RWMutex
+	configs    map[string][]byte // name -> payload
 }
 
-func NewFileConfigor(root string, filters ...Filter) (*FileConfigor, error) {
-	fc := FileConfigor{
-		filters: filters,
-		root:    root,
-		configs: map[string][]byte{},
+func NewFileConfigor(root string, filters ...Filter) (nacs.Configor, error) {
+	ctx, cancel := context.WithCancel(context.Background())
+	fc := fileConfigor{
+		runningCtx: ctx,
+		cancel:     cancel,
+		filters:    filters,
+		root:       root,
+		configs:    map[string][]byte{},
 	}
 
 	os.MkdirAll(root, os.ModeDir)
@@ -51,7 +53,7 @@ func NewFileConfigor(root string, filters ...Filter) (*FileConfigor, error) {
 	return &fc, nil
 }
 
-func (f *FileConfigor) loadConfigLocked(path string, d DirEntry) (err error) {
+func (f *fileConfigor) loadConfigLocked(path string, d DirEntry) (err error) {
 	for _, f := range f.filters {
 		if f(d) {
 			return
@@ -71,48 +73,57 @@ func (f *FileConfigor) loadConfigLocked(path string, d DirEntry) (err error) {
 	return
 }
 
-func (f *FileConfigor) GetConfig(fname string) ([]byte, error) {
+func (f *fileConfigor) GetConfig(cfg nacs.Config) ([]byte, error) {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
 
-	value, ok := f.configs[fname]
+	value, ok := f.configs[cfg.Fname]
 	if !ok {
-		return nil, errors.Errorf("config fname %s not found", fname)
+		return nil, errors.Errorf("config fname %s not found", cfg.Fname)
 	}
 	return value, nil
 }
 
-func (f *FileConfigor) SetConfig(fname string, payload []byte) error {
+func (f *fileConfigor) SetConfig(cfg nacs.Config, payload []byte) error {
 	z.WithLock(&f.mu, func() {
-		f.configs[fname] = payload
+		f.configs[cfg.Fname] = payload
 	})
-	os.WriteFile(path.Join(f.root, fname), payload, os.ModePerm)
+	os.WriteFile(path.Join(f.root, cfg.Fname), payload, os.ModePerm)
 	return nil
 }
 
-func (f *FileConfigor) DeleteConfig(fname string) (err error) {
+func (f *fileConfigor) DeleteConfig(cfg nacs.Config) (err error) {
 	z.WithLock(&f.mu, func() {
-		delete(f.configs, fname)
+		delete(f.configs, cfg.Fname)
 	})
-	os.Remove(path.Join(f.root, fname))
+	os.Remove(path.Join(f.root, cfg.Fname))
 	return
 }
 
 // we should only care about write event
-func (f *FileConfigor) WatchConfig(listener nacs.ConfigListener) error {
+func (f *fileConfigor) WatchConfig(cfg nacs.Config, listener nacs.ConfigListener) (context.CancelFunc, error) {
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
-		return errors.Errorf("failed to create watcher: %v", err)
+		return nil, errors.Errorf("failed to create watcher: %v", err)
 	}
 
 	if err := watcher.Add(f.root); err != nil {
-		return errors.Errorf("failed to watch file: %v", err)
+		return nil, errors.Errorf("failed to watch file: %v", err)
 	}
-	f.watcher = watcher
+
+	re, err := regexp.Compile(cfg.Fname)
+	if err != nil {
+		return nil, err
+	}
+
+	ctx, cancel := context.WithCancel(f.runningCtx)
 	go func() {
+		defer watcher.Close()
 		for {
 			select {
-			case event, ok := <-f.watcher.Events:
+			case <-ctx.Done():
+				return
+			case event, ok := <-watcher.Events:
 				if !ok {
 					return
 				}
@@ -120,19 +131,24 @@ func (f *FileConfigor) WatchConfig(listener nacs.ConfigListener) error {
 				switch {
 				case event.Op&fsnotify.Write == fsnotify.Write:
 					fname := filepath.Base(event.Name)
-					oldval, _ := f.GetConfig(fname)
-					if err := f.loadConfigLocked(event.Name, dirEntryImpl{fname}); err != nil {
-						listener(event.Name, nil, err)
+					if !re.MatchString(fname) {
 						continue
 					}
 
-					current, _ := f.GetConfig(fname)
+					cfg := nacs.Config{Fname: fname}
+					oldval, _ := f.GetConfig(cfg)
+					if err := f.loadConfigLocked(event.Name, dirEntryImpl{fname}); err != nil {
+						listener(cfg, nil, err)
+						continue
+					}
+
+					current, _ := f.GetConfig(cfg)
 					if !bytes.Equal(oldval, current) {
-						listener(fname, current, nil)
+						listener(cfg, current, nil)
 					}
 				}
 
-			case _, ok := <-f.watcher.Errors:
+			case _, ok := <-watcher.Errors:
 				if !ok {
 					return
 				}
@@ -140,14 +156,10 @@ func (f *FileConfigor) WatchConfig(listener nacs.ConfigListener) error {
 		}
 	}()
 
-	return nil
+	return cancel, nil
 }
 
-func (f *FileConfigor) Close() error {
-	if f.closed.CompareAndSwap(false, true) {
-		if f.watcher != nil {
-			return f.watcher.Close()
-		}
-	}
+func (f *fileConfigor) Close() error {
+	f.cancel()
 	return nil
 }
