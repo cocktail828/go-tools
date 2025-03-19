@@ -5,16 +5,21 @@ go 1.21
 require (
 	github.com/BurntSushi/toml v1.4.0
 	github.com/apache/pulsar-client-go v0.14.0
+	github.com/emicklei/proto v1.14.0
 	github.com/fatih/color v1.18.0
 	github.com/go-playground/validator/v10 v10.21.0
 	github.com/hashicorp/hcl/v2 v2.22.0
 	github.com/nacos-group/nacos-sdk-go/v2 v2.2.9
 	github.com/pkg/errors v0.9.1
+	github.com/spf13/cobra v1.6.1
+	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.9.0
+	github.com/zeromicro/antlr v1.0.0
 	go.etcd.io/etcd/client/v3 v3.5.14
 	golang.org/x/crypto v0.31.0
 	golang.org/x/net v0.33.0
 	golang.org/x/sync v0.10.0
+	golang.org/x/text v0.21.0
 	golang.org/x/tools v0.22.0
 	google.golang.org/grpc v1.59.0
 	google.golang.org/grpc/examples v0.0.0-20230829204627-18059002a52b
@@ -77,6 +82,7 @@ require (
 	github.com/hamba/avro/v2 v2.22.2-0.20240625062549-66aad10411d9 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
+	github.com/inconshreveable/mousetrap v1.0.1 // indirect
 	github.com/jmespath/go-jmespath v0.3.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/klauspost/compress v1.17.9 // indirect
@@ -111,7 +117,6 @@ require (
 	golang.org/x/oauth2 v0.11.0 // indirect
 	golang.org/x/sys v0.28.0 // indirect
 	golang.org/x/term v0.27.0 // indirect
-	golang.org/x/text v0.21.0 // indirect
 	golang.org/x/time v0.1.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/genproto v0.0.0-20231012201019-e917dd12ba7a // indirect
