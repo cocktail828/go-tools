@@ -1,2 +1,4 @@
 .findercache
 findercache
+tools/goctl/tests/demo
+tools/goctl/tests/x
