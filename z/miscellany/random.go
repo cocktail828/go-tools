@@ -31,6 +31,7 @@ type caseKey struct{}
 func WithCase() variadic.Option      { return variadic.SetValue(caseKey{}, true) }
 func (iv inVariadic) WithCase() bool { return variadic.GetValue[bool](iv, caseKey{}) }
 
+// 默认长度 8, 无大写字符
 func RandomName(opts ...variadic.Option) string {
 	iv := inVariadic{variadic.Compose(opts...)}
 	width := 8
