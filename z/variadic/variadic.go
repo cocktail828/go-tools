@@ -7,19 +7,6 @@ type Assigned interface {
 	Value(key any) any
 }
 
-func WithValue(parent Assigned, key, val any) Assigned {
-	if parent == nil {
-		panic("cannot create Assigned from nil parent")
-	}
-	if key == nil {
-		panic("nil key")
-	}
-	if !reflect.TypeOf(key).Comparable() {
-		panic("key is not comparable")
-	}
-	return valueParam{parent, key, val}
-}
-
 // A valueParam carries a key-value pair. It implements Value for that key and
 // delegates all other calls to the embedded Assigned.
 type valueParam struct {
@@ -52,6 +39,12 @@ func Compose(opts ...Option) Assigned {
 
 func SetValue(key, val any) Option {
 	return func(parent Assigned) Assigned {
+		if key == nil {
+			panic("nil key")
+		}
+		if !reflect.TypeOf(key).Comparable() {
+			panic("key is not comparable")
+		}
 		return valueParam{parent, key, val}
 	}
 }

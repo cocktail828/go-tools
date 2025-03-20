@@ -32,14 +32,6 @@ func (iv inVariadic) Callback() CallbackFunc {
 	return variadic.GetValue[CallbackFunc](iv, callbackKey{})
 }
 
-func addHeaders(header map[string]string, opts []variadic.Option) []variadic.Option {
-	iv := inVariadic{variadic.Compose(opts...)}
-	for k, v := range iv.Headers() {
-		header[k] = v
-	}
-	return append(opts, Headers(header))
-}
-
 type RestClient struct {
 	http.Client
 }
@@ -51,8 +43,9 @@ func (rc RestClient) Do(method string, url string, opts ...variadic.Option) (*ht
 		return nil, err
 	}
 
+	req.Header.Set("Content-Type", "application/json")
 	for k, v := range iv.Headers() {
-		req.Header.Add(k, v)
+		req.Header.Set(k, v)
 	}
 
 	if f := iv.Callback(); f != nil {
@@ -63,43 +56,33 @@ func (rc RestClient) Do(method string, url string, opts ...variadic.Option) (*ht
 }
 
 func (rc RestClient) Head(url string, opts ...variadic.Option) (*http.Response, error) {
-	return rc.Do(http.MethodHead, url, addHeaders(map[string]string{
-		"Content-Type": "application/json",
-	}, opts)...)
+	return rc.Do(http.MethodHead, url, opts...)
 }
 
 func (rc RestClient) Get(url string, opts ...variadic.Option) (*http.Response, error) {
-	return rc.Do(http.MethodGet, url, addHeaders(map[string]string{
-		"Content-Type": "application/json",
-	}, opts)...)
+	return rc.Do(http.MethodGet, url, opts...)
 }
 
 func (rc RestClient) Post(url string, opts ...variadic.Option) (*http.Response, error) {
-	return rc.Do(http.MethodPost, url, addHeaders(map[string]string{
-		"Content-Type": "application/json",
-	}, opts)...)
+	return rc.Do(http.MethodPost, url, opts...)
 }
 
 func (rc RestClient) PostForm(url string, opts ...variadic.Option) (*http.Response, error) {
-	return rc.Do(http.MethodPost, url, addHeaders(map[string]string{
-		"Content-Type": "application/x-www-form-urlencoded",
-	}, opts)...)
+	return rc.Do(http.MethodPost, url, append(opts,
+		Headers(map[string]string{
+			"Content-Type": "application/x-www-form-urlencoded",
+		}),
+	)...)
 }
 
 func (rc RestClient) Put(url string, opts ...variadic.Option) (*http.Response, error) {
-	return rc.Do(http.MethodPut, url, addHeaders(map[string]string{
-		"Content-Type": "application/json",
-	}, opts)...)
+	return rc.Do(http.MethodPut, url, opts...)
 }
 
 func (rc RestClient) Patch(url string, opts ...variadic.Option) (*http.Response, error) {
-	return rc.Do(http.MethodPatch, url, addHeaders(map[string]string{
-		"Content-Type": "application/json",
-	}, opts)...)
+	return rc.Do(http.MethodPatch, url, opts...)
 }
 
 func (rc RestClient) Delete(url string, opts ...variadic.Option) (*http.Response, error) {
-	return rc.Do(http.MethodDelete, url, addHeaders(map[string]string{
-		"Content-Type": "application/json",
-	}, opts)...)
+	return rc.Do(http.MethodDelete, url, opts...)
 }
