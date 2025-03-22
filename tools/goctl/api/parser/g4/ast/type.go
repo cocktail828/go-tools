@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/cocktail828/go-tools/tools/goctl/api/parser/g4/gen/api"
+	"github.com/cocktail828/go-tools/tools/goctl/api/parser/g4/api"
 )
 
 type (
@@ -61,7 +61,7 @@ type (
 		Literal Expr
 	}
 
-	// Interface describes the interface type of golang,Its fixed value is interface{}
+	// Interface describes the interface type of golang,Its fixed value is any
 	Interface struct {
 		Literal Expr
 	}

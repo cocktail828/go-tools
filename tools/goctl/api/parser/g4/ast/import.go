@@ -1,6 +1,6 @@
 package ast
 
-import "github.com/cocktail828/go-tools/tools/goctl/api/parser/g4/gen/api"
+import "github.com/cocktail828/go-tools/tools/goctl/api/parser/g4/api"
 
 // ImportExpr defines import syntax for api
 type ImportExpr struct {

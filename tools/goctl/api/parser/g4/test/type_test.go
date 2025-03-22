@@ -3,9 +3,9 @@ package test
 import (
 	"testing"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/cocktail828/go-tools/tools/goctl/api/parser/g4/api"
 	"github.com/cocktail828/go-tools/tools/goctl/api/parser/g4/ast"
-	"github.com/cocktail828/go-tools/tools/goctl/api/parser/g4/gen/api"
+	"github.com/stretchr/testify/assert"
 )
 
 var fieldAccept = func(p *api.ApiParserParser, visitor *ast.ApiVisitor) any {
@@ -178,15 +178,15 @@ func TestDataType_Array(t *testing.T) {
 		}))
 	})
 
-	t.Run("interface{}", func(t *testing.T) {
-		v, err := parser.Accept(dt, `[]interface{}`)
+	t.Run("any", func(t *testing.T) {
+		v, err := parser.Accept(dt, `[]any`)
 		assert.Nil(t, err)
 		array := v.(ast.DataType)
 		assert.True(t, array.Equal(&ast.Array{
-			ArrayExpr: ast.NewTextExpr("[]interface{}"),
+			ArrayExpr: ast.NewTextExpr("[]any"),
 			LBrack:    ast.NewTextExpr("["),
 			RBrack:    ast.NewTextExpr("]"),
-			Literal:   &ast.Interface{Literal: ast.NewTextExpr("interface{}")},
+			Literal:   &ast.Interface{Literal: ast.NewTextExpr("any")},
 		}))
 	})
 
@@ -204,10 +204,10 @@ func TestDataType_Interface(t *testing.T) {
 		return p.DataType().Accept(visitor)
 	}
 	t.Run("normal", func(t *testing.T) {
-		v, err := parser.Accept(dt, `interface{}`)
+		v, err := parser.Accept(dt, `any`)
 		assert.Nil(t, err)
 		inter := v.(ast.DataType)
-		assert.True(t, inter.Equal(&ast.Interface{Literal: ast.NewTextExpr("interface{}")}))
+		assert.True(t, inter.Equal(&ast.Interface{Literal: ast.NewTextExpr("any")}))
 	})
 
 	t.Run("wrong", func(t *testing.T) {

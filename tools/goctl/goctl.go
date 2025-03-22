@@ -30,7 +30,6 @@ var (
 func init() {
 	rootCmd.Version = fmt.Sprintf("%s %s/%s", version.BuildVersion, runtime.GOOS, runtime.GOARCH)
 	rootCmd.AddCommand(api.Cmd, env.Cmd, rpc.Cmd, tpl.Cmd)
-	rootCmd.MustInit()
 
 	log.SetFlags(0)
 }

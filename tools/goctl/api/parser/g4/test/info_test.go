@@ -3,9 +3,9 @@ package test
 import (
 	"testing"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/cocktail828/go-tools/tools/goctl/api/parser/g4/api"
 	"github.com/cocktail828/go-tools/tools/goctl/api/parser/g4/ast"
-	"github.com/cocktail828/go-tools/tools/goctl/api/parser/g4/gen/api"
+	"github.com/stretchr/testify/assert"
 )
 
 var infoAccept = func(p *api.ApiParserParser, visitor *ast.ApiVisitor) any {

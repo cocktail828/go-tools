@@ -4,9 +4,9 @@ import (
 	_ "embed"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/cocktail828/go-tools/tools/goctl/api/parser/g4/api"
 	"github.com/cocktail828/go-tools/tools/goctl/api/parser/g4/ast"
-	"github.com/cocktail828/go-tools/tools/goctl/api/parser/g4/gen/api"
+	"github.com/stretchr/testify/assert"
 )
 
 //go:embed apis/test.api
@@ -280,7 +280,7 @@ func TestApi(t *testing.T) {
 					},
 					{
 						Name:     ast.NewTextExpr("VInterface"),
-						DataType: &ast.Interface{Literal: ast.NewTextExpr("interface{}")},
+						DataType: &ast.Interface{Literal: ast.NewTextExpr("any")},
 						Tag:      ast.NewTextExpr("`json:\"vInterface\"`"),
 						DocExpr: []ast.Expr{
 							ast.NewTextExpr("// vInterface"),

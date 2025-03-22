@@ -22,7 +22,7 @@ func Test{{.HandlerName}}(t *testing.T) {
 
 	tests := []struct {
 		name       string
-		reqBody    interface{}
+		reqBody    any
 		wantStatus int
 		wantResp   string
 		setupMocks func()

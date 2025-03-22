@@ -3,7 +3,7 @@ package ast
 import (
 	"strings"
 
-	"github.com/cocktail828/go-tools/tools/goctl/api/parser/g4/gen/api"
+	"github.com/cocktail828/go-tools/tools/goctl/api/parser/g4/api"
 )
 
 // KvExpr describes key-value for api

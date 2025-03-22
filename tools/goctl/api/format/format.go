@@ -14,7 +14,7 @@ import (
 	"github.com/cocktail828/go-tools/tools/goctl/api/parser"
 	"github.com/cocktail828/go-tools/tools/goctl/api/util"
 	"github.com/cocktail828/go-tools/tools/goctl/internal/env"
-	apiF "github.com/cocktail828/go-tools/tools/goctl/internal/parser/api/format"
+	apiF "github.com/cocktail828/go-tools/tools/goctl/internal/parser/format"
 	"github.com/cocktail828/go-tools/tools/goctl/internal/pathx"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"

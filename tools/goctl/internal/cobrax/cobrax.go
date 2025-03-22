@@ -1,11 +1,8 @@
 package cobrax
 
 import (
-	"fmt"
-
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
-	"github.com/cocktail828/go-tools/tools/goctl/internal/flags"
 )
 
 type Option func(*cobra.Command)
@@ -130,42 +127,4 @@ func (c *Command) PersistentFlags() *FlagSet {
 	return &FlagSet{
 		FlagSet: set,
 	}
-}
-
-func (c *Command) MustInit() {
-	commands := append([]*cobra.Command{c.Command}, getCommandsRecursively(c.Command)...)
-	for _, command := range commands {
-		commandKey := getCommandName(command)
-		if len(command.Short) == 0 {
-			command.Short = flags.Get(commandKey + ".short")
-		}
-		if len(command.Long) == 0 {
-			command.Long = flags.Get(commandKey + ".long")
-		}
-		if len(command.Example) == 0 {
-			command.Example = flags.Get(commandKey + ".example")
-		}
-		command.Flags().VisitAll(func(flag *pflag.Flag) {
-			flag.Usage = flags.Get(fmt.Sprintf("%s.%s", commandKey, flag.Name))
-		})
-		command.PersistentFlags().VisitAll(func(flag *pflag.Flag) {
-			flag.Usage = flags.Get(fmt.Sprintf("%s.%s", commandKey, flag.Name))
-		})
-	}
-}
-
-func getCommandName(cmd *cobra.Command) string {
-	if cmd.HasParent() {
-		return getCommandName(cmd.Parent()) + "." + cmd.Name()
-	}
-	return cmd.Name()
-}
-
-func getCommandsRecursively(parent *cobra.Command) []*cobra.Command {
-	var commands []*cobra.Command
-	for _, cmd := range parent.Commands() {
-		commands = append(commands, cmd)
-		commands = append(commands, getCommandsRecursively(cmd)...)
-	}
-	return commands
 }

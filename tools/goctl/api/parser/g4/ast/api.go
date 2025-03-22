@@ -5,7 +5,8 @@ import (
 	"path"
 	"sort"
 
-	"github.com/cocktail828/go-tools/tools/goctl/api/parser/g4/gen/api"
+	"github.com/cocktail828/go-tools/tools/goctl/api/parser/g4/api"
+	"github.com/cocktail828/go-tools/tools/goctl/internal/parser"
 )
 
 const (
@@ -18,24 +19,24 @@ type Api struct {
 	LinePrefix string
 	Syntax     *SyntaxExpr
 	Import     []*ImportExpr
-	importM    map[string]PlaceHolder
+	importM    map[string]parser.Type
 	Info       *InfoExpr
 	Type       []TypeExpr
-	typeM      map[string]PlaceHolder
+	typeM      map[string]parser.Type
 	Service    []*Service
-	serviceM   map[string]PlaceHolder
-	handlerM   map[string]PlaceHolder
-	routeM     map[string]PlaceHolder
+	serviceM   map[string]parser.Type
+	handlerM   map[string]parser.Type
+	routeM     map[string]parser.Type
 }
 
 // VisitApi implements from api.BaseApiParserVisitor
 func (v *ApiVisitor) VisitApi(ctx *api.ApiContext) any {
 	var final Api
-	final.importM = map[string]PlaceHolder{}
-	final.typeM = map[string]PlaceHolder{}
-	final.serviceM = map[string]PlaceHolder{}
-	final.handlerM = map[string]PlaceHolder{}
-	final.routeM = map[string]PlaceHolder{}
+	final.importM = map[string]parser.Type{}
+	final.typeM = map[string]parser.Type{}
+	final.serviceM = map[string]parser.Type{}
+	final.handlerM = map[string]parser.Type{}
+	final.routeM = map[string]parser.Type{}
 	for _, each := range ctx.AllSpec() {
 		root := each.Accept(v).(*Api)
 		v.acceptSyntax(root, &final)
@@ -72,15 +73,15 @@ func (v *ApiVisitor) acceptService(root, final *Api) {
 				v.panic(route.Route.Method, fmt.Sprintf("duplicate route '%s'", uniqueRoute))
 			}
 
-			final.routeM[uniqueRoute] = Holder
+			final.routeM[uniqueRoute] = parser.PlaceHolder
 			var handlerExpr Expr
 			if route.AtServer != nil {
-				atServerM := map[string]PlaceHolder{}
+				atServerM := map[string]parser.Type{}
 				for _, kv := range route.AtServer.Kv {
 					if _, ok := atServerM[kv.Key.Text()]; ok {
 						v.panic(kv.Key, fmt.Sprintf("duplicate key '%s'", kv.Key.Text()))
 					}
-					atServerM[kv.Key.Text()] = Holder
+					atServerM[kv.Key.Text()] = parser.PlaceHolder
 					if kv.Key.Text() == "handler" {
 						handlerExpr = kv.Value
 					}
@@ -106,7 +107,7 @@ func (v *ApiVisitor) acceptService(root, final *Api) {
 			if _, ok := final.handlerM[handlerKey]; ok {
 				v.panic(handlerExpr, fmt.Sprintf("duplicate handler '%s'", handlerExpr.Text()))
 			}
-			final.handlerM[handlerKey] = Holder
+			final.handlerM[handlerKey] = parser.PlaceHolder
 		}
 		final.Service = append(final.Service, service)
 	}
@@ -114,13 +115,13 @@ func (v *ApiVisitor) acceptService(root, final *Api) {
 
 func (v *ApiVisitor) duplicateServerItemCheck(service *Service) {
 	if service.AtServer != nil {
-		atServerM := map[string]PlaceHolder{}
+		atServerM := map[string]parser.Type{}
 		for _, kv := range service.AtServer.Kv {
 			if _, ok := atServerM[kv.Key.Text()]; ok {
 				v.panic(kv.Key, fmt.Sprintf("duplicate key '%s'", kv.Key.Text()))
 			}
 
-			atServerM[kv.Key.Text()] = Holder
+			atServerM[kv.Key.Text()] = parser.PlaceHolder
 		}
 	}
 }
@@ -131,14 +132,14 @@ func (v *ApiVisitor) acceptType(root, final *Api) {
 			v.panic(tp.NameExpr(), fmt.Sprintf("duplicate type '%s'", tp.NameExpr().Text()))
 		}
 
-		final.typeM[tp.NameExpr().Text()] = Holder
+		final.typeM[tp.NameExpr().Text()] = parser.PlaceHolder
 		final.Type = append(final.Type, tp)
 	}
 }
 
 func (v *ApiVisitor) acceptInfo(root, final *Api) {
 	if root.Info != nil {
-		infoM := map[string]PlaceHolder{}
+		infoM := map[string]parser.Type{}
 		if final.Info != nil {
 			v.panic(root.Info.Info, "multiple info declaration")
 		}
@@ -147,7 +148,7 @@ func (v *ApiVisitor) acceptInfo(root, final *Api) {
 			if _, ok := infoM[value.Key.Text()]; ok {
 				v.panic(value.Key, fmt.Sprintf("duplicate key '%s'", value.Key.Text()))
 			}
-			infoM[value.Key.Text()] = Holder
+			infoM[value.Key.Text()] = parser.PlaceHolder
 		}
 
 		final.Info = root.Info
@@ -160,7 +161,7 @@ func (v *ApiVisitor) acceptImport(root, final *Api) {
 			v.panic(imp.Import, fmt.Sprintf("duplicate import '%s'", imp.Value.Text()))
 		}
 
-		final.importM[imp.Value.Text()] = Holder
+		final.importM[imp.Value.Text()] = parser.PlaceHolder
 		final.Import = append(final.Import, imp)
 	}
 }

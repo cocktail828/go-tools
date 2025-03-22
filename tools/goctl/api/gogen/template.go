@@ -8,13 +8,9 @@ import (
 
 const (
 	category                = "api"
-	configTemplateFile      = "config.tpl"
 	contextTemplateFile     = "context.tpl"
-	etcTemplateFile         = "etc.tpl"
 	handlerTemplateFile     = "handler.tpl"
 	handlerTestTemplateFile = "handler_test.tpl"
-	logicTemplateFile       = "logic.tpl"
-	logicTestTemplateFile   = "logic_test.tpl"
 	mainTemplateFile        = "main.tpl"
 	middlewareImplementFile = "middleware.tpl"
 	routesTemplateFile      = "routes.tpl"
@@ -25,8 +21,6 @@ var templates = map[string]string{
 	contextTemplateFile:     contextTemplate,
 	handlerTemplateFile:     handlerTemplate,
 	handlerTestTemplateFile: handlerTestTemplate,
-	logicTemplateFile:       logicTemplate,
-	logicTestTemplateFile:   logicTestTemplate,
 	mainTemplateFile:        mainTemplate,
 	middlewareImplementFile: middlewareImplement,
 	routesTemplateFile:      routesTemplate,

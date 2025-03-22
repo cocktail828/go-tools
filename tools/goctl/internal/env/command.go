@@ -9,9 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cocktail828/go-tools/tools/goctl/internal/downloader"
 	"github.com/cocktail828/go-tools/tools/goctl/internal/golang"
-	"github.com/cocktail828/go-tools/tools/goctl/internal/zipx"
 	"github.com/cocktail828/go-tools/tools/goctl/rpc/execx"
 	"github.com/cocktail828/go-tools/tools/goctl/vars"
 	"github.com/pkg/errors"
@@ -37,7 +35,7 @@ func (c Protoc) Install(cacheDir string) (string, error) {
 		"windows_64": "https://github.com/protocolbuffers/protobuf/releases/download/v3.19.4/protoc-3.19.4-win64.zip",
 	}
 
-	return downloader.Install(cacheDir, c.Name(), func(dest string) (string, error) {
+	return Install(cacheDir, c.Name(), func(dest string) (string, error) {
 		goos := runtime.GOOS
 		tempFile := filepath.Join(os.TempDir(), zipFileName)
 		bit := 32 << (^uint(0) >> 63)
@@ -53,11 +51,11 @@ func (c Protoc) Install(cacheDir string) (string, error) {
 			return "", errors.Errorf("unsupport OS: %q", goos)
 		}
 
-		if err := downloader.Download(downloadUrl, tempFile); err != nil {
+		if err := Download(downloadUrl, tempFile); err != nil {
 			return "", err
 		}
 
-		return dest, zipx.Unpacking(tempFile, filepath.Dir(dest), func(f *zip.File) bool {
+		return dest, Unpacking(tempFile, filepath.Dir(dest), func(f *zip.File) bool {
 			return filepath.Base(f.Name) == filepath.Base(dest)
 		})
 	})
@@ -90,7 +88,7 @@ func (c ProtocGenGo) Name() string { return "protoc-gen-go" }
 func (c ProtocGenGo) Install(cacheDir string) (string, error) {
 	url := "google.golang.org/protobuf/cmd/protoc-gen-go@latest"
 
-	return downloader.Install(cacheDir, c.Name(), func(dest string) (string, error) {
+	return Install(cacheDir, c.Name(), func(dest string) (string, error) {
 		err := golang.Install(url)
 		return dest, err
 	})
@@ -135,7 +133,7 @@ func (c ProtocGenGoGrpc) Name() string { return "protoc-gen-go-grpc" }
 func (c ProtocGenGoGrpc) Install(cacheDir string) (string, error) {
 	url := "google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest"
 
-	return downloader.Install(cacheDir, c.Name(), func(dest string) (string, error) {
+	return Install(cacheDir, c.Name(), func(dest string) (string, error) {
 		err := golang.Install(url)
 		return dest, err
 	})

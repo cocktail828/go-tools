@@ -7,8 +7,9 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/cocktail828/go-tools/tools/goctl/api/parser/g4/api"
+	"github.com/cocktail828/go-tools/tools/goctl/internal/parser"
 	"github.com/cocktail828/go-tools/xlog/colorful"
-	"github.com/cocktail828/go-tools/tools/goctl/api/parser/g4/gen/api"
 	"github.com/zeromicro/antlr"
 )
 
@@ -20,10 +21,10 @@ type (
 		debug                    bool
 		log                      *colorful.Logger
 		skipCheckTypeDeclaration bool
-		handlerMap               map[string]PlaceHolder
-		routeMap                 map[string]PlaceHolder
-		typeMap                  map[string]PlaceHolder
-		fileMap                  map[string]PlaceHolder
+		handlerMap               map[string]parser.Type
+		routeMap                 map[string]parser.Type
+		typeMap                  map[string]parser.Type
+		fileMap                  map[string]parser.Type
 		importStatck             importStack
 		syntax                   *SyntaxExpr
 	}
@@ -40,10 +41,10 @@ func NewParser(options ...ParserOption) *Parser {
 	for _, opt := range options {
 		opt(p)
 	}
-	p.handlerMap = make(map[string]PlaceHolder)
-	p.routeMap = make(map[string]PlaceHolder)
-	p.typeMap = make(map[string]PlaceHolder)
-	p.fileMap = make(map[string]PlaceHolder)
+	p.handlerMap = make(map[string]parser.Type)
+	p.routeMap = make(map[string]parser.Type)
+	p.typeMap = make(map[string]parser.Type)
+	p.fileMap = make(map[string]parser.Type)
 
 	return p
 }
@@ -159,7 +160,7 @@ func (p *Parser) invokeImportedApi(filename string, imports []*ImportExpr) ([]*A
 			p.importStatck.pop()
 			continue
 		}
-		p.fileMap[impPath] = PlaceHolder{}
+		p.fileMap[impPath] = parser.PlaceHolder
 
 		data, err := p.readContent(impPath)
 		if err != nil {
@@ -236,9 +237,9 @@ func (p *Parser) storeVerificationInfo(api *Api) {
 			handler := g.GetHandler()
 			if handler.IsNotNil() {
 				handlerName := handler.Text()
-				p.handlerMap[handlerName] = Holder
+				p.handlerMap[handlerName] = parser.PlaceHolder
 				route := fmt.Sprintf("%s://%s", g.Route.Method.Text(), path.Join(prefix, g.Route.Path.Text()))
-				p.routeMap[route] = Holder
+				p.routeMap[route] = parser.PlaceHolder
 			}
 		}
 	}
@@ -255,7 +256,7 @@ func (p *Parser) storeVerificationInfo(api *Api) {
 	}
 
 	for _, each := range api.Type {
-		p.typeMap[each.NameExpr().Text()] = Holder
+		p.typeMap[each.NameExpr().Text()] = parser.PlaceHolder
 	}
 }
 

@@ -16,7 +16,6 @@ import (
 	apiutil "github.com/cocktail828/go-tools/tools/goctl/api/util"
 	"github.com/cocktail828/go-tools/tools/goctl/internal/golang"
 	"github.com/cocktail828/go-tools/tools/goctl/internal/pathx"
-	"github.com/cocktail828/go-tools/tools/goctl/internal/util"
 	"github.com/cocktail828/go-tools/xlog/colorful"
 	"github.com/cocktail828/go-tools/z"
 	"github.com/spf13/cobra"
@@ -25,13 +24,11 @@ import (
 const tmpFile = "%s-%d"
 
 const (
-	typesPacket   = "model"
-	configDir     = "config"
 	serviceDir    = "service"
 	handlerDir    = "handler"
-	logicDir      = "logic"
 	middlewareDir = "middleware"
-	typesDir      = typesPacket
+	typesPacket   = "model"
+	typesDir      = handlerDir + "/" + typesPacket
 	groupProperty = "group"
 )
 
@@ -43,10 +40,6 @@ var (
 	VarStringAPI string
 	// VarStringHome describes the go home.
 	VarStringHome string
-	// VarStringRemote describes the remote git repository.
-	VarStringRemote string
-	// VarStringBranch describes the branch.
-	VarStringBranch string
 )
 
 // GoCommand gen go project files from command line
@@ -54,14 +47,6 @@ func GoCommand(_ *cobra.Command, _ []string) error {
 	apiFile := VarStringAPI
 	dir := VarStringDir
 	home := VarStringHome
-	remote := VarStringRemote
-	branch := VarStringBranch
-	if len(remote) > 0 {
-		repo, _ := util.CloneIntoGitHome(remote, branch)
-		if len(repo) > 0 {
-			home = repo
-		}
-	}
 
 	if len(home) > 0 {
 		pathx.RegisterGoctlHome(home)
@@ -98,11 +83,9 @@ func DoGenProject(apiFile, dir string, withTest bool) error {
 	z.Must(genModel(dir, api))
 	z.Must(genRoutes(dir, rootPkg, api))
 	z.Must(genHandlers(dir, rootPkg, api))
-	z.Must(genLogic(dir, rootPkg, api))
 	z.Must(genMiddleware(dir, api))
 	if withTest {
 		z.Must(genHandlersTest(dir, rootPkg, api))
-		z.Must(genLogicTest(dir, rootPkg, api))
 	}
 
 	if err := backupAndSweep(apiFile); err != nil {

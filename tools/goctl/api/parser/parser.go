@@ -5,11 +5,11 @@ import (
 	"path/filepath"
 	"unicode"
 
+	"github.com/cocktail828/go-tools/tools/goctl/api/parser/g4/api"
 	"github.com/cocktail828/go-tools/tools/goctl/api/parser/g4/ast"
-	"github.com/cocktail828/go-tools/tools/goctl/api/parser/g4/gen/api"
 	"github.com/cocktail828/go-tools/tools/goctl/api/spec"
 	"github.com/cocktail828/go-tools/tools/goctl/internal/env"
-	apiParser "github.com/cocktail828/go-tools/tools/goctl/internal/parser/api/parser"
+	apiParser "github.com/cocktail828/go-tools/tools/goctl/internal/parser/parser"
 )
 
 type parser struct {

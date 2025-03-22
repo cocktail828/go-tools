@@ -5,8 +5,8 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/cocktail828/go-tools/tools/goctl/api/parser/g4/api"
 	"github.com/cocktail828/go-tools/xlog/colorful"
-	"github.com/cocktail828/go-tools/tools/goctl/api/parser/g4/gen/api"
 	"github.com/zeromicro/antlr"
 )
 
