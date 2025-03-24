@@ -8,8 +8,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/cocktail828/go-tools/tools/goctl/api/spec"
 	"github.com/cocktail828/go-tools/tools/goctl/internal/collection"
+	"github.com/cocktail828/go-tools/tools/goctl/internal/parser/spec"
 	"github.com/cocktail828/go-tools/tools/goctl/internal/pathx"
 	"github.com/cocktail828/go-tools/tools/goctl/internal/stringx"
 	"github.com/cocktail828/go-tools/tools/goctl/internal/version"
@@ -82,13 +82,13 @@ func genRoutes(dir, rootPkg string, api *spec.ApiSpec) error {
 	os.Remove(filename)
 
 	return genFile(fileGenConfig{
-		rootpath:        dir,
-		relativepath:    handlerDir,
-		filename:        routeFilename,
-		templateName:    "routesTemplate",
-		category:        category,
-		templateFile:    routesTemplateFile,
-		builtinTemplate: routesTemplate,
+		rootpath:         dir,
+		relativepath:     handlerDir,
+		filename:         routeFilename,
+		templateName:     "routesTemplate",
+		category:         category,
+		templateFileName: routesTemplateFile,
+		builtinTemplate:  routesTemplate,
 		data: map[string]any{
 			"imports": genRouteImports(rootPkg, api),
 			"routes":  strings.TrimSpace(builder.String()),

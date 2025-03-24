@@ -6,6 +6,7 @@ package handler
 import (
     "time"
 	"net/http"
+	"sync"
 	
 	"github.com/cocktail828/go-tools/xlog"
 	"github.com/gin-gonic/gin"
@@ -16,9 +17,10 @@ type Meta struct {
 	xlog.Logger
 	Timeout      time.Duration
 	Interceptors []gin.HandlerFunc
+	Meta sync.Map // meta
 }
 
-func RegisterHandlers(g *gin.Engine, meta Meta) {
+func RegisterHandlers(g *gin.Engine, meta *Meta) {
 	g.Use(meta.Interceptors...)
 
 	{{.routes}}

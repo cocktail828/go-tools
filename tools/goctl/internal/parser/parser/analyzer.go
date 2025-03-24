@@ -5,10 +5,10 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/cocktail828/go-tools/tools/goctl/api/spec"
 	"github.com/cocktail828/go-tools/tools/goctl/internal/parser"
 	"github.com/cocktail828/go-tools/tools/goctl/internal/parser/ast"
 	"github.com/cocktail828/go-tools/tools/goctl/internal/parser/importstack"
+	"github.com/cocktail828/go-tools/tools/goctl/internal/parser/spec"
 	"github.com/cocktail828/go-tools/tools/goctl/internal/parser/token"
 	"github.com/cocktail828/go-tools/tools/goctl/internal/stringx"
 )
@@ -263,15 +263,15 @@ func (a *Analyzer) fillService() error {
 				route.HandlerComment = leading.List()
 			}
 
-			if astRoute.Route.Request != nil && astRoute.Route.Request.Body != nil {
-				requestType, err := a.getType(astRoute.Route.Request, true)
+			if req := astRoute.Route.Request; req != nil && req.Body != nil {
+				requestType, err := a.getType(req, true)
 				if err != nil {
 					return err
 				}
 				route.RequestType = requestType
 			}
-			if astRoute.Route.Response != nil && astRoute.Route.Response.Body != nil {
-				responseType, err := a.getType(astRoute.Route.Response, false)
+			if resp := astRoute.Route.Response; resp != nil && resp.Body != nil {
+				responseType, err := a.getType(resp, false)
 				if err != nil {
 					return err
 				}
@@ -417,6 +417,7 @@ func (a *Analyzer) getType(expr *ast.BodyStmt, req bool) (spec.Type, error) {
 			return nil, err
 		}
 	}
+
 	if body.LBrack != nil {
 		if body.Star != nil {
 			return spec.PointerType{
@@ -429,6 +430,7 @@ func (a *Analyzer) getType(expr *ast.BodyStmt, req bool) (spec.Type, error) {
 			Value:   tp,
 		}, nil
 	}
+
 	if body.Star != nil {
 		return spec.PointerType{
 			RawName: rawText,

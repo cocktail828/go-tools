@@ -3,8 +3,8 @@ package validate
 import (
 	"errors"
 
+	apiParser "github.com/cocktail828/go-tools/tools/goctl/internal/parser/parser"
 	"github.com/cocktail828/go-tools/xlog/colorful"
-	"github.com/cocktail828/go-tools/tools/goctl/api/parser"
 	"github.com/spf13/cobra"
 )
 
@@ -19,7 +19,7 @@ func GoValidateApi(_ *cobra.Command, _ []string) error {
 		return errors.New("missing -api")
 	}
 
-	spec, err := parser.Parse(apiFile)
+	spec, err := apiParser.Parse(apiFile, "")
 	if err != nil {
 		return err
 	}

@@ -2,43 +2,16 @@ package parser
 
 import (
 	"fmt"
-	"path/filepath"
 	"unicode"
 
-	"github.com/cocktail828/go-tools/tools/goctl/api/parser/g4/api"
-	"github.com/cocktail828/go-tools/tools/goctl/api/parser/g4/ast"
-	"github.com/cocktail828/go-tools/tools/goctl/api/spec"
-	"github.com/cocktail828/go-tools/tools/goctl/internal/env"
-	apiParser "github.com/cocktail828/go-tools/tools/goctl/internal/parser/parser"
+	"github.com/cocktail828/go-tools/tools/goctl/api/format/parser/g4/api"
+	"github.com/cocktail828/go-tools/tools/goctl/api/format/parser/g4/ast"
+	"github.com/cocktail828/go-tools/tools/goctl/internal/parser/spec"
 )
 
 type parser struct {
 	ast  *ast.Api
 	spec *spec.ApiSpec
-}
-
-// Parse parses the api file.
-// Depreacted: use tools/goctl/pkg/parser/api/parser/parser.go:18 instead,
-// it will be removed in the future.
-func Parse(filename string) (*spec.ApiSpec, error) {
-	if env.UseExperimental() {
-		return apiParser.Parse(filename, "")
-	}
-
-	astParser := ast.NewParser(ast.WithParserPrefix(filepath.Base(filename)), ast.WithParserDebug())
-	parsedApi, err := astParser.Parse(filename)
-	if err != nil {
-		return nil, err
-	}
-
-	apiSpec := new(spec.ApiSpec)
-	p := parser{ast: parsedApi, spec: apiSpec}
-	err = p.convert2Spec()
-	if err != nil {
-		return nil, err
-	}
-
-	return apiSpec, nil
 }
 
 func parseContent(content string, skipCheckTypeDeclaration bool, filename ...string) (*spec.ApiSpec, error) {
@@ -227,7 +200,7 @@ func (p parser) astTypeToSpec(in ast.DataType) spec.Type {
 		return spec.PointerType{RawName: v.PointerExpr.Text(), Type: spec.DefineStruct{RawName: raw}}
 	}
 
-	panic(fmt.Sprintf("unspported type %+v", in))
+	panic(fmt.Sprintf("unsupported type %+v", in))
 }
 
 func (p parser) stringExprs(docs []ast.Expr) []string {

@@ -6,7 +6,7 @@ import (
 	"io"
 	"strings"
 
-	"github.com/cocktail828/go-tools/tools/goctl/api/spec"
+	"github.com/cocktail828/go-tools/tools/goctl/internal/parser/spec"
 	"github.com/cocktail828/go-tools/tools/goctl/internal/stringx"
 	"github.com/cocktail828/go-tools/tools/goctl/internal/util"
 	"github.com/cocktail828/go-tools/tools/goctl/internal/version"
@@ -41,13 +41,13 @@ func genModel(dir string, api *spec.ApiSpec) error {
 	}
 
 	return genFile(fileGenConfig{
-		rootpath:        dir,
-		relativepath:    typesDir,
-		filename:        "model.go",
-		templateName:    "typesTemplate",
-		category:        category,
-		templateFile:    typesTemplateFile,
-		builtinTemplate: typesTemplate,
+		rootpath:         dir,
+		relativepath:     typesDir,
+		filename:         "model.go",
+		templateName:     "typesTemplate",
+		category:         category,
+		templateFileName: typesTemplateFile,
+		builtinTemplate:  typesTemplate,
 		data: map[string]any{
 			"types":        val,
 			"containsTime": false,

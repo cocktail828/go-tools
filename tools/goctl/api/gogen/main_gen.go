@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/cocktail828/go-tools/tools/goctl/api/spec"
+	"github.com/cocktail828/go-tools/tools/goctl/internal/parser/spec"
 	"github.com/cocktail828/go-tools/tools/goctl/internal/pathx"
 )
 
@@ -20,13 +20,13 @@ func genMain(dir, rootPkg string, api *spec.ApiSpec) error {
 	}
 
 	return genFile(fileGenConfig{
-		rootpath:        dir,
-		relativepath:    "",
-		filename:        filename + ".go",
-		templateName:    "mainTemplate",
-		category:        category,
-		templateFile:    mainTemplateFile,
-		builtinTemplate: mainTemplate,
+		rootpath:         dir,
+		relativepath:     "",
+		filename:         filename + ".go",
+		templateName:     "mainTemplate",
+		category:         category,
+		templateFileName: mainTemplateFile,
+		builtinTemplate:  mainTemplate,
 		data: map[string]string{
 			"imports":     genMainImports(rootPkg),
 			"serviceName": filename,

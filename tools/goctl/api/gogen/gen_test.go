@@ -13,8 +13,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/cocktail828/go-tools/tools/goctl/api/parser"
-	"github.com/cocktail828/go-tools/tools/goctl/internal/env"
+	apiParser "github.com/cocktail828/go-tools/tools/goctl/internal/parser/parser"
 	"github.com/cocktail828/go-tools/tools/goctl/internal/pathx"
 	"github.com/cocktail828/go-tools/tools/goctl/rpc/execx"
 	"github.com/stretchr/testify/assert"
@@ -65,12 +64,11 @@ func TestParser(t *testing.T) {
 	filename := "greet.api"
 	err := os.WriteFile(filename, []byte(testApiTemplate), os.ModePerm)
 	assert.Nil(t, err)
-	env.Set(t, env.GoctlExperimental, "off")
 	t.Cleanup(func() {
 		os.Remove(filename)
 	})
 
-	api, err := parser.Parse(filename)
+	api, err := apiParser.Parse(filename, "")
 	assert.Nil(t, err)
 
 	assert.Equal(t, len(api.Types), 2)
@@ -91,7 +89,7 @@ func TestMultiService(t *testing.T) {
 	assert.Nil(t, err)
 	defer os.Remove(filename)
 
-	api, err := parser.Parse(filename)
+	api, err := apiParser.Parse(filename, "")
 	assert.Nil(t, err)
 
 	assert.Equal(t, len(api.Service.Routes()), 2)
@@ -106,7 +104,7 @@ func TestApiNoInfo(t *testing.T) {
 	assert.Nil(t, err)
 	defer os.Remove(filename)
 
-	_, err = parser.Parse(filename)
+	_, err = apiParser.Parse(filename, "")
 	assert.Nil(t, err)
 
 	validate(t, filename)
@@ -118,7 +116,7 @@ func TestInvalidApiFile(t *testing.T) {
 	assert.Nil(t, err)
 	defer os.Remove(filename)
 
-	_, err = parser.Parse(filename)
+	_, err = apiParser.Parse(filename, "")
 	assert.NotNil(t, err)
 }
 
@@ -128,7 +126,7 @@ func TestAnonymousAnnotation(t *testing.T) {
 	assert.Nil(t, err)
 	defer os.Remove(filename)
 
-	api, err := parser.Parse(filename)
+	api, err := apiParser.Parse(filename, "")
 	assert.Nil(t, err)
 
 	assert.Equal(t, len(api.Service.Routes()), 1)
@@ -143,7 +141,7 @@ func TestApiHasMiddleware(t *testing.T) {
 	assert.Nil(t, err)
 	defer os.Remove(filename)
 
-	_, err = parser.Parse(filename)
+	_, err = apiParser.Parse(filename, "")
 	assert.Nil(t, err)
 
 	validate(t, filename)
@@ -155,7 +153,7 @@ func TestApiHasJwt(t *testing.T) {
 	assert.Nil(t, err)
 	defer os.Remove(filename)
 
-	_, err = parser.Parse(filename)
+	_, err = apiParser.Parse(filename, "")
 	assert.Nil(t, err)
 
 	validate(t, filename)
@@ -167,7 +165,7 @@ func TestApiHasJwtAndMiddleware(t *testing.T) {
 	assert.Nil(t, err)
 	defer os.Remove(filename)
 
-	_, err = parser.Parse(filename)
+	_, err = apiParser.Parse(filename, "")
 	assert.Nil(t, err)
 
 	validate(t, filename)
@@ -179,7 +177,7 @@ func TestApiHasNoRequestBody(t *testing.T) {
 	assert.Nil(t, err)
 	defer os.Remove(filename)
 
-	_, err = parser.Parse(filename)
+	_, err = apiParser.Parse(filename, "")
 	assert.Nil(t, err)
 }
 
@@ -189,7 +187,7 @@ func TestApiRoutes(t *testing.T) {
 	assert.Nil(t, err)
 	defer os.Remove(filename)
 
-	_, err = parser.Parse(filename)
+	_, err = apiParser.Parse(filename, "")
 	assert.Nil(t, err)
 
 	validate(t, filename)
@@ -201,7 +199,7 @@ func TestHasCommentRoutes(t *testing.T) {
 	assert.Nil(t, err)
 	defer os.Remove(filename)
 
-	_, err = parser.Parse(filename)
+	_, err = apiParser.Parse(filename, "")
 	assert.Nil(t, err)
 
 	validate(t, filename)
@@ -213,7 +211,7 @@ func TestInlineTypeNotExist(t *testing.T) {
 	assert.Nil(t, err)
 	defer os.Remove(filename)
 
-	_, err = parser.Parse(filename)
+	_, err = apiParser.Parse(filename, "")
 	assert.NotNil(t, err)
 }
 
@@ -228,7 +226,7 @@ func TestHasImportApi(t *testing.T) {
 	assert.Nil(t, err)
 	defer os.Remove(importApiName)
 
-	api, err := parser.Parse(filename)
+	api, err := apiParser.Parse(filename, "")
 	assert.Nil(t, err)
 
 	var hasInline bool
@@ -244,10 +242,6 @@ func TestHasImportApi(t *testing.T) {
 }
 
 func TestImportTwiceOnExperimental(t *testing.T) {
-	defaultExperimental := env.Get(env.GoctlExperimental)
-	env.Set(t, env.GoctlExperimental, "on")
-	defer env.Set(t, env.GoctlExperimental, defaultExperimental)
-
 	filename := "greet.api"
 	err := os.WriteFile(filename, []byte(importTwiceApi), os.ModePerm)
 	assert.Nil(t, err)
@@ -268,7 +262,7 @@ func TestImportTwiceOnExperimental(t *testing.T) {
 	assert.Nil(t, err)
 	defer os.Remove(anotherImportApiName)
 
-	api, err := parser.Parse(filename)
+	api, err := apiParser.Parse(filename, "")
 	assert.Nil(t, err)
 
 	var hasInline bool
@@ -289,7 +283,7 @@ func TestNoStructApi(t *testing.T) {
 	assert.Nil(t, err)
 	defer os.Remove(filename)
 
-	spec, err := parser.Parse(filename)
+	spec, err := apiParser.Parse(filename, "")
 	assert.Nil(t, err)
 	assert.Equal(t, len(spec.Types), 5)
 
@@ -302,7 +296,7 @@ func TestNestTypeApi(t *testing.T) {
 	assert.Nil(t, err)
 	defer os.Remove(filename)
 
-	_, err = parser.Parse(filename)
+	_, err = apiParser.Parse(filename, "")
 	assert.NotNil(t, err)
 }
 
@@ -312,14 +306,13 @@ func TestCamelStyle(t *testing.T) {
 	assert.Nil(t, err)
 	defer os.Remove(filename)
 
-	_, err = parser.Parse(filename)
+	_, err = apiParser.Parse(filename, "")
 	assert.Nil(t, err)
 
 	validateWithCamel(t, filename)
 }
 
 func TestExampleGen(t *testing.T) {
-	env.Set(t, env.GoctlExperimental, env.ExperimentalOn)
 	filename := "greet.api"
 	err := os.WriteFile(filename, []byte(exampleApi), os.ModePerm)
 	assert.Nil(t, err)
@@ -327,7 +320,7 @@ func TestExampleGen(t *testing.T) {
 		_ = os.Remove(filename)
 	})
 
-	spec, err := parser.Parse(filename)
+	spec, err := apiParser.Parse(filename, "")
 	assert.Nil(t, err)
 	assert.Equal(t, len(spec.Types), 10)
 

@@ -11,9 +11,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/cocktail828/go-tools/tools/goctl/api/parser"
+	"github.com/cocktail828/go-tools/tools/goctl/api/format/parser"
 	"github.com/cocktail828/go-tools/tools/goctl/api/util"
-	"github.com/cocktail828/go-tools/tools/goctl/internal/env"
 	apiF "github.com/cocktail828/go-tools/tools/goctl/internal/parser/format"
 	"github.com/cocktail828/go-tools/tools/goctl/internal/pathx"
 	"github.com/pkg/errors"
@@ -93,31 +92,7 @@ func apiFormatReader(reader io.Reader, filename string, skipCheckDeclare bool) e
 
 // ApiFormatByPath format api from file path
 func ApiFormatByPath(apiFilePath string, skipCheckDeclare bool) error {
-	if env.UseExperimental() {
-		return apiF.File(apiFilePath)
-	}
-
-	data, err := os.ReadFile(apiFilePath)
-	if err != nil {
-		return err
-	}
-
-	abs, err := filepath.Abs(apiFilePath)
-	if err != nil {
-		return err
-	}
-
-	result, err := apiFormat(string(data), skipCheckDeclare, abs)
-	if err != nil {
-		return err
-	}
-
-	_, err = parser.ParseContentWithParserSkipCheckTypeDeclaration(result, abs)
-	if err != nil {
-		return err
-	}
-
-	return os.WriteFile(apiFilePath, []byte(result), os.ModePerm)
+	return apiF.File(apiFilePath)
 }
 
 func apiFormat(data string, skipCheckDeclare bool, filename ...string) (string, error) {

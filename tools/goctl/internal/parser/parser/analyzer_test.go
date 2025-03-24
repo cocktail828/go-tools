@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/cocktail828/go-tools/tools/goctl/api/spec"
 	"github.com/cocktail828/go-tools/tools/goctl/internal/parser/assertx"
+	"github.com/cocktail828/go-tools/tools/goctl/internal/parser/spec"
 	"github.com/stretchr/testify/assert"
 )
 

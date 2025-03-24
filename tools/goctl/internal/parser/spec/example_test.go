@@ -3,7 +3,7 @@ package spec_test
 import (
 	"fmt"
 
-	"github.com/cocktail828/go-tools/tools/goctl/api/spec"
+	"github.com/cocktail828/go-tools/tools/goctl/internal/parser/spec"
 )
 
 func ExampleMember_GetEnumOptions() {

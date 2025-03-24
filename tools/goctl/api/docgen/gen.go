@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/cocktail828/go-tools/tools/goctl/api/parser"
+	apiParser "github.com/cocktail828/go-tools/tools/goctl/internal/parser/parser"
 	"github.com/cocktail828/go-tools/tools/goctl/internal/pathx"
 	"github.com/spf13/cobra"
 )
@@ -50,7 +50,7 @@ func DocCommand(_ *cobra.Command, _ []string) error {
 	}
 
 	for _, p := range files {
-		api, err := parser.Parse(p)
+		api, err := apiParser.Parse(p, "")
 		if err != nil {
 			return fmt.Errorf("parse file: %s, err: %w", p, err)
 		}

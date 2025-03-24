@@ -4,7 +4,7 @@ import (
 	_ "embed"
 	"fmt"
 
-	"github.com/cocktail828/go-tools/tools/goctl/api/spec"
+	"github.com/cocktail828/go-tools/tools/goctl/internal/parser/spec"
 	"github.com/cocktail828/go-tools/tools/goctl/internal/pathx"
 )
 
@@ -27,13 +27,13 @@ func genService(dir, rootPkg string, api *spec.ApiSpec) error {
 	}
 
 	return genFile(fileGenConfig{
-		rootpath:        dir,
-		relativepath:    serviceDir,
-		filename:        "service.go",
-		templateName:    "contextTemplate",
-		category:        category,
-		templateFile:    contextTemplateFile,
-		builtinTemplate: contextTemplate,
+		rootpath:         dir,
+		relativepath:     serviceDir,
+		filename:         "service.go",
+		templateName:     "contextTemplate",
+		category:         category,
+		templateFileName: contextTemplateFile,
+		builtinTemplate:  contextTemplate,
 		data: map[string]string{
 			"imports":     imports,
 			"middlewares": middlewareVal,

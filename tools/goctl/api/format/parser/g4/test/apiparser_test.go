@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/cocktail828/go-tools/tools/goctl/api/parser/g4/ast"
+	"github.com/cocktail828/go-tools/tools/goctl/api/format/parser/g4/ast"
 	"github.com/cocktail828/go-tools/tools/goctl/internal/pathx"
 	"github.com/stretchr/testify/assert"
 )

@@ -7,7 +7,7 @@ import (
 	"path"
 	"strings"
 
-	"github.com/cocktail828/go-tools/tools/goctl/api/spec"
+	"github.com/cocktail828/go-tools/tools/goctl/internal/parser/spec"
 	"github.com/cocktail828/go-tools/tools/goctl/internal/pathx"
 	"github.com/cocktail828/go-tools/z"
 )

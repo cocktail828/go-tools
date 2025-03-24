@@ -12,8 +12,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/cocktail828/go-tools/tools/goctl/api/parser"
-	"github.com/cocktail828/go-tools/tools/goctl/api/spec"
+	apiParser "github.com/cocktail828/go-tools/tools/goctl/internal/parser/parser"
+	"github.com/cocktail828/go-tools/tools/goctl/internal/parser/spec"
 	"github.com/cocktail828/go-tools/tools/goctl/internal/pathx"
 	"github.com/cocktail828/go-tools/tools/goctl/rpc/execx"
 	"github.com/spf13/cobra"
@@ -84,7 +84,7 @@ func prepareArgs() ([]byte, error) {
 
 	var transferData Plugin
 	if len(apiPath) > 0 && pathx.FileExists(apiPath) {
-		api, err := parser.Parse(apiPath)
+		api, err := apiParser.Parse(apiPath, "")
 		if err != nil {
 			return nil, err
 		}
@@ -188,7 +188,7 @@ func NewPlugin() (*Plugin, error) {
 	plugin.ApiFilePath = info.ApiFilePath
 	plugin.Style = info.Style
 	plugin.Dir = info.Dir
-	api, err := parser.Parse(info.ApiFilePath)
+	api, err := apiParser.Parse(info.ApiFilePath, "")
 	if err != nil {
 		return nil, err
 	}

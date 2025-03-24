@@ -12,9 +12,9 @@ import (
 	"time"
 
 	apiformat "github.com/cocktail828/go-tools/tools/goctl/api/format"
-	"github.com/cocktail828/go-tools/tools/goctl/api/parser"
 	apiutil "github.com/cocktail828/go-tools/tools/goctl/api/util"
 	"github.com/cocktail828/go-tools/tools/goctl/internal/golang"
+	apiParser "github.com/cocktail828/go-tools/tools/goctl/internal/parser/parser"
 	"github.com/cocktail828/go-tools/tools/goctl/internal/pathx"
 	"github.com/cocktail828/go-tools/xlog/colorful"
 	"github.com/cocktail828/go-tools/z"
@@ -63,7 +63,7 @@ func GoCommand(_ *cobra.Command, _ []string) error {
 
 // DoGenProject gen go project files with api file
 func DoGenProject(apiFile, dir string, withTest bool) error {
-	api, err := parser.Parse(apiFile)
+	api, err := apiParser.Parse(apiFile, "")
 	if err != nil {
 		return err
 	}

@@ -1,84 +1,44 @@
 package {{.PkgName}}
 
 import (
-	"bytes"
-	"time"
-	{{if .HasRequest}}"encoding/json"{{end}}
-	"net/http"
-	"net/http/httptest"
+	"context"
 	"testing"
-
-	"github.com/cocktail828/go-tools/xlog"
-	"github.com/gin-gonic/gin"
-	"github.com/stretchr/testify/assert"
+	"time"
+	
+	{{if .HasResponse}}
+	"github.com/stretchr/testify/assert"{{end}}
 	"github.com/stretchr/testify/require"
 	{{.imports}}
 )
-
-{{if .HasDoc}}{{.Doc}}{{end}}
-func Test{{.HandlerName}}(t *testing.T) {
-	log := xlog.NoopLogger{} // mock
-	tmo := time.Second       // mock
+{{if .HasDoc}}{{.Doc}}
+{{end}}
+func Test{{.HandlerName}}Handler(t *testing.T) {
+	tmo := time.Second       // TODO: alter tmo as expect
 
 	tests := []struct {
 		name       string
-		reqBody    any
-		wantStatus int
-		wantResp   string
-		setupMocks func()
+		{{if .HasRequest}}req    model.{{.RequestType}}
+		{{end}}{{if .HasResponse}}expect   {{.ResponseType}}{{end}}
 	}{
 		{
-			name:    "invalid request body",
-			reqBody: "invalid",
-			wantStatus: http.StatusBadRequest,
-			wantResp:   "unsupported type", // Adjust based on actual error response
-			setupMocks: func() {
-				// No setup needed for this test case
-			},
-		},
-		{
 			name: "handler error",
-			{{if .HasRequest}}reqBody: model.{{.RequestType}}{
-				//TODO: add fields here
-			},
-			{{end}}wantStatus: http.StatusBadRequest,
-			wantResp:  "error", // Adjust based on actual error response
-			setupMocks: func() {
-				// Mock login logic to return an error
-			},
-		},
+			{{if .HasRequest}}// TODO: add argument here
+			{{end}}{{if .HasResponse}}// TODO: add expect result here
+		{{end}}},
 		{
 			name: "handler successful",
-			{{if .HasRequest}}reqBody: model.{{.RequestType}}{
-				//TODO: add fields here
-			},
-			{{end}}wantStatus: http.StatusOK,
-			wantResp:   `{"code":0,"msg":"success","data":{}}`, // Adjust based on actual success response
-			setupMocks: func() {
-				// Mock login logic to return success
-			},
-		},
+			{{if .HasRequest}}// TODO: add argument here
+			{{end}}{{if .HasResponse}}// TODO: add expect result here
+		{{end}}},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tt.setupMocks()
-			var reqBody []byte
-			{{if .HasRequest}}var err error
-			reqBody, err = json.Marshal(tt.reqBody)
-			require.NoError(t, err){{end}}
-			req, err := http.NewRequest("POST", "/ut", bytes.NewBuffer(reqBody))
-			require.NoError(t, err)
-			req.Header.Set("Content-Type", "application/json")
-
-			rr := httptest.NewRecorder()
-			c, _ := gin.CreateTestContext(rr)
-			c.Request = req
-			{{.HandlerName}}(tmo, log)(c)
-			 
-			t.Log(rr.Body.String())
-			assert.Equal(t, tt.wantStatus, rr.Code)
-			assert.Contains(t, rr.Body.String(), tt.wantResp)
+			ctx, cancel := context.WithTimeout(context.Background(), tmo)
+			{{if .HasResponse}}ret, {{end}}err := handle{{.HandlerName}}(ctx{{if .HasRequest}}, &tt.req{{end}})
+			cancel()
+			require.NoError(t, err){{if .HasResponse}}
+			assert.Equal(t, tt.expect, ret){{end}}
 		})
 	}
 }

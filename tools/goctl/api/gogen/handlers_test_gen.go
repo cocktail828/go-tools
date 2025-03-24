@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/cocktail828/go-tools/tools/goctl/api/spec"
+	"github.com/cocktail828/go-tools/tools/goctl/internal/parser/spec"
 	"github.com/cocktail828/go-tools/tools/goctl/internal/pathx"
 	"github.com/cocktail828/go-tools/tools/goctl/internal/stringx"
 	"github.com/cocktail828/go-tools/tools/goctl/internal/util"
@@ -18,31 +18,31 @@ func genHandlerTest(dir, rootPkg string, group spec.Group, route spec.Route) err
 	handler := getHandlerName(route)
 	handlerPath := getHandlerFolderPath(group, route)
 	pkgName := handlerPath[strings.LastIndex(handlerPath, "/")+1:]
-	logicName := defaultLogicPackage
 	if handlerPath != handlerDir {
 		handler = stringx.Title(handler)
-		logicName = pkgName
 	}
 
-	filename := stringx.ToSnake(handler)
+	respType := "*" + typesPacket + "." + util.Title(route.ResponseTypeName())
+	if resp := route.ResponseType; resp != nil {
+		if tp, ok := resp.(spec.ArrayType); ok {
+			respType = "[]" + typesPacket + "." + tp.Value.Name()
+		}
+	}
 	return genFile(fileGenConfig{
-		rootpath:        dir,
-		relativepath:    getHandlerFolderPath(group, route),
-		filename:        filename + "_test.go",
-		templateName:    "handlerTestTemplate",
-		category:        category,
-		templateFile:    handlerTestTemplateFile,
-		builtinTemplate: handlerTestTemplate,
+		rootpath:         dir,
+		relativepath:     getHandlerFolderPath(group, route),
+		filename:         stringx.ToSnake(handler) + "_test.go",
+		templateName:     "handlerTestTemplate",
+		category:         category,
+		templateFileName: handlerTestTemplateFile,
+		builtinTemplate:  handlerTestTemplate,
 		data: map[string]any{
 			"PkgName":      pkgName,
-			"imports":      genHandlerTestImports(group, route, rootPkg),
-			"HandlerName":  handler + "Handler",
+			"imports":      genHandlerTestImports(route, rootPkg),
+			"HandlerName":  handler,
 			"RequestType":  util.Title(route.RequestTypeName()),
-			"ResponseType": util.Title(route.ResponseTypeName()),
-			"LogicName":    logicName,
-			"LogicType":    stringx.Title(getLogicName(route)),
-			"Call":         stringx.Title(strings.TrimSuffix(handler, "Handler")),
-			"HasResp":      len(route.ResponseTypeName()) > 0,
+			"ResponseType": respType,
+			"HasResponse":  len(route.ResponseTypeName()) > 0,
 			"HasRequest":   len(route.RequestTypeName()) > 0,
 			"HasDoc":       len(route.JoinedDoc()) > 0,
 			"Doc":          getDoc(route.JoinedDoc()),
@@ -62,10 +62,10 @@ func genHandlersTest(dir, rootPkg string, api *spec.ApiSpec) error {
 	return nil
 }
 
-func genHandlerTestImports(group spec.Group, route spec.Route, parentPkg string) string {
+func genHandlerTestImports(route spec.Route, parentPkg string) string {
 	imports := []string{}
-	if len(route.RequestTypeName()) > 0 {
-		imports = append(imports, fmt.Sprintf("\"%s\"\n", pathx.JoinPackages(parentPkg, typesDir)))
+	if len(route.RequestTypeName()) > 0 || len(route.ResponseTypeName()) > 0 {
+		imports = append(imports, fmt.Sprintf("\"%s\"", pathx.JoinPackages(parentPkg, typesDir)))
 	}
 
 	return strings.Join(imports, "\n\t")
