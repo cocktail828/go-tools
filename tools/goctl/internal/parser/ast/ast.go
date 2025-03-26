@@ -6,7 +6,8 @@ import (
 	"strings"
 
 	"github.com/cocktail828/go-tools/tools/goctl/internal/parser/token"
-	"github.com/cocktail828/go-tools/tools/goctl/internal/util"
+	"github.com/cocktail828/go-tools/tools/goctl/internal/stringx"
+	"github.com/pkg/errors"
 )
 
 // Node represents a node in the AST.
@@ -135,7 +136,7 @@ func (t *TokenNode) Format(prefix ...string) string {
 	var tokenText = p + t.Token.Text
 	var validLeadingCommentGroup CommentGroup
 	for _, e := range t.LeadingCommentGroup {
-		if util.IsEmptyStringOrWhiteSpace(e.Comment.Text) {
+		if stringx.IsEmptyStringOrWhiteSpace(e.Comment.Text) {
 			continue
 		}
 		validLeadingCommentGroup = append(validLeadingCommentGroup, e)
@@ -220,12 +221,12 @@ func (a *AST) Print() {
 
 // SyntaxError represents a syntax error.
 func SyntaxError(pos token.Position, format string, v ...any) error {
-	return fmt.Errorf("syntax error: %s %s", pos.String(), fmt.Sprintf(format, v...))
+	return errors.Errorf("syntax error: %s %s", pos.String(), fmt.Sprintf(format, v...))
 }
 
 // DuplicateStmtError represents a duplicate statement error.
 func DuplicateStmtError(pos token.Position, msg string) error {
-	return fmt.Errorf("duplicate declaration: %s %s", pos.String(), msg)
+	return errors.Errorf("duplicate declaration: %s %s", pos.String(), msg)
 }
 
 func peekOne(list []string) string {

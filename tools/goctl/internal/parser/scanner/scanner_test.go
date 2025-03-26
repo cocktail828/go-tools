@@ -9,6 +9,7 @@ import (
 
 	"github.com/cocktail828/go-tools/tools/goctl/internal/parser/assertx"
 	"github.com/cocktail828/go-tools/tools/goctl/internal/parser/token"
+	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -35,7 +36,7 @@ func Test_readData(t *testing.T) {
 		},
 		{
 			input:    strings.NewReader("foo"),
-			expected: fmt.Errorf("unsupported type: *strings.Reader"),
+			expected: errors.Errorf("unsupported type: *strings.Reader"),
 		},
 	}
 	for _, v := range testData {

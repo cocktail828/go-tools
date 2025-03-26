@@ -4,7 +4,7 @@ import (
 	"strings"
 
 	"github.com/cocktail828/go-tools/tools/goctl/internal/parser/token"
-	"github.com/cocktail828/go-tools/tools/goctl/internal/util"
+	"github.com/cocktail828/go-tools/tools/goctl/internal/stringx"
 )
 
 // CommentGroup represents a list of comments.
@@ -15,7 +15,7 @@ func (cg CommentGroup) List() []string {
 	var list = make([]string, 0, len(cg))
 	for _, v := range cg {
 		comment := v.Comment.Text
-		if util.IsEmptyStringOrWhiteSpace(comment) {
+		if stringx.IsEmptyStringOrWhiteSpace(comment) {
 			continue
 		}
 		list = append(list, comment)

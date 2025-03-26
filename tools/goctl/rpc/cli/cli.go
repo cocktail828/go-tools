@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -10,6 +9,7 @@ import (
 	"github.com/cocktail828/go-tools/tools/goctl/internal/util"
 	"github.com/cocktail828/go-tools/tools/goctl/rpc/generator"
 	"github.com/cocktail828/go-tools/xlog/colorful"
+	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 )
 
@@ -52,7 +52,7 @@ func RPCNew(_ *cobra.Command, args []string) error {
 	rpcname := args[0]
 	ext := filepath.Ext(rpcname)
 	if len(ext) > 0 {
-		return fmt.Errorf("unexpected ext: %s", ext)
+		return errors.Errorf("unexpected ext: %s", ext)
 	}
 	home := VarStringHome
 	remote := VarStringRemote

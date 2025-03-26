@@ -1,16 +1,18 @@
 package parser
 
 import (
-	"errors"
 	"fmt"
 	"path/filepath"
 	"reflect"
 	"strings"
 
+	stderr "errors"
+
 	"github.com/cocktail828/go-tools/tools/goctl/internal/parser/ast"
 	"github.com/cocktail828/go-tools/tools/goctl/internal/parser/scanner"
 	"github.com/cocktail828/go-tools/tools/goctl/internal/parser/token"
 	"github.com/cocktail828/go-tools/xlog/colorful"
+	"github.com/pkg/errors"
 )
 
 const (
@@ -94,7 +96,7 @@ func (p *Parser) parseStmt() ast.Stmt {
 	case token.AT_SERVER:
 		return p.parseService()
 	default:
-		p.errors = append(p.errors, fmt.Errorf("%s unexpected token '%s'", p.curTok.Position.String(), p.peekTok.Text))
+		p.errors = append(p.errors, errors.Errorf("%s unexpected token '%s'", p.curTok.Position.String(), p.peekTok.Text))
 		return nil
 	}
 }
@@ -1473,13 +1475,13 @@ func (p *Parser) notExpectPeekToken(expected ...any) bool {
 	if p.peekTok.Type == token.EOF {
 		position := p.curTok.Position
 		position.Column = position.Column + len(p.curTok.Text)
-		err = fmt.Errorf(
+		err = errors.Errorf(
 			"%s syntax error: expected %s, got '%s'",
 			position,
 			strings.Join(expectedString, " | "),
 			got)
 	} else {
-		err = fmt.Errorf(
+		err = errors.Errorf(
 			"%s syntax error: expected %s, got '%s'",
 			p.peekTok.Position,
 			strings.Join(expectedString, " | "),
@@ -1506,7 +1508,7 @@ func (p *Parser) notExpectPeekTokenGotComment(actual *ast.CommentStmt, expected 
 	}
 
 	got := actual.Comment.Type.String()
-	p.errors = append(p.errors, fmt.Errorf(
+	p.errors = append(p.errors, errors.Errorf(
 		"%s syntax error: expected %s, got '%s'",
 		p.peekTok.Position,
 		strings.Join(expectedString, " | "),
@@ -1536,13 +1538,13 @@ func (p *Parser) expectPeekToken(expected ...any) bool {
 	if p.peekTok.Type == token.EOF {
 		position := p.curTok.Position
 		position.Column = position.Column + len(p.curTok.Text)
-		err = fmt.Errorf(
+		err = errors.Errorf(
 			"%s syntax error: expected %s, got '%s'",
 			position,
 			strings.Join(expectedString, " | "),
 			got)
 	} else {
-		err = fmt.Errorf(
+		err = errors.Errorf(
 			"%s syntax error: expected %s, got '%s'",
 			p.peekTok.Position,
 			strings.Join(expectedString, " | "),
@@ -1559,7 +1561,7 @@ func (p *Parser) expectIdentError(tok token.Token, expected ...any) {
 		expectedString = append(expectedString, fmt.Sprintf("'%s'", v))
 	}
 
-	p.errors = append(p.errors, fmt.Errorf(
+	p.errors = append(p.errors, errors.Errorf(
 		"%s syntax error: expected %s, got '%s'",
 		tok.Position,
 		strings.Join(expectedString, " | "),
@@ -1654,7 +1656,7 @@ func (p *Parser) CheckErrors() error {
 		return nil
 	}
 
-	return errors.Join(p.errors...)
+	return stderr.Join(p.errors...)
 }
 
 func (p *Parser) appendStmt(stmt ...ast.Stmt) {

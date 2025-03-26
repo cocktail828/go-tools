@@ -8,7 +8,6 @@ import (
 	"github.com/cocktail828/go-tools/tools/goctl/internal/parser/spec"
 	"github.com/cocktail828/go-tools/tools/goctl/internal/pathx"
 	"github.com/cocktail828/go-tools/tools/goctl/internal/stringx"
-	"github.com/cocktail828/go-tools/tools/goctl/internal/util"
 )
 
 //go:embed handler_test.tpl
@@ -22,7 +21,7 @@ func genHandlerTest(dir, rootPkg string, group spec.Group, route spec.Route) err
 		handler = stringx.Title(handler)
 	}
 
-	respType := "*" + typesPacket + "." + util.Title(route.ResponseTypeName())
+	respType := "*" + typesPacket + "." + stringx.Title(route.ResponseTypeName())
 	if resp := route.ResponseType; resp != nil {
 		if tp, ok := resp.(spec.ArrayType); ok {
 			respType = "[]" + typesPacket + "." + tp.Value.Name()
@@ -40,7 +39,7 @@ func genHandlerTest(dir, rootPkg string, group spec.Group, route spec.Route) err
 			"PkgName":      pkgName,
 			"imports":      genHandlerTestImports(route, rootPkg),
 			"HandlerName":  handler,
-			"RequestType":  util.Title(route.RequestTypeName()),
+			"RequestType":  stringx.Title(route.RequestTypeName()),
 			"ResponseType": respType,
 			"HasResponse":  len(route.ResponseTypeName()) > 0,
 			"HasRequest":   len(route.RequestTypeName()) > 0,

@@ -9,7 +9,6 @@ import (
 	"strconv"
 	"strings"
 
-	apiutil "github.com/cocktail828/go-tools/tools/goctl/api/util"
 	"github.com/cocktail828/go-tools/tools/goctl/internal/parser/spec"
 	"github.com/cocktail828/go-tools/tools/goctl/internal/stringx"
 	"github.com/cocktail828/go-tools/tools/goctl/internal/util"
@@ -24,7 +23,7 @@ func genDoc(api *spec.ApiSpec, dir, filename string) error {
 		return nil
 	}
 
-	fp, _, err := apiutil.ShouldCreateFile(dir, "", filename)
+	fp, _, err := util.ShouldCreateFile(dir, "", filename)
 	if err != nil {
 		return err
 	}
@@ -137,7 +136,7 @@ func buildTypes(types, all []spec.Type) (string, error) {
 }
 
 func writeType(writer io.Writer, tp spec.Type, all []spec.Type) error {
-	fmt.Fprintf(writer, "type %s struct {\n", util.Title(tp.Name()))
+	fmt.Fprintf(writer, "type %s struct {\n", stringx.Title(tp.Name()))
 	if err := writerMembers(writer, tp, all); err != nil {
 		return err
 	}
@@ -148,7 +147,7 @@ func writeType(writer io.Writer, tp spec.Type, all []spec.Type) error {
 func writerMembers(writer io.Writer, tp spec.Type, all []spec.Type) error {
 	structType, ok := tp.(spec.DefineStruct)
 	if !ok {
-		return fmt.Errorf("unspport struct type: %s", tp.Name())
+		return errors.Errorf("unspport struct type: %s", tp.Name())
 	}
 
 	getTargetType := func(tp string) spec.Type {
@@ -184,7 +183,7 @@ func writerMembers(writer io.Writer, tp spec.Type, all []spec.Type) error {
 }
 
 func writeProperty(writer io.Writer, name, tag, comment string, tp spec.Type, indent int) error {
-	apiutil.WriteIndent(writer, indent)
+	util.WriteIndent(writer, indent)
 	var err error
 	if len(comment) > 0 {
 		comment = strings.TrimPrefix(comment, "//")

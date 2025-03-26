@@ -9,7 +9,7 @@ import (
 )
 
 //go:embed service.tpl
-var contextTemplate string
+var serviceTemplate string
 
 func genService(dir, rootPkg string, api *spec.ApiSpec) error {
 	middlewares := getMiddleware(api)
@@ -30,10 +30,10 @@ func genService(dir, rootPkg string, api *spec.ApiSpec) error {
 		rootpath:         dir,
 		relativepath:     serviceDir,
 		filename:         "service.go",
-		templateName:     "contextTemplate",
+		templateName:     "serviceTemplate",
 		category:         category,
-		templateFileName: contextTemplateFile,
-		builtinTemplate:  contextTemplate,
+		templateFileName: serviceTemplateFile,
+		builtinTemplate:  serviceTemplate,
 		data: map[string]string{
 			"imports":     imports,
 			"middlewares": middlewareVal,

@@ -2,7 +2,6 @@ package gogen
 
 import (
 	_ "embed"
-	"strings"
 
 	"github.com/cocktail828/go-tools/tools/goctl/internal/parser/spec"
 	"github.com/cocktail828/go-tools/tools/goctl/internal/stringx"
@@ -17,7 +16,7 @@ func genMiddleware(dir string, api *spec.ApiSpec) error {
 		err := genFile(fileGenConfig{
 			rootpath:         dir,
 			relativepath:     middlewareDir,
-			filename:         strings.ToLower(item) + ".go",
+			filename:         stringx.ToSnake(item) + ".go",
 			templateName:     "contextTemplate",
 			category:         category,
 			templateFileName: middlewareImplementFile,

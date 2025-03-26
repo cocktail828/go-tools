@@ -3,8 +3,6 @@ package ctx
 import (
 	"bufio"
 	"encoding/json"
-	"errors"
-	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -12,6 +10,7 @@ import (
 
 	"github.com/cocktail828/go-tools/tools/goctl/internal/pathx"
 	"github.com/cocktail828/go-tools/tools/goctl/rpc/execx"
+	"github.com/pkg/errors"
 )
 
 const goModuleWithoutGoFiles = "command-line-arguments"
@@ -92,7 +91,7 @@ func getRealModule(workDir string, execRun execx.RunFunc) (*Module, error) {
 	for _, m := range modules {
 		realDir, err := pathx.ReadLink(m.Dir)
 		if err != nil {
-			return nil, fmt.Errorf("failed to read go.mod, dir: %s, error: %w", m.Dir, err)
+			return nil, errors.Errorf("failed to read go.mod, dir: %s, error: %w", m.Dir, err)
 		}
 		realDir += string(os.PathSeparator)
 		if strings.HasPrefix(workDir, realDir) {
@@ -118,7 +117,7 @@ func decodePackages(reader io.Reader) ([]Module, error) {
 	for decoder.More() {
 		var m Module
 		if err := decoder.Decode(&m); err != nil {
-			return nil, fmt.Errorf("invalid module: %v", err)
+			return nil, errors.Errorf("invalid module: %v", err)
 		}
 
 		modules = append(modules, m)

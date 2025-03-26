@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"crypto/md5"
 	"encoding/hex"
-	"fmt"
 	"io"
 	"io/fs"
 	"os"
@@ -13,6 +12,7 @@ import (
 
 	"github.com/cocktail828/go-tools/tools/goctl/internal/version"
 	"github.com/cocktail828/go-tools/xlog/colorful"
+	"github.com/pkg/errors"
 )
 
 // NL defines a new line.
@@ -35,7 +35,7 @@ func RegisterGoctlHome(home string) {
 func CreateIfNotExist(file string) (*os.File, error) {
 	_, err := os.Stat(file)
 	if !os.IsNotExist(err) {
-		return nil, fmt.Errorf("%s already exist", file)
+		return nil, errors.Errorf("%s already exist", file)
 	}
 
 	return os.Create(file)

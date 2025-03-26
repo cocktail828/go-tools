@@ -12,10 +12,10 @@ import (
 	"time"
 
 	apiformat "github.com/cocktail828/go-tools/tools/goctl/api/format"
-	apiutil "github.com/cocktail828/go-tools/tools/goctl/api/util"
 	"github.com/cocktail828/go-tools/tools/goctl/internal/golang"
 	apiParser "github.com/cocktail828/go-tools/tools/goctl/internal/parser/parser"
 	"github.com/cocktail828/go-tools/tools/goctl/internal/pathx"
+	"github.com/cocktail828/go-tools/tools/goctl/internal/util"
 	"github.com/cocktail828/go-tools/xlog/colorful"
 	"github.com/cocktail828/go-tools/z"
 	"github.com/spf13/cobra"
@@ -108,7 +108,7 @@ func backupAndSweep(apiFile string) error {
 
 	go func() {
 		_, fileName := filepath.Split(apiFile)
-		_, e := apiutil.Copy(apiFile, fmt.Sprintf(path.Join(tmpDir, tmpFile), fileName, time.Now().Unix()))
+		_, e := util.Copy(apiFile, fmt.Sprintf(path.Join(tmpDir, tmpFile), fileName, time.Now().Unix()))
 		if e != nil {
 			err = e
 		}

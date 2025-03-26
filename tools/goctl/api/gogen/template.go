@@ -1,14 +1,13 @@
 package gogen
 
 import (
-	"fmt"
-
 	"github.com/cocktail828/go-tools/tools/goctl/internal/pathx"
+	"github.com/pkg/errors"
 )
 
 const (
 	category                = "api"
-	contextTemplateFile     = "context.tpl"
+	serviceTemplateFile     = "service.tpl"
 	handlerTemplateFile     = "handler.tpl"
 	handlerTestTemplateFile = "handler_test.tpl"
 	mainTemplateFile        = "main.tpl"
@@ -18,7 +17,7 @@ const (
 )
 
 var templates = map[string]string{
-	contextTemplateFile:     contextTemplate,
+	serviceTemplateFile:     serviceTemplate,
 	handlerTemplateFile:     handlerTemplate,
 	handlerTestTemplateFile: handlerTestTemplate,
 	mainTemplateFile:        mainTemplate,
@@ -46,7 +45,7 @@ func GenTemplates() error {
 func RevertTemplate(name string) error {
 	content, ok := templates[name]
 	if !ok {
-		return fmt.Errorf("%s: no such file name", name)
+		return errors.Errorf("%s: no such file name", name)
 	}
 	return pathx.CreateTemplate(category, name, content)
 }

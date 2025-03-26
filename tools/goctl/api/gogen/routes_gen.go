@@ -60,7 +60,7 @@ func genRoutes(dir, rootPkg string, api *spec.ApiSpec) error {
 		if g.prefix != "" {
 			gname := "group"
 			if g.name != "" {
-				gname += "_" + g.name
+				gname = stringx.Untitle(stringx.ToCamel(g.name) + "Group")
 			}
 
 			fmt.Fprintf(&gbuilder, "\n\t%s := g.Group(%q)\n\t{", gname, g.prefix)
@@ -108,8 +108,7 @@ func genRouteImports(parentPkg string, api *spec.ApiSpec) string {
 					continue
 				}
 			}
-			importSet.AddStr(fmt.Sprintf("%s \"%s\"", toPrefix(folder),
-				pathx.JoinPackages(parentPkg, handlerDir, folder)))
+			importSet.AddStr(fmt.Sprintf("%q", pathx.JoinPackages(parentPkg, handlerDir, stringx.ToSnake(folder))))
 		}
 	}
 	imports := importSet.KeysStr()
@@ -124,15 +123,13 @@ func getRoutes(api *spec.ApiSpec) ([]group, error) {
 		var groupedRoutes group
 		for _, r := range g.Routes {
 			handler := getHandlerName(r) + "Handler(meta.Timeout, meta.Logger)"
-			folder := r.GetAnnotation(groupProperty)
-			if len(folder) > 0 {
+			if folder := r.GetAnnotation(groupProperty); len(folder) > 0 {
+				folder = stringx.ToSnake(folder)
 				handler = toPrefix(folder) + "." + strings.ToUpper(handler[:1]) + handler[1:]
-			} else {
-				folder = g.GetAnnotation(groupProperty)
-				if len(folder) > 0 {
-					groupedRoutes.name = folder
-					handler = toPrefix(folder) + "." + strings.ToUpper(handler[:1]) + handler[1:]
-				}
+			} else if folder = g.GetAnnotation(groupProperty); len(folder) > 0 {
+				folder = stringx.ToSnake(folder)
+				groupedRoutes.name = folder
+				handler = toPrefix(folder) + "." + strings.ToUpper(handler[:1]) + handler[1:]
 			}
 			groupedRoutes.routes = append(groupedRoutes.routes, route{
 				method:  mapping[r.Method],

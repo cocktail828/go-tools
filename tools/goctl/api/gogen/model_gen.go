@@ -8,7 +8,6 @@ import (
 
 	"github.com/cocktail828/go-tools/tools/goctl/internal/parser/spec"
 	"github.com/cocktail828/go-tools/tools/goctl/internal/stringx"
-	"github.com/cocktail828/go-tools/tools/goctl/internal/util"
 	"github.com/cocktail828/go-tools/tools/goctl/internal/version"
 	"github.com/pkg/errors"
 )
@@ -59,10 +58,10 @@ func genModel(dir string, api *spec.ApiSpec) error {
 func writeType(writer io.Writer, tp spec.Type) error {
 	structType, ok := tp.(spec.DefineStruct)
 	if !ok {
-		return fmt.Errorf("unspport struct type: %s", tp.Name())
+		return errors.Errorf("unspport struct type: %s", tp.Name())
 	}
 
-	_, err := fmt.Fprintf(writer, "type %s struct {\n", util.Title(tp.Name()))
+	_, err := fmt.Fprintf(writer, "type %s struct {\n", stringx.Title(tp.Name()))
 	if err != nil {
 		return err
 	}

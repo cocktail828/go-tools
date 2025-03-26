@@ -2,13 +2,13 @@ package env
 
 import (
 	"archive/zip"
-	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/cocktail828/go-tools/tools/goctl/internal/pathx"
+	"github.com/pkg/errors"
 )
 
 func Unpacking(name, destPath string, mapper func(f *zip.File) bool) error {
@@ -44,7 +44,7 @@ func fileCopy(file *zip.File, destPath string) error {
 
 	// Ensure the file path does not contain directory traversal elements
 	if strings.Contains(file.Name, "..") {
-		return fmt.Errorf("invalid file path: %s", file.Name)
+		return errors.Errorf("invalid file path: %s", file.Name)
 	}
 
 	abs, err := filepath.Abs(file.Name)

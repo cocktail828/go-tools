@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/cocktail828/go-tools/tools/goctl/internal/parser"
-	"github.com/cocktail828/go-tools/tools/goctl/internal/util"
+	"github.com/cocktail828/go-tools/tools/goctl/internal/stringx"
 )
 
 const (
@@ -48,7 +48,8 @@ func (t Token) IsEmptyString() bool {
 	if t.Type != STRING && t.Type != RAW_STRING {
 		return false
 	}
-	text := util.TrimWhiteSpace(t.Text)
+
+	text := stringx.TrimWhiteSpace(t.Text)
 	return text == `""` || text == "``"
 }
 

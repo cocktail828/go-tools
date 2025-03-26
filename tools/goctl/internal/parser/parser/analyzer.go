@@ -1,7 +1,6 @@
 package parser
 
 import (
-	"fmt"
 	"sort"
 	"strings"
 
@@ -11,6 +10,7 @@ import (
 	"github.com/cocktail828/go-tools/tools/goctl/internal/parser/spec"
 	"github.com/cocktail828/go-tools/tools/goctl/internal/parser/token"
 	"github.com/cocktail828/go-tools/tools/goctl/internal/stringx"
+	"github.com/pkg/errors"
 )
 
 // Analyzer analyzes the ast and converts it to spec.
@@ -357,7 +357,7 @@ func (a *Analyzer) fillTypes() error {
 			v.Members = members
 			types = append(types, v)
 		default:
-			return fmt.Errorf("unknown type %+v", v)
+			return errors.Errorf("unknown type %+v", v)
 		}
 	}
 	a.spec.Types = types
@@ -397,7 +397,7 @@ func (a *Analyzer) findDefinedType(name string) (spec.Type, error) {
 		}
 	}
 
-	return nil, fmt.Errorf("type %s not defined", name)
+	return nil, errors.Errorf("type %s not defined", name)
 }
 
 func (a *Analyzer) getType(expr *ast.BodyStmt, req bool) (spec.Type, error) {

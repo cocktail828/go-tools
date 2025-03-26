@@ -2,14 +2,13 @@ package execx
 
 import (
 	"bytes"
-	"errors"
-	"fmt"
 	"os/exec"
 	"runtime"
 	"strings"
 
 	"github.com/cocktail828/go-tools/tools/goctl/internal/pathx"
 	"github.com/cocktail828/go-tools/tools/goctl/vars"
+	"github.com/pkg/errors"
 )
 
 // RunFunc defines a function type of Run function
@@ -27,7 +26,7 @@ func Run(arg, dir string, in ...*bytes.Buffer) (string, error) {
 	case vars.OsWindows:
 		cmd = exec.Command("cmd.exe", "/c", arg)
 	default:
-		return "", fmt.Errorf("unexpected os: %v", goos)
+		return "", errors.Errorf("unexpected os: %v", goos)
 	}
 	if len(dir) > 0 {
 		cmd.Dir = dir

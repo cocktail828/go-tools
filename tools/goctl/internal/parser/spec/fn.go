@@ -6,7 +6,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/cocktail828/go-tools/tools/goctl/internal/util"
+	"github.com/cocktail828/go-tools/tools/goctl/internal/stringx"
 )
 
 const (
@@ -95,7 +95,7 @@ func (m Member) GetPropertyName() (string, error) {
 	for _, tag := range tags {
 		if slices.Contains(definedKeys, tag.Key) {
 			if tag.Name == "-" {
-				return util.Untitle(m.Name), nil
+				return stringx.Untitle(m.Name), nil
 			}
 			return tag.Name, nil
 		}

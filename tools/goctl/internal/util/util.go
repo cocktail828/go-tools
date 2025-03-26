@@ -7,9 +7,9 @@ import (
 	"path"
 	"strings"
 
-	"github.com/cocktail828/go-tools/tools/goctl/internal/parser/spec"
 	"github.com/cocktail828/go-tools/tools/goctl/internal/pathx"
 	"github.com/cocktail828/go-tools/z"
+	"github.com/pkg/errors"
 )
 
 // ShouldCreateFile creates file if not exists
@@ -34,7 +34,7 @@ func Copy(src, dst string) (int64, error) {
 	}
 
 	if !sourceFileStat.Mode().IsRegular() {
-		return 0, fmt.Errorf("%s is not a regular file", src)
+		return 0, errors.Errorf("%s is not a regular file", src)
 	}
 
 	source, err := os.Open(src)
@@ -48,17 +48,7 @@ func Copy(src, dst string) (int64, error) {
 		return 0, err
 	}
 	defer destination.Close()
-	nBytes, err := io.Copy(destination, source)
-	return nBytes, err
-}
-
-// ComponentName returns component name for typescript
-func ComponentName(api *spec.ApiSpec) string {
-	name := api.Service.Name
-	if strings.HasSuffix(name, "-api") {
-		return name[:len(name)-4] + "Components"
-	}
-	return name + "Components"
+	return io.Copy(destination, source)
 }
 
 // WriteIndent writes tab spaces

@@ -12,9 +12,9 @@ import (
 	"strings"
 
 	"github.com/cocktail828/go-tools/tools/goctl/api/format/parser"
-	"github.com/cocktail828/go-tools/tools/goctl/api/util"
 	apiF "github.com/cocktail828/go-tools/tools/goctl/internal/parser/format"
 	"github.com/cocktail828/go-tools/tools/goctl/internal/pathx"
+	"github.com/cocktail828/go-tools/tools/goctl/internal/util"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 )
@@ -217,7 +217,8 @@ func mayInsertStructKeyword(line string, token *int) string {
 	}
 
 	if strings.Contains(noCommentLine, "`") {
-		return util.UpperFirst(strings.TrimSpace(line))
+		s := strings.TrimSpace(line)
+		s = strings.ToUpper(s[:1]) + s[1:]
 	}
 
 	return line

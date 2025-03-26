@@ -1,9 +1,8 @@
 package generator
 
 import (
-	"fmt"
-
 	"github.com/cocktail828/go-tools/tools/goctl/internal/pathx"
+	"github.com/pkg/errors"
 )
 
 const (
@@ -44,7 +43,7 @@ func GenTemplates() error {
 func RevertTemplate(name string) error {
 	content, ok := templates[name]
 	if !ok {
-		return fmt.Errorf("%s: no such file name", name)
+		return errors.Errorf("%s: no such file name", name)
 	}
 	return pathx.CreateTemplate(category, name, content)
 }

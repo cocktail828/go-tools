@@ -1,8 +1,6 @@
 package generator
 
 import (
-	"errors"
-	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -10,6 +8,7 @@ import (
 
 	"github.com/cocktail828/go-tools/tools/goctl/internal/pathx"
 	"github.com/cocktail828/go-tools/tools/goctl/rpc/execx"
+	"github.com/pkg/errors"
 )
 
 // GenPb generates the pb.go file, which is a layer of packaging for protoc to generate gprc,
@@ -38,21 +37,21 @@ func (g *Generator) setPbDir(ctx DirContext, c *ZRpcContext) error {
 		return err
 	}
 	if len(pbDir) == 0 {
-		return fmt.Errorf("pg.go is not found under %q", c.GoOutput)
+		return errors.Errorf("pg.go is not found under %q", c.GoOutput)
 	}
 	grpcDir, err := findPbFile(c.GrpcOutput, c.Src, true)
 	if err != nil {
 		return err
 	}
 	if len(grpcDir) == 0 {
-		return fmt.Errorf("_grpc.pb.go is not found in %q", c.GrpcOutput)
+		return errors.Errorf("_grpc.pb.go is not found in %q", c.GrpcOutput)
 	}
 	if pbDir != grpcDir {
-		return fmt.Errorf("the pb.go and _grpc.pb.go must under the same dir: "+
+		return errors.Errorf("the pb.go and _grpc.pb.go must under the same dir: "+
 			"\n pb.go: %s\n_grpc.pb.go: %s", pbDir, grpcDir)
 	}
 	if pbDir == c.Output {
-		return fmt.Errorf("the output of pb.go and _grpc.pb.go must not be the same "+
+		return errors.Errorf("the output of pb.go and _grpc.pb.go must not be the same "+
 			"with --zrpc_out:\npb output: %s\nzrpc out: %s", pbDir, c.Output)
 	}
 	ctx.SetPbDir(pbDir, grpcDir)

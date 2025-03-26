@@ -1,14 +1,13 @@
 package docgen
 
 import (
-	"errors"
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 
-	apiParser "github.com/cocktail828/go-tools/tools/goctl/internal/parser/parser"
+	"github.com/cocktail828/go-tools/tools/goctl/internal/parser/parser"
 	"github.com/cocktail828/go-tools/tools/goctl/internal/pathx"
+	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 )
 
@@ -36,7 +35,7 @@ func DocCommand(_ *cobra.Command, _ []string) error {
 	}
 
 	if !pathx.FileExists(dir) {
-		return fmt.Errorf("dir %s not exsit", dir)
+		return errors.Errorf("dir %s not exsit", dir)
 	}
 
 	dir, err := filepath.Abs(dir)
@@ -50,9 +49,9 @@ func DocCommand(_ *cobra.Command, _ []string) error {
 	}
 
 	for _, p := range files {
-		api, err := apiParser.Parse(p, "")
+		api, err := parser.Parse(p, "")
 		if err != nil {
-			return fmt.Errorf("parse file: %s, err: %w", p, err)
+			return errors.Errorf("parse file: %s, err: %w", p, err)
 		}
 
 		api.Service = api.Service.JoinPrefix()

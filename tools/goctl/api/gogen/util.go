@@ -7,12 +7,12 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/cocktail828/go-tools/tools/goctl/api/util"
 	"github.com/cocktail828/go-tools/tools/goctl/internal/collection"
 	"github.com/cocktail828/go-tools/tools/goctl/internal/golang"
 	"github.com/cocktail828/go-tools/tools/goctl/internal/parser/spec"
 	"github.com/cocktail828/go-tools/tools/goctl/internal/pathx"
 	"github.com/cocktail828/go-tools/tools/goctl/internal/stringx"
+	"github.com/cocktail828/go-tools/tools/goctl/internal/util"
 )
 
 type fileGenConfig struct {

@@ -9,8 +9,6 @@ import (
 	"github.com/cocktail828/go-tools/tools/goctl/internal/parser/spec"
 	"github.com/cocktail828/go-tools/tools/goctl/internal/pathx"
 	"github.com/cocktail828/go-tools/tools/goctl/internal/stringx"
-	"github.com/cocktail828/go-tools/tools/goctl/internal/util"
-	"github.com/cocktail828/go-tools/z"
 )
 
 //go:embed handler.tpl
@@ -23,7 +21,7 @@ func genHandler(dir, rootPkg string, group spec.Group, route spec.Route) error {
 		handler = stringx.Title(handler)
 	}
 
-	respType := "*" + typesPacket + "." + util.Title(route.ResponseTypeName())
+	respType := "*" + typesPacket + "." + stringx.Title(route.ResponseTypeName())
 	if resp := route.ResponseType; resp != nil {
 		if tp, ok := resp.(spec.ArrayType); ok {
 			respType = "[]" + typesPacket + "." + tp.Value.Name()
@@ -42,7 +40,7 @@ func genHandler(dir, rootPkg string, group spec.Group, route spec.Route) error {
 			"PkgName":      handlerPath[strings.LastIndex(handlerPath, "/")+1:],
 			"imports":      genHandlerImports(route, rootPkg),
 			"HandlerName":  handler,
-			"RequestType":  util.Title(route.RequestTypeName()),
+			"RequestType":  stringx.Title(route.RequestTypeName()),
 			"ResponseType": respType,
 			"HasRequest":   len(route.RequestTypeName()) > 0,
 			"HasResponse":  len(route.ResponseTypeName()) > 0,
@@ -72,15 +70,6 @@ func genHandlerImports(route spec.Route, parentPkg string) string {
 	return strings.Join(imports, "\n\t")
 }
 
-func getHandlerBaseName(route spec.Route) (string, error) {
-	handler := route.Handler
-	handler = strings.TrimSpace(handler)
-	handler = strings.TrimSuffix(handler, "handler")
-	handler = strings.TrimSuffix(handler, "Handler")
-
-	return handler, nil
-}
-
 func getHandlerFolderPath(group spec.Group, route spec.Route) string {
 	folder := route.GetAnnotation(groupProperty)
 	if len(folder) == 0 {
@@ -93,11 +82,13 @@ func getHandlerFolderPath(group spec.Group, route spec.Route) string {
 	folder = strings.TrimPrefix(folder, "/")
 	folder = strings.TrimSuffix(folder, "/")
 
-	return path.Join(handlerDir, folder)
+	return path.Join(handlerDir, stringx.ToSnake(folder))
 }
 
 func getHandlerName(route spec.Route) string {
-	handler, err := getHandlerBaseName(route)
-	z.Must(err)
+	handler := route.Handler
+	handler = strings.TrimSpace(handler)
+	handler = strings.TrimSuffix(handler, "handler")
+	handler = strings.TrimSuffix(handler, "Handler")
 	return handler
 }

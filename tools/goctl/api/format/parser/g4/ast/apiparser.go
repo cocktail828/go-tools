@@ -10,6 +10,7 @@ import (
 	"github.com/cocktail828/go-tools/tools/goctl/api/format/parser/g4/api"
 	"github.com/cocktail828/go-tools/tools/goctl/internal/parser"
 	"github.com/cocktail828/go-tools/xlog/colorful"
+	"github.com/pkg/errors"
 	"github.com/zeromicro/antlr"
 )
 
@@ -59,7 +60,7 @@ func (p *Parser) Accept(fn func(p *api.ApiParserParser, visitor *ApiVisitor) any
 			case error:
 				err = e
 			default:
-				err = fmt.Errorf("%+v", p)
+				err = errors.Errorf("%+v", p)
 			}
 		}
 	}()
@@ -202,7 +203,7 @@ func (p *Parser) invoke(linePrefix, content string) (v *Api, err error) {
 			case error:
 				err = e
 			default:
-				err = fmt.Errorf("%+v", p)
+				err = errors.Errorf("%+v", p)
 			}
 		}
 	}()
@@ -264,7 +265,7 @@ func (p *Parser) valid(nestedApi *Api) error {
 	if p.syntax != nil && nestedApi.Syntax != nil {
 		if p.syntax.Version.Text() != nestedApi.Syntax.Version.Text() {
 			syntaxToken := nestedApi.Syntax.Syntax
-			return fmt.Errorf("%s line %d:%d multiple syntax declaration, expecting syntax '%s', but found '%s'",
+			return errors.Errorf("%s line %d:%d multiple syntax declaration, expecting syntax '%s', but found '%s'",
 				nestedApi.LinePrefix, syntaxToken.Line(), syntaxToken.Column(), p.syntax.Version.Text(), nestedApi.Syntax.Version.Text())
 		}
 	}
@@ -278,7 +279,7 @@ func (p *Parser) valid(nestedApi *Api) error {
 	// duplicate type check
 	for _, each := range nestedApi.Type {
 		if _, ok := p.typeMap[each.NameExpr().Text()]; ok {
-			return fmt.Errorf("%s line %d:%d duplicate type declaration '%s'",
+			return errors.Errorf("%s line %d:%d duplicate type declaration '%s'",
 				nestedApi.LinePrefix, each.NameExpr().Line(), each.NameExpr().Column(), each.NameExpr().Text())
 		}
 	}
@@ -302,7 +303,7 @@ func (p *Parser) duplicateRouteCheck(nestedApi *Api) error {
 		for _, r := range each.ServiceApi.ServiceRoute {
 			handler := r.GetHandler()
 			if !handler.IsNotNil() {
-				return fmt.Errorf("%s handler not exist near line %d", nestedApi.LinePrefix, r.Route.Method.Line())
+				return errors.Errorf("%s handler not exist near line %d", nestedApi.LinePrefix, r.Route.Method.Line())
 			}
 
 			handlerKey := handler.Text()
@@ -310,13 +311,13 @@ func (p *Parser) duplicateRouteCheck(nestedApi *Api) error {
 				handlerKey = fmt.Sprintf("%s/%s", group, handler.Text())
 			}
 			if _, ok := p.handlerMap[handlerKey]; ok {
-				return fmt.Errorf("%s line %d:%d duplicate handler '%s'",
+				return errors.Errorf("%s line %d:%d duplicate handler '%s'",
 					nestedApi.LinePrefix, handler.Line(), handler.Column(), handlerKey)
 			}
 
 			routeKey := fmt.Sprintf("%s://%s", r.Route.Method.Text(), path.Join(prefix, r.Route.Path.Text()))
 			if _, ok := p.routeMap[routeKey]; ok {
-				return fmt.Errorf("%s line %d:%d duplicate route '%s'",
+				return errors.Errorf("%s line %d:%d duplicate route '%s'",
 					nestedApi.LinePrefix, r.Route.Method.Line(), r.Route.Method.Column(), r.Route.Method.Text()+" "+r.Route.Path.Text())
 			}
 		}
@@ -327,14 +328,14 @@ func (p *Parser) duplicateRouteCheck(nestedApi *Api) error {
 func (p *Parser) nestedApiCheck(mainApi, nestedApi *Api) error {
 	if len(nestedApi.Import) > 0 {
 		importToken := nestedApi.Import[0].Import
-		return fmt.Errorf("%s line %d:%d the nested api does not support import",
+		return errors.Errorf("%s line %d:%d the nested api does not support import",
 			nestedApi.LinePrefix, importToken.Line(), importToken.Column())
 	}
 
 	if mainApi.Syntax != nil && nestedApi.Syntax != nil {
 		if mainApi.Syntax.Version.Text() != nestedApi.Syntax.Version.Text() {
 			syntaxToken := nestedApi.Syntax.Syntax
-			return fmt.Errorf("%s line %d:%d multiple syntax declaration, expecting syntax '%s', but found '%s'",
+			return errors.Errorf("%s line %d:%d multiple syntax declaration, expecting syntax '%s', but found '%s'",
 				nestedApi.LinePrefix, syntaxToken.Line(), syntaxToken.Column(), mainApi.Syntax.Version.Text(), nestedApi.Syntax.Version.Text())
 		}
 	}
@@ -343,7 +344,7 @@ func (p *Parser) nestedApiCheck(mainApi, nestedApi *Api) error {
 		mainService := mainApi.Service[0]
 		for _, service := range nestedApi.Service {
 			if mainService.ServiceApi.Name.Text() != service.ServiceApi.Name.Text() {
-				return fmt.Errorf("%s multiple service name declaration, expecting service name '%s', but found '%s'",
+				return errors.Errorf("%s multiple service name declaration, expecting service name '%s', but found '%s'",
 					nestedApi.LinePrefix, mainService.ServiceApi.Name.Text(), service.ServiceApi.Name.Text())
 			}
 		}
@@ -422,7 +423,7 @@ func (p *Parser) checkServices(apiItem *Api, types map[string]TypeExpr, linePref
 
 				_, ok := types[structName]
 				if !ok {
-					return fmt.Errorf("%s line %d:%d can not find declaration '%s' in context",
+					return errors.Errorf("%s line %d:%d can not find declaration '%s' in context",
 						linePrefix, route.Reply.Name.Expr().Line(), route.Reply.Name.Expr().Column(), structName)
 				}
 			}
@@ -435,7 +436,7 @@ func (p *Parser) checkRequestBody(route *Route, types map[string]TypeExpr, lineP
 	if route.Req != nil && route.Req.Name.IsNotNil() && route.Req.Name.Expr().IsNotNil() {
 		_, ok := types[route.Req.Name.Expr().Text()]
 		if !ok {
-			return fmt.Errorf("%s line %d:%d can not find declaration '%s' in context",
+			return errors.Errorf("%s line %d:%d can not find declaration '%s' in context",
 				linePrefix, route.Req.Name.Expr().Line(), route.Req.Name.Expr().Column(), route.Req.Name.Expr().Text())
 		}
 	}
@@ -472,7 +473,7 @@ func (p *Parser) checkType(linePrefix string, types map[string]TypeExpr, expr Da
 		}
 		_, ok := types[name]
 		if !ok {
-			return fmt.Errorf("%s line %d:%d can not find declaration '%s' in context",
+			return errors.Errorf("%s line %d:%d can not find declaration '%s' in context",
 				linePrefix, v.Literal.Line(), v.Literal.Column(), name)
 		}
 
@@ -483,7 +484,7 @@ func (p *Parser) checkType(linePrefix string, types map[string]TypeExpr, expr Da
 		}
 		_, ok := types[name]
 		if !ok {
-			return fmt.Errorf("%s line %d:%d can not find declaration '%s' in context",
+			return errors.Errorf("%s line %d:%d can not find declaration '%s' in context",
 				linePrefix, v.Name.Line(), v.Name.Column(), name)
 		}
 	case *Map:

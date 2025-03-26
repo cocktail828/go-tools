@@ -7,6 +7,7 @@ import (
 	"github.com/cocktail828/go-tools/tools/goctl/api/format/parser/g4/api"
 	"github.com/cocktail828/go-tools/tools/goctl/api/format/parser/g4/ast"
 	"github.com/cocktail828/go-tools/tools/goctl/internal/parser/spec"
+	"github.com/pkg/errors"
 )
 
 type parser struct {
@@ -108,7 +109,7 @@ func (p parser) fillTypes() error {
 				Docs:    p.stringExprs(v.Doc()),
 			})
 		default:
-			return fmt.Errorf("unknown type %+v", v)
+			return errors.Errorf("unknown type %+v", v)
 		}
 	}
 
@@ -132,7 +133,7 @@ func (p parser) fillTypes() error {
 			v.Members = members
 			types = append(types, v)
 		default:
-			return fmt.Errorf("unknown type %+v", v)
+			return errors.Errorf("unknown type %+v", v)
 		}
 	}
 	p.spec.Types = types
@@ -149,7 +150,7 @@ func (p parser) findDefinedType(name string) (*spec.Type, error) {
 		}
 	}
 
-	return nil, fmt.Errorf("type %s not defined", name)
+	return nil, errors.Errorf("type %s not defined", name)
 }
 
 func (p parser) fieldToMember(field *ast.TypeField) spec.Member {
@@ -273,7 +274,7 @@ func (p parser) fillService() error {
 			group.Routes = append(group.Routes, route)
 			name := item.ServiceApi.Name.Text()
 			if len(p.spec.Service.Name) > 0 && p.spec.Service.Name != name {
-				return fmt.Errorf("multiple service names defined %s and %s",
+				return errors.Errorf("multiple service names defined %s and %s",
 					name, p.spec.Service.Name)
 			}
 
@@ -297,12 +298,12 @@ func (p parser) fillRouteAtServer(astRoute *ast.ServiceRoute, route *spec.Route)
 			route.Handler = properties["handler"]
 		}
 		if len(route.Handler) == 0 {
-			return fmt.Errorf("missing handler annotation for %q", route.Path)
+			return errors.Errorf("missing handler annotation for %q", route.Path)
 		}
 
 		for _, char := range route.Handler {
 			if !unicode.IsDigit(char) && !unicode.IsLetter(char) {
-				return fmt.Errorf("route [%s] handler [%s] invalid, handler name should only contains letter or digit",
+				return errors.Errorf("route [%s] handler [%s] invalid, handler name should only contains letter or digit",
 					route.Path, route.Handler)
 			}
 		}

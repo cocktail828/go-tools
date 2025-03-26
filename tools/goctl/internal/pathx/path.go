@@ -1,13 +1,13 @@
 package pathx
 
 import (
-	"fmt"
 	"os"
 	"path"
 	"path/filepath"
 	"strings"
 
 	"github.com/cocktail828/go-tools/tools/goctl/vars"
+	"github.com/pkg/errors"
 )
 
 const (
@@ -44,7 +44,7 @@ func PathFromGoSrc() (string, error) {
 	parent := path.Join(gopath, "src", vars.ProjectName)
 	pos := strings.Index(dir, parent)
 	if pos < 0 {
-		return "", fmt.Errorf("%s is not in GOPATH", dir)
+		return "", errors.Errorf("%s is not in GOPATH", dir)
 	}
 
 	// skip slash

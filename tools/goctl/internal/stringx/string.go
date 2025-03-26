@@ -2,47 +2,27 @@ package stringx
 
 import (
 	"bytes"
+	"slices"
 	"strings"
 	"unicode"
-
-	"golang.org/x/text/cases"
-	"golang.org/x/text/language"
 )
 
-var WhiteSpace = []rune{'\n', '\t', '\f', '\v', ' '}
-
-// IsEmptyOrSpace returns true if the length of the string value is 0 after call strings.TrimSpace, or else returns false
-func IsEmptyOrSpace(s string) bool {
-	if len(s) == 0 {
-		return true
-	}
-	if strings.TrimSpace(s) == "" {
-		return true
-	}
-	return false
-}
-
-// Lower calls the strings.ToLower
-func Lower(s string) string {
-	return strings.ToLower(s)
-}
-
-// Upper calls the strings.ToUpper
-func Upper(s string) string {
-	return strings.ToUpper(s)
-}
-
-// ReplaceAll calls the strings.ReplaceAll
-func ReplaceAll(s, old, new string) string {
-	return strings.ReplaceAll(s, old, new)
-}
-
-// Title calls the cases.Title
+// Title returns a string value with s[0] which has been convert into upper case that
+// there are not empty input text
 func Title(s string) string {
-	if IsEmptyOrSpace(s) {
+	if len(s) == 0 {
 		return s
 	}
-	return cases.Title(language.English, cases.NoLower).String(s)
+	return strings.ToUpper(s[:1]) + s[1:]
+}
+
+// Untitle returns a string value with s[0] which has been convert into lower case that
+// there are not empty input text
+func Untitle(s string) string {
+	if len(s) == 0 {
+		return s
+	}
+	return strings.ToLower(s[:1]) + s[1:]
 }
 
 // ToCamel converts the input text into camel case
@@ -61,21 +41,17 @@ func ToSnake(s string) string {
 	list := splitBy(s, unicode.IsUpper, false)
 	var target []string
 	for _, item := range list {
-		target = append(target, Lower(item))
+		target = append(target, strings.ToLower(item))
 	}
 	return strings.Join(target, "_")
 }
 
-// Untitle return the original string if rune is not letter at index 0
-func Untitle(s string) string {
-	if IsEmptyOrSpace(s) {
-		return s
+// IsEmptyOrSpace returns true if the length of the string value is 0 after call strings.TrimSpace, or else returns false
+func IsEmptyOrSpace(s string) bool {
+	if len(s) == 0 {
+		return true
 	}
-	r := rune(s[0])
-	if !unicode.IsUpper(r) && !unicode.IsLower(r) {
-		return s
-	}
-	return string(unicode.ToLower(r)) + s[1:]
+	return strings.TrimSpace(s) == ""
 }
 
 // it will not ignore spaces
@@ -105,35 +81,16 @@ func splitBy(s string, fn func(r rune) bool, remove bool) []string {
 	return list
 }
 
-func ContainsAny(s string, runes ...rune) bool {
-	if len(runes) == 0 {
-		return true
-	}
-	tmp := make(map[rune]struct{}, len(runes))
-	for _, r := range runes {
-		tmp[r] = struct{}{}
-	}
-
-	for _, r := range s {
-		if _, ok := tmp[r]; ok {
-			return true
-		}
-	}
-	return false
-}
-
 func ContainsWhiteSpace(s string) bool {
-	return ContainsAny(s, WhiteSpace...)
+	return slices.ContainsFunc([]rune(s), func(e rune) bool {
+		return slices.Contains([]rune{'\n', '\t', '\f', '\v', ' '}, e)
+	})
 }
 
-func IsWhiteSpace(text string) bool {
-	if len(text) == 0 {
-		return true
-	}
-	for _, r := range text {
-		if !unicode.IsSpace(r) {
-			return false
-		}
-	}
-	return true
+func TrimWhiteSpace(s string) string {
+	return strings.NewReplacer(" ", "", "\t", "", "\n", "", "\f", "", "\r", "").Replace(s)
+}
+
+func IsEmptyStringOrWhiteSpace(s string) bool {
+	return len(TrimWhiteSpace(s)) == 0
 }

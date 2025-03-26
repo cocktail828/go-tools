@@ -2,7 +2,6 @@ package scanner
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -11,6 +10,7 @@ import (
 	"github.com/cocktail828/go-tools/tools/goctl/internal/parser/token"
 	"github.com/cocktail828/go-tools/tools/goctl/internal/pathx"
 	"github.com/cocktail828/go-tools/xlog/colorful"
+	"github.com/pkg/errors"
 )
 
 const (
@@ -617,7 +617,7 @@ func NewScanner(filename string, src any) (*Scanner, error) {
 	}
 
 	if len(data) == 0 {
-		return nil, fmt.Errorf("filename: %s, missing input", filename)
+		return nil, errors.Errorf("filename: %s, missing input", filename)
 	}
 
 	var runeList []rune
@@ -655,6 +655,6 @@ func readData(filename string, src any) ([]byte, error) {
 	case string:
 		return []byte(v), nil
 	default:
-		return nil, fmt.Errorf("unsupported type: %T", src)
+		return nil, errors.Errorf("unsupported type: %T", src)
 	}
 }

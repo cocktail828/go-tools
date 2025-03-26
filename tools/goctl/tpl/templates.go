@@ -1,13 +1,13 @@
 package tpl
 
 import (
-	"fmt"
 	"path/filepath"
 
 	"github.com/cocktail828/go-tools/tools/goctl/api/gogen"
 	"github.com/cocktail828/go-tools/tools/goctl/internal/pathx"
 	rpcgen "github.com/cocktail828/go-tools/tools/goctl/rpc/generator"
 	"github.com/cocktail828/go-tools/xlog/colorful"
+	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 )
 
@@ -87,7 +87,7 @@ func updateTemplates(_ *cobra.Command, _ []string) (err error) {
 	case rpcgen.Category():
 		return rpcgen.Update()
 	default:
-		err = fmt.Errorf("unexpected category: %s", category)
+		err = errors.Errorf("unexpected category: %s", category)
 		return
 	}
 }
@@ -112,7 +112,7 @@ func revertTemplates(_ *cobra.Command, _ []string) (err error) {
 	case rpcgen.Category():
 		return rpcgen.RevertTemplate(filename)
 	default:
-		err = fmt.Errorf("unexpected category: %s", category)
+		err = errors.Errorf("unexpected category: %s", category)
 		return
 	}
 }
