@@ -9,7 +9,7 @@ import (
 	"github.com/cocktail828/go-tools/tools/goctl/internal/parser/importstack"
 	"github.com/cocktail828/go-tools/tools/goctl/internal/parser/spec"
 	"github.com/cocktail828/go-tools/tools/goctl/internal/parser/token"
-	"github.com/cocktail828/go-tools/tools/goctl/internal/stringx"
+	"github.com/cocktail828/go-tools/z/stringx"
 	"github.com/pkg/errors"
 )
 

@@ -11,15 +11,15 @@ require (
 	github.com/hashicorp/hcl/v2 v2.22.0
 	github.com/nacos-group/nacos-sdk-go/v2 v2.2.9
 	github.com/pkg/errors v0.9.1
+	github.com/samber/lo v1.49.1
 	github.com/spf13/cobra v1.6.1
 	github.com/spf13/pflag v1.0.5
-	github.com/stretchr/testify v1.9.0
+	github.com/stretchr/testify v1.10.0
 	github.com/zeromicro/antlr v1.0.0
 	go.etcd.io/etcd/client/v3 v3.5.14
 	golang.org/x/crypto v0.31.0
 	golang.org/x/net v0.33.0
 	golang.org/x/sync v0.10.0
-	golang.org/x/text v0.21.0
 	golang.org/x/tools v0.22.0
 	google.golang.org/grpc v1.59.0
 	google.golang.org/grpc/examples v0.0.0-20230829204627-18059002a52b
@@ -117,6 +117,7 @@ require (
 	golang.org/x/oauth2 v0.11.0 // indirect
 	golang.org/x/sys v0.28.0 // indirect
 	golang.org/x/term v0.27.0 // indirect
+	golang.org/x/text v0.21.0 // indirect
 	golang.org/x/time v0.1.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/genproto v0.0.0-20231012201019-e917dd12ba7a // indirect

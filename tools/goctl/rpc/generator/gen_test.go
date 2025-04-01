@@ -9,7 +9,7 @@ import (
 
 	"github.com/cocktail828/go-tools/tools/goctl/rpc/execx"
 	"github.com/cocktail828/go-tools/xlog/colorful"
-	"github.com/cocktail828/go-tools/z/miscellany"
+	"github.com/cocktail828/go-tools/z/stringx"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -21,7 +21,7 @@ func TestRpcGenerate(t *testing.T) {
 		colorful.Error(err)
 		return
 	}
-	projectName := miscellany.RandomName()
+	projectName := stringx.RandomName()
 	src := filepath.Join(build.Default.GOPATH, "src")
 	_, err = os.Stat(src)
 	if err != nil {

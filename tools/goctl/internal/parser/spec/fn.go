@@ -6,7 +6,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/cocktail828/go-tools/tools/goctl/internal/stringx"
+	"github.com/cocktail828/go-tools/z/stringx"
 )
 
 const (

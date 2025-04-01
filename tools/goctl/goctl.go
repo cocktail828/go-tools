@@ -7,13 +7,12 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/cocktail828/go-tools/tools/goctl/api"
-	"github.com/cocktail828/go-tools/tools/goctl/env"
-	"github.com/cocktail828/go-tools/tools/goctl/internal/cobrax"
+	"github.com/cocktail828/go-tools/tools/goctl/docgen"
+	"github.com/cocktail828/go-tools/tools/goctl/format"
+	"github.com/cocktail828/go-tools/tools/goctl/gogen"
 	"github.com/cocktail828/go-tools/tools/goctl/internal/version"
-	"github.com/cocktail828/go-tools/tools/goctl/rpc"
-	"github.com/cocktail828/go-tools/tools/goctl/tpl"
-	"github.com/cocktail828/go-tools/z"
+	"github.com/cocktail828/go-tools/tools/goctl/validate"
+	"github.com/spf13/cobra"
 )
 
 const (
@@ -24,67 +23,74 @@ const (
 )
 
 var (
-	rootCmd = cobrax.NewCommand("goctl")
+	builtinFlags = map[string]bool{
+		"version": true,
+		"help":    true,
+	}
+
+	rootCmd = &cobra.Command{
+		Use:   "goctl",
+		Short: "A versatile tool for Go project generation, API formatting, documentation generation, and more",
+	}
 )
 
 func init() {
 	rootCmd.Version = fmt.Sprintf("%s %s/%s", version.BuildVersion, runtime.GOOS, runtime.GOARCH)
-	rootCmd.AddCommand(api.Cmd, env.Cmd, rpc.Cmd, tpl.Cmd)
-
-	log.SetFlags(0)
+	rootCmd.AddCommand(
+		gogen.Command(),
+		docgen.Command(),
+		format.Command(),
+		validate.Command(),
+	)
+	
+	log.SetFlags(log.Lmsgprefix)
+	log.SetPrefix("[goctl]: ")
 }
 
-func isBuiltin(name string) bool {
-	return name == "version" || name == "help"
-}
-
-func supportGoStdFlag(args []string) []string {
-	copyArgs := append([]string(nil), args...)
-	parentCmd, _, err := rootCmd.Traverse(args[:1])
-	if err != nil { // ignore it to let cobra handle the error.
-		return copyArgs
+// normalizeFlag converts single-dash flags to double-dash format for compatibility
+func normalizeFlag(flagExpr string) string {
+	flagName, flagValue := flagExpr, ""
+	if assignIndex := strings.Index(flagExpr, assign); assignIndex > 0 {
+		flagName = flagExpr[:assignIndex]
+		flagValue = flagExpr[assignIndex:]
 	}
 
-	for idx, arg := range copyArgs[0:] {
-		parentCmd, _, err = parentCmd.Traverse([]string{arg})
-		if err != nil { // ignore it to let cobra handle the error.
-			break
-		}
+	if !builtinFlags[flagName] {
+		return doubleDash + flagName + flagValue
+	}
+	return dash + flagName + flagValue
+}
+
+// supportGoStdFlag ensures compatibility with both single and double dash flags
+func supportGoStdFlag(args []string) []string {
+	if len(args) == 0 {
+		return args
+	}
+
+	copyArgs := make([]string, len(args))
+	copy(copyArgs, args)
+
+	parentCmd := rootCmd
+	for idx, arg := range copyArgs {
 		if !strings.HasPrefix(arg, dash) {
+			if cmd, _, err := parentCmd.Traverse([]string{arg}); err == nil {
+				parentCmd = cmd
+			}
 			continue
 		}
 
 		flagExpr := strings.TrimPrefix(arg, doubleDash)
 		flagExpr = strings.TrimPrefix(flagExpr, dash)
-		flagName, flagValue := flagExpr, ""
-		assignIndex := strings.Index(flagExpr, assign)
-		if assignIndex > 0 {
-			flagName = flagExpr[:assignIndex]
-			flagValue = flagExpr[assignIndex:]
-		}
-
-		if !isBuiltin(flagName) {
-			// The method Flag can only match the user custom flags.
-			f := parentCmd.Flag(flagName)
-			if f == nil {
-				continue
-			}
-			if f.Shorthand == flagName {
-				continue
-			}
-		}
-
-		goStyleFlag := doubleDash + flagName
-		if assignIndex > 0 {
-			goStyleFlag += flagValue
-		}
-
-		copyArgs[idx] = goStyleFlag
+		copyArgs[idx] = normalizeFlag(flagExpr)
 	}
+
 	return copyArgs
 }
 
 func main() {
-	os.Args = supportGoStdFlag(os.Args)
-	z.Must(rootCmd.Execute())
+	rootCmd.SetArgs(supportGoStdFlag(os.Args[1:]))
+	if err := rootCmd.Execute(); err != nil {
+		log.Printf("Command execution failed: %v", err)
+		os.Exit(codeFailure)
+	}
 }

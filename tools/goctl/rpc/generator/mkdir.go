@@ -6,8 +6,8 @@ import (
 
 	"github.com/cocktail828/go-tools/tools/goctl/internal/ctx"
 	"github.com/cocktail828/go-tools/tools/goctl/internal/pathx"
-	"github.com/cocktail828/go-tools/tools/goctl/internal/stringx"
 	"github.com/cocktail828/go-tools/tools/goctl/rpc/parser"
+	"github.com/cocktail828/go-tools/z/stringx"
 )
 
 const (
@@ -90,7 +90,7 @@ func mkdir(ctx *ctx.ProjectContext, proto parser.Proto, c *ZRpcContext) (DirCont
 		callDir := filepath.Join(ctx.WorkDir,
 			strings.ToLower(stringx.ToCamel(proto.Service[0].Name)))
 		if strings.EqualFold(proto.Service[0].Name, filepath.Base(proto.GoPackage)) {
-			clientDir = stringx.ToSnake(proto.Service[0].Name+"_client")
+			clientDir = stringx.ToSnake(proto.Service[0].Name + "_client")
 			callDir = filepath.Join(ctx.WorkDir, clientDir)
 		}
 		callClientDir = callDir

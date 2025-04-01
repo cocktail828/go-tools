@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/cocktail828/go-tools/tools/goctl/internal/parser/token"
-	"github.com/cocktail828/go-tools/tools/goctl/internal/stringx"
+	"github.com/cocktail828/go-tools/z/stringx"
 	"github.com/pkg/errors"
 )
 
@@ -136,7 +136,7 @@ func (t *TokenNode) Format(prefix ...string) string {
 	var tokenText = p + t.Token.Text
 	var validLeadingCommentGroup CommentGroup
 	for _, e := range t.LeadingCommentGroup {
-		if stringx.IsEmptyStringOrWhiteSpace(e.Comment.Text) {
+		if s := stringx.TrimSpaceAll(e.Comment.Text); s == "" {
 			continue
 		}
 		validLeadingCommentGroup = append(validLeadingCommentGroup, e)

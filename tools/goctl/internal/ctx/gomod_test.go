@@ -12,7 +12,7 @@ import (
 
 	"github.com/cocktail828/go-tools/tools/goctl/internal/pathx"
 	"github.com/cocktail828/go-tools/tools/goctl/rpc/execx"
-	"github.com/cocktail828/go-tools/z/miscellany"
+	"github.com/cocktail828/go-tools/z/stringx"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -22,7 +22,7 @@ func TestProjectFromGoMod(t *testing.T) {
 	if len(gp) == 0 {
 		return
 	}
-	projectName := miscellany.RandomName()
+	projectName := stringx.RandomName()
 	dir := filepath.Join(gp, "src", projectName)
 	err := pathx.MkdirIfNotExist(dir)
 	if err != nil {

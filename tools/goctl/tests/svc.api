@@ -40,8 +40,6 @@ type PathExampleResp {
 }
 
 @server (
-	prefix:     v1
-	group:      g1 // 对当前 Foo 语法块下的所有路由，路由归并到 g1 目录下，不需要则请删除此行
 	middleware: AuthInterceptor // 对当前 Foo 语法块下的所有路由添加中间件，不需要则请删除此行
 )
 service Foo {

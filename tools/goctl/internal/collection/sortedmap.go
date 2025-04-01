@@ -4,9 +4,9 @@ import (
 	"container/list"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
-
-	"github.com/cocktail828/go-tools/tools/goctl/internal/stringx"
+	"unicode"
 )
 
 var (
@@ -39,10 +39,11 @@ func (m *SortedMap) SetExpression(expression string) (key, value any, err error)
 	} else {
 		value = expression[idx+1:]
 	}
-	if keys, ok := key.(string); ok && stringx.ContainsWhiteSpace(keys) {
+
+	if keys, ok := key.(string); ok && slices.ContainsFunc([]rune(keys), unicode.IsSpace) {
 		return "", "", ErrInvalidKVExpression
 	}
-	if values, ok := value.(string); ok && stringx.ContainsWhiteSpace(values) {
+	if values, ok := value.(string); ok && slices.ContainsFunc([]rune(values), unicode.IsSpace) {
 		return "", "", ErrInvalidKVExpression
 	}
 	if len(key.(string)) == 0 {

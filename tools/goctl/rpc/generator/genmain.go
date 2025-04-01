@@ -7,9 +7,9 @@ import (
 	"strings"
 
 	"github.com/cocktail828/go-tools/tools/goctl/internal/pathx"
-	"github.com/cocktail828/go-tools/tools/goctl/internal/stringx"
 	"github.com/cocktail828/go-tools/tools/goctl/internal/util"
 	"github.com/cocktail828/go-tools/tools/goctl/rpc/parser"
+	"github.com/cocktail828/go-tools/z/stringx"
 )
 
 //go:embed main.tpl

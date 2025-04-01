@@ -8,7 +8,7 @@ import (
 	"text/tabwriter"
 
 	"github.com/cocktail828/go-tools/tools/goctl/internal/parser/token"
-	"github.com/cocktail828/go-tools/tools/goctl/internal/stringx"
+	"github.com/cocktail828/go-tools/z/stringx"
 )
 
 const (
@@ -383,7 +383,7 @@ func (w *Writer) write(opt *option) {
 			textList = append(textList, NewLine)
 		}
 		line = node.End().Line
-		if stringx.TrimWhiteSpace(node.Format()) == "" {
+		if s := stringx.TrimSpaceAll(node.Format()); s == "" {
 			continue
 		}
 

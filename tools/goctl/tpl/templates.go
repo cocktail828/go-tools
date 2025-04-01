@@ -3,7 +3,7 @@ package tpl
 import (
 	"path/filepath"
 
-	"github.com/cocktail828/go-tools/tools/goctl/api/gogen"
+	"github.com/cocktail828/go-tools/tools/goctl/gogen"
 	"github.com/cocktail828/go-tools/tools/goctl/internal/pathx"
 	rpcgen "github.com/cocktail828/go-tools/tools/goctl/rpc/generator"
 	"github.com/cocktail828/go-tools/xlog/colorful"
