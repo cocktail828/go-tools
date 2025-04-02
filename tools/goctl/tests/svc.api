@@ -40,7 +40,9 @@ type PathExampleResp {
 }
 
 @server (
-	middleware: AuthInterceptor // 对当前 Foo 语法块下的所有路由添加中间件，不需要则请删除此行
+	prefix: xxx
+	group: app
+	middleware: AuthInterceptor,AuthInterceptor1 // 对当前 Foo 语法块下的所有路由添加中间件，不需要则请删除此行
 )
 service Foo {
 	// 定义没有请求体和响应体的接口，如 ping
