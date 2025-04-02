@@ -20,5 +20,5 @@ func TestGS(t *testing.T) {
 	}
 	ctx, cancel := context.WithTimeout(context.TODO(), time.Second*3)
 	defer cancel()
-	fmt.Println(gs.Do(ctx))
+	fmt.Println(gs.Launch(ctx))
 }
