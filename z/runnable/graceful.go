@@ -11,16 +11,16 @@ type Graceful struct {
 	Stop  func() error
 }
 
-func (g *Graceful) Do(pctx context.Context) error {
-	sctx, scancel := context.WithCancelCause(pctx)
-	go func() { scancel(g.Start()) }()
+func (g *Graceful) Launch(pctx context.Context) error {
+	ctx, cancel := context.WithCancelCause(pctx)
+	go func() { cancel(g.Start()) }()
 
 	if g.Stop == nil {
-		g.Start = func() error { return nil }
+		g.Stop = func() error { return nil }
 	}
 
-	<-sctx.Done()
-	err := context.Cause(sctx)
+	<-ctx.Done()
+	err := context.Cause(ctx)
 	if err == context.Canceled {
 		err = nil
 	}

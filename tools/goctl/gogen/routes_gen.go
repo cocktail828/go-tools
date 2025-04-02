@@ -39,12 +39,12 @@ func (grp group) ToRouteStr() string {
 		sa.WriteStringf("%s := g.Group(%q)", gname, grp.prefix)
 		sa.WriteString("{")
 		for _, r := range grp.routes {
-			sa.WriteStringf("%s.Handle(%s, %q, %s.%sHandler(meta.Timeout, meta.Logger))", gname, r.method, r.path, grp.name, r.handler)
+			sa.WriteStringf("%s.Handle(%s, %q, %s.%sHandler(m.Timeout, m.Logger, m.Meta))", gname, r.method, r.path, grp.name, stringx.Title(r.handler))
 		}
 		sa.WriteString("}")
 	} else {
 		for _, r := range grp.routes {
-			sa.WriteStringf("g.Handle(%s, %q, %sHandler(meta.Timeout, meta.Logger))", r.method, r.path, stringx.Untitle(r.handler))
+			sa.WriteStringf("g.Handle(%s, %q, %sHandler(m.Timeout, m.Logger, m.Meta))", r.method, r.path, stringx.Untitle(r.handler))
 		}
 	}
 
@@ -78,7 +78,6 @@ func toGroups(api *spec.ApiSpec) ([]group, error) {
 				handler = rt.Handler
 			}
 
-			// name == "", indicates no group
 			grp.routes = append(grp.routes, route{
 				Route:   rt,
 				method:  mapping[rt.Method],
@@ -138,16 +137,29 @@ func (g *routeHandler) Gen(fm FileMeta) Render {
 		}
 	}
 
+	middlewares := fm.Lookup(TypeMiddleware).Export().Funcs
+	mws := stringx.Array{}
+	mws.WriteStringf("")
+	for _, m := range middlewares {
+		mws.WriteStringf("middleware.New%s(m.Meta),", m)
+	}
+	mws.WriteStringf("")
+
+	if len(middlewares) > 0 {
+		imports.WriteStringf("%q", pathx.JoinPackages(fm.Mod, fm.Lookup(TypeMiddleware).PkgName()))
+	}
+
 	mr = append(mr, FileRender{
 		rootpath:         fm.RootPath,
 		relativepath:     g.RelativePath(),
 		filename:         stringx.ToSnake(routesFilename) + ".go",
 		templateFileName: g.TemplateFile(),
 		data: map[string]any{
-			"pkgName": g.PkgName(),
-			"imports": imports.Uniq().Join("\n"),
-			"routes":  strings.TrimSpace(routeStr.Join("\n")),
-			"version": version.BuildVersion,
+			"pkgName":    g.PkgName(),
+			"imports":    imports.Uniq().Join("\n"),
+			"middleware": mws.Join("\n"),
+			"routes":     strings.TrimSpace(routeStr.Join("\n")),
+			"version":    version.BuildVersion,
 		},
 	})
 	return mr
@@ -177,6 +189,8 @@ func (g *handlerGenerater) gen(fm FileMeta, dftPkgName string) Render {
 	if pkgName == "" {
 		pkgName = dftPkgName
 		g.handler = stringx.Untitle(g.handler)
+	}else{
+		g.handler = stringx.Title(g.handler)
 	}
 
 	return FileRender{

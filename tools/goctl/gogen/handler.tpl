@@ -4,13 +4,15 @@ import (
 	"context"
 	"time"
 	"net/http"
+	"sync"
 
 	"github.com/cocktail828/go-tools/xlog"
 	"github.com/gin-gonic/gin"
 	{{.imports}}
 )
 
-{{if .doc}}{{.doc}}{{end}}func {{.handler}}Handler(tmo time.Duration, log xlog.Logger) gin.HandlerFunc {
+{{if .doc}}{{.doc}}{{end}}// Meta stores global application metadata and shared resources
+func {{.handler}}Handler(tmo time.Duration, log xlog.Logger, m *sync.Map) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		{{if .requestType}}var req model.{{.requestType}}
 		if err := c.ShouldBind(&req); err != nil {
