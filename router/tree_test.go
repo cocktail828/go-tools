@@ -55,7 +55,7 @@ func checkRequests(t *testing.T, tree *Node, requests testRequests) {
 		} else if request.nilHandler {
 			t.Errorf("handle mismatch for route '%s': Expected nil handle", request.path)
 		} else {
-			handler(Context{Params: ps, Path: request.path})
+			handler(Context{Params: ps, URI: request.path})
 			if fakeHandlerValue != request.route {
 				t.Errorf("handle mismatch for route '%s': Wrong handle (%s != %s)", request.path, fakeHandlerValue, request.route)
 			}

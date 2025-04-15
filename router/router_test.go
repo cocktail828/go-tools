@@ -25,7 +25,7 @@ func TestRouter(t *testing.T) {
 	router := New()
 
 	routed := false
-	router.Handle("/user/:name", func(c Context) error {
+	router.Handle("noop", "/user/:name", func(c Context) error {
 		routed = true
 		want := Params{Param{"name", "gopher"}}
 		if !reflect.DeepEqual(c.Params, want) {
@@ -34,7 +34,7 @@ func TestRouter(t *testing.T) {
 		return nil
 	})
 
-	router.Serve("/user/gopher")
+	router.ServeURI("noop://user/gopher")
 	if !routed {
 		t.Fatal("routing failed")
 	}
@@ -43,7 +43,7 @@ func TestRouter(t *testing.T) {
 func TestRouterRoot(t *testing.T) {
 	router := New()
 	recv := catchPanic(func() {
-		router.Handle("noSlashRoot", nil)
+		router.Handle("noop", "noSlashRoot", nil)
 	})
 	if recv == nil {
 		t.Fatal("registering path not beginning with '/' did not panic")
@@ -57,18 +57,18 @@ func TestRouterNotFound(t *testing.T) {
 		route    string
 		location string
 	}{
-		{"/path/", "/path"},   // TSR -/
-		{"/dir", "/dir/"},     // TSR +/
-		{"", "/"},             // TSR +/
-		{"/PATH", "/path"},    // Fixed Case
-		{"/DIR/", "/dir/"},    // Fixed Case
-		{"/PATH/", "/path"},   // Fixed Case -/
-		{"/DIR", "/dir/"},     // Fixed Case +/
-		{"/../path", "/path"}, // CleanPath
-		{"/nope", ""},         // NotFound
+		{"noop://path/", "/path"},   // TSR -/
+		{"noop://dir", "/dir/"},     // TSR +/
+		{"noop://", "/"},            // TSR +/
+		{"noop://PATH", "/path"},    // Fixed Case
+		{"noop://DIR/", "/dir/"},    // Fixed Case
+		{"noop://PATH/", "/path"},   // Fixed Case -/
+		{"noop://DIR", "/dir/"},     // Fixed Case +/
+		{"noop://../path", "/path"}, // CleanPath
+		{"noop://nope", ""},         // NotFound
 	}
 	for _, tr := range testRoutes {
-		if router.Serve(tr.route) != ErrNotFound {
+		if router.ServeURI(tr.route) != ErrNotFound {
 			t.Errorf("NotFound handling route %s failed", tr.route)
 		}
 	}
@@ -77,26 +77,25 @@ func TestRouterNotFound(t *testing.T) {
 func TestRouterTrailingSlash(t *testing.T) {
 	handlerFunc := func(c Context) error {
 		if !c.RedirectTrailingSlash {
-			t.Errorf("RedirectTrailingSlash should be true, route: %s", c.Path)
+			t.Errorf("RedirectTrailingSlash should be true, route: %s", c.URI)
 		}
 		return nil
 	}
 
 	router := New()
-	router.Handle("/path", handlerFunc)
-	router.Handle("/dir/", handlerFunc)
-	router.Handle("/", handlerFunc)
+	router.Handle("noop", "/path", handlerFunc)
+	router.Handle("noop", "/dir/", handlerFunc)
+	router.Handle("noop", "/", handlerFunc)
 
 	testRoutes := []struct {
 		route    string
 		location string
 	}{
-		{"/path/", "/path"}, // TSR -/
-		{"/dir", "/dir/"},   // TSR +/
-		{"", "/"},           // TSR +/
+		{"noop://path/", "/path"}, // TSR -/
+		{"noop://dir", "/dir/"},   // TSR +/
 	}
 	for _, tr := range testRoutes {
-		if router.Serve(tr.route) != nil {
+		if router.ServeURI(tr.route) != nil {
 			t.Errorf("NotFound handling route %s failed", tr.route)
 		}
 	}
@@ -105,28 +104,28 @@ func TestRouterTrailingSlash(t *testing.T) {
 func TestRouterFixedPath(t *testing.T) {
 	handlerFunc := func(c Context) error {
 		if !c.RedirectFixedPath {
-			t.Errorf("RedirectFixedPath should be true, route: %s", c.Path)
+			t.Errorf("RedirectFixedPath should be true, route: %s", c.URI)
 		}
 		return nil
 	}
 
 	router := New()
-	router.Handle("/path", handlerFunc)
-	router.Handle("/dir/", handlerFunc)
-	router.Handle("/", handlerFunc)
+	router.Handle("noop", "/path", handlerFunc)
+	router.Handle("noop", "/dir/", handlerFunc)
+	router.Handle("noop", "/", handlerFunc)
 
 	testRoutes := []struct {
 		route    string
 		location string
 	}{
-		{"/PATH", "/path"},    // Fixed Case
-		{"/DIR/", "/dir/"},    // Fixed Case
-		{"/PATH/", "/path"},   // Fixed Case -/
-		{"/DIR", "/dir/"},     // Fixed Case +/
-		{"/../path", "/path"}, // CleanPath
+		{"noop://PATH", "/path"},    // Fixed Case
+		{"noop://DIR/", "/dir/"},    // Fixed Case
+		{"noop://PATH/", "/path"},   // Fixed Case -/
+		{"noop://DIR", "/dir/"},     // Fixed Case +/
+		{"noop://../path", "/path"}, // CleanPath
 	}
 	for _, tr := range testRoutes {
-		if router.Serve(tr.route) != nil {
+		if router.ServeURI(tr.route) != nil {
 			t.Errorf("NotFound handling route %s failed", tr.route)
 		}
 	}
@@ -135,25 +134,25 @@ func TestRouterFixedPath(t *testing.T) {
 func BenchmarkRouter(b *testing.B) {
 	handlerFunc := func(c Context) error {
 		if !c.RedirectFixedPath {
-			b.Errorf("RedirectFixedPath should be true, route: %s", c.Path)
+			b.Errorf("RedirectFixedPath should be true, route: %s", c.URI)
 		}
 		return nil
 	}
 
 	router := New()
-	router.Handle("/path", handlerFunc)
-	router.Handle("/dir/", handlerFunc)
-	router.Handle("/", handlerFunc)
+	router.Handle("noop", "/path", handlerFunc)
+	router.Handle("noop", "/dir/", handlerFunc)
+	router.Handle("noop", "/", handlerFunc)
 
 	testRoutes := []struct {
 		route    string
 		location string
 	}{
-		{"/PATH", "/path"},    // Fixed Case
-		{"/DIR/", "/dir/"},    // Fixed Case
-		{"/PATH/", "/path"},   // Fixed Case -/
-		{"/DIR", "/dir/"},     // Fixed Case +/
-		{"/../path", "/path"}, // CleanPath
+		{"noop://PATH", "/path"},    // Fixed Case
+		{"noop://DIR/", "/dir/"},    // Fixed Case
+		{"noop://PATH/", "/path"},   // Fixed Case -/
+		{"noop://DIR", "/dir/"},     // Fixed Case +/
+		{"noop://../path", "/path"}, // CleanPath
 	}
 
 	b.ReportAllocs()
@@ -161,7 +160,7 @@ func BenchmarkRouter(b *testing.B) {
 	b.RunParallel(func(p *testing.PB) {
 		for p.Next() {
 			for _, tr := range testRoutes {
-				if router.Serve(tr.route) != nil {
+				if router.ServeURI(tr.route) != nil {
 					b.Errorf("NotFound handling route %s failed", tr.route)
 				}
 			}
@@ -173,7 +172,7 @@ func TestRouterLookup(t *testing.T) {
 	router := New()
 
 	// try empty router first
-	handle, _, tsr := router.Lookup("/nope")
+	handle, _, tsr := router.Lookup("noop://nope")
 	if handle != nil {
 		t.Fatalf("Got handle for unregistered pattern: %v", handle)
 	}
@@ -182,13 +181,13 @@ func TestRouterLookup(t *testing.T) {
 	}
 
 	// insert route and try again
-	router.Handle("/user/:name", func(Context) error { return nil })
+	router.Handle("noop", "/user/:name", func(Context) error { return nil })
 
-	handle, params, _ := router.Lookup("/user/gopher")
+	handle, params, _ := router.Lookup("noop://user/gopher")
 	if handle == nil {
 		t.Fatal("Got no handle!")
 	} else {
-		if err := handle(Context{Params: params, Path: "/user/gopher"}); err != nil {
+		if err := handle(Context{Params: params, URI: "noop://user/gopher"}); err != nil {
 			t.Fatal("Routing failed!")
 		}
 	}
@@ -198,7 +197,7 @@ func TestRouterLookup(t *testing.T) {
 		t.Fatalf("Wrong parameter values: want %v, got %v", wantParams, params)
 	}
 
-	handle, _, tsr = router.Lookup("/user/gopher/")
+	handle, _, tsr = router.Lookup("noop://user/gopher/")
 	if handle != nil {
 		t.Fatalf("Got handle for unregistered pattern: %v", handle)
 	}
@@ -206,7 +205,7 @@ func TestRouterLookup(t *testing.T) {
 		t.Error("Got no TSR recommendation!")
 	}
 
-	handle, _, tsr = router.Lookup("/nope")
+	handle, _, tsr = router.Lookup("noop://nope")
 	if handle != nil {
 		t.Fatalf("Got handle for unregistered pattern: %v", handle)
 	}

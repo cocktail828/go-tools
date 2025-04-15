@@ -1,9 +1,16 @@
 package router
 
-import "errors"
+import (
+	"errors"
+	"strings"
+	"sync"
+
+	"github.com/cocktail828/go-tools/z"
+)
 
 var (
-	ErrNotFound = errors.New("no such handler")
+	ErrNotFound   = errors.New("no such handler")
+	ErrMissSchema = errors.New("missing protocol scheme")
 )
 
 // Param is a single URL parameter, consisting of a key and a value.
@@ -30,8 +37,9 @@ func (ps Params) ByName(name string) string {
 
 type Context struct {
 	Params
+	Schema                string
 	Location              string // Processed path
-	Path                  string // Original path
+	URI                   string // Original URI
 	RedirectTrailingSlash bool
 	RedirectFixedPath     bool
 }
@@ -43,7 +51,8 @@ type Handler func(Context) error
 // Router is a Handler which can be used to dispatch requests to different
 // handler functions via configurable routes
 type Router struct {
-	root Node
+	mu   sync.RWMutex
+	tree map[string]*Node
 
 	// Enables automatic redirection if the current route can't be matched but a
 	// handler for the path with (without) the trailing slash exists.
@@ -65,9 +74,10 @@ type Router struct {
 }
 
 // New returns a new initialized Router.
-// Path auto-correction, including trailing slashes, is enabled by default.
+// URI auto-correction, including trailing slashes, is enabled by default.
 func New() *Router {
 	return &Router{
+		tree:                  map[string]*Node{},
 		RedirectTrailingSlash: true,
 		RedirectFixedPath:     true,
 	}
@@ -78,12 +88,20 @@ func New() *Router {
 // This function is intended for bulk loading and to allow the usage of less
 // frequently used, non-standardized or custom methods (e.g. for internal
 // communication with a proxy).
-func (r *Router) Handle(path string, handle Handler) {
+func (r *Router) Handle(schema, path string, handle Handler) {
 	if len(path) < 1 || path[0] != '/' {
 		panic("path must begin with '/' in path '" + path + "'")
 	}
 
-	r.root.AddRoute(path, handle)
+	var root *Node
+	z.WithLock(&r.mu, func() {
+		var ok bool
+		if root, ok = r.tree[schema]; !ok {
+			root = &Node{}
+			r.tree[schema] = root
+		}
+	})
+	root.AddRoute(path, handle)
 }
 
 // Lookup allows the manual lookup of a method + path combo.
@@ -91,13 +109,24 @@ func (r *Router) Handle(path string, handle Handler) {
 // If the path was found, it returns the handle function and the path parameter
 // values. Otherwise the third return value indicates whether a redirection to
 // the same path with an extra / without the trailing slash should be performed.
-func (r *Router) Lookup(path string) (Handler, Params, bool) {
-	return r.root.GetValue(path)
+func (r *Router) Lookup(uri string) (Handler, Params, bool) {
+	schema, path, found := strings.Cut(uri, ":/")
+	if !found {
+		return nil, nil, false
+	}
+
+	var root *Node
+	var ok bool
+	z.WithRLock(&r.mu, func() { root, ok = r.tree[schema] })
+	if ok {
+		return root.GetValue(path)
+	}
+	return nil, nil, false
 }
 
-func (r *Router) serve(c Context) error {
+func (r *Router) serve(root *Node, c Context) error {
 	loc := c.Location
-	if handle, ps, tsr := r.root.GetValue(loc); handle != nil {
+	if handle, ps, tsr := root.GetValue(loc); handle != nil {
 		c.Params = ps
 		return handle(c)
 	} else if loc != "/" {
@@ -109,16 +138,16 @@ func (r *Router) serve(c Context) error {
 			}
 			c.RedirectTrailingSlash = true
 			c.Location = loc
-			return r.serve(c)
+			return r.serve(root, c)
 		}
 
 		// Try to fix the request path
 		if r.RedirectFixedPath {
-			fixedPath, found := r.root.FindCaseInsensitivePath(cleanPath(loc), r.RedirectTrailingSlash)
+			fixedPath, found := root.FindCaseInsensitivePath(cleanPath(loc), r.RedirectTrailingSlash)
 			if found {
 				c.RedirectFixedPath = true
 				c.Location = string(fixedPath)
-				return r.serve(c)
+				return r.serve(root, c)
 			}
 		}
 	}
@@ -126,6 +155,22 @@ func (r *Router) serve(c Context) error {
 	return ErrNotFound
 }
 
-func (r *Router) Serve(path string) error {
-	return r.serve(Context{Path: path, Location: path})
+// rpc://xxx/yyy -> rpc, /xxx/yyy
+func (r *Router) ServeURI(uri string) error {
+	if !strings.Contains(uri, "://") {
+		return ErrMissSchema
+	}
+
+	schema, path, found := strings.Cut(uri, ":/")
+	if !found {
+		return ErrMissSchema
+	}
+
+	var root *Node
+	var ok bool
+	z.WithRLock(&r.mu, func() { root, ok = r.tree[schema] })
+	if ok {
+		return r.serve(root, Context{URI: uri, Location: path})
+	}
+	return ErrNotFound
 }
