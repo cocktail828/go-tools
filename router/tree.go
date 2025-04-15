@@ -1,8 +1,4 @@
-// Copyright 2013 Julien Schmidt. All rights reserved.
-// Use of this source code is governed by a BSD-style license that can be found
-// in the LICENSE file.
-
-package trie
+package router
 
 import (
 	"strings"
@@ -51,7 +47,7 @@ type Node struct {
 	priority  uint32
 	indices   string
 	children  []*Node
-	handle    any
+	handle    Handler
 }
 
 // increments priority of the given child and reorders if necessary
@@ -80,7 +76,7 @@ func (n *Node) incrementChildPrio(pos int) int {
 
 // addRoute adds a Node with the given handle to the path.
 // Not concurrency-safe!
-func (n *Node) AddRoute(path string, handle any) {
+func (n *Node) AddRoute(path string, handle Handler) {
 	fullPath := path
 	n.priority++
 	numParams := countParams(path)
@@ -214,7 +210,7 @@ func (n *Node) AddRoute(path string, handle any) {
 	}
 }
 
-func (n *Node) insertChild(numParams uint8, path, fullPath string, handle any) {
+func (n *Node) insertChild(numParams uint8, path, fullPath string, handle Handler) {
 	var offset int // already handled bytes of the path
 
 	// find prefix until first wildcard (beginning with ':'' or '*'')
@@ -336,7 +332,7 @@ func (n *Node) insertChild(numParams uint8, path, fullPath string, handle any) {
 // If no handle can be found, a TSR (trailing slash redirect) recommendation is
 // made if a handle exists with an extra (without the) trailing slash for the
 // given path.
-func (n *Node) GetValue(path string) (handle any, p Params, tsr bool) {
+func (n *Node) GetValue(path string) (handle Handler, p Params, tsr bool) {
 walk: // outer loop for walking the tree
 	for {
 		if len(path) > len(n.path) {

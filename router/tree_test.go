@@ -1,17 +1,21 @@
-// Copyright 2013 Julien Schmidt. All rights reserved.
-// Use of this source code is governed by a BSD-style license that can be found
-// in the LICENSE file.
-
-package trie
+package router
 
 import (
 	"fmt"
-	"net/http"
 	"reflect"
 	"regexp"
 	"strings"
 	"testing"
 )
+
+func catchPanic(testFunc func()) (recv interface{}) {
+	defer func() {
+		recv = recover()
+	}()
+
+	testFunc()
+	return
+}
 
 func printChildren(n *Node, prefix string) {
 	fmt.Printf(" %02d:%02d %s%s[%d] %v %t %d \r\n", n.priority, n.maxParams, prefix, n.path, len(n.children), n.handle, n.wildChild, n.nType)
@@ -23,14 +27,13 @@ func printChildren(n *Node, prefix string) {
 	}
 }
 
-type handlerFunc func(http.ResponseWriter, *http.Request, Params)
-
 // Used as a workaround since we can't compare functions or their addresses
 var fakeHandlerValue string
 
-func fakeHandler(val string) handlerFunc {
-	return func(http.ResponseWriter, *http.Request, Params) {
+func fakeHandler(val string) Handler {
+	return func(Context) error {
 		fakeHandlerValue = val
+		return nil
 	}
 }
 
@@ -52,7 +55,7 @@ func checkRequests(t *testing.T, tree *Node, requests testRequests) {
 		} else if request.nilHandler {
 			t.Errorf("handle mismatch for route '%s': Expected nil handle", request.path)
 		} else {
-			handler.(handlerFunc)(nil, nil, nil)
+			handler(Context{Params: ps, Path: request.path})
 			if fakeHandlerValue != request.route {
 				t.Errorf("handle mismatch for route '%s': Wrong handle (%s != %s)", request.path, fakeHandlerValue, request.route)
 			}
@@ -199,15 +202,6 @@ func TestTreeWildcard(t *testing.T) {
 
 	checkPriorities(t, tree)
 	checkMaxParams(t, tree)
-}
-
-func catchPanic(testFunc func()) (recv interface{}) {
-	defer func() {
-		recv = recover()
-	}()
-
-	testFunc()
-	return
 }
 
 type testRoute struct {

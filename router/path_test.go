@@ -1,9 +1,4 @@
-// Copyright 2013 Julien Schmidt. All rights reserved.
-// Based on the path package, Copyright 2009 The Go Authors.
-// Use of this source code is governed by a BSD-style license that can be found
-// in the LICENSE file.
-
-package httprouter
+package router
 
 import (
 	"runtime"
@@ -66,11 +61,11 @@ var cleanTests = []struct {
 
 func TestPathClean(t *testing.T) {
 	for _, test := range cleanTests {
-		if s := CleanPath(test.path); s != test.result {
-			t.Errorf("CleanPath(%q) = %q, want %q", test.path, s, test.result)
+		if s := cleanPath(test.path); s != test.result {
+			t.Errorf("cleanPath(%q) = %q, want %q", test.path, s, test.result)
 		}
-		if s := CleanPath(test.result); s != test.result {
-			t.Errorf("CleanPath(%q) = %q, want %q", test.result, s, test.result)
+		if s := cleanPath(test.result); s != test.result {
+			t.Errorf("cleanPath(%q) = %q, want %q", test.result, s, test.result)
 		}
 	}
 }
@@ -85,9 +80,9 @@ func TestPathCleanMallocs(t *testing.T) {
 	}
 
 	for _, test := range cleanTests {
-		allocs := testing.AllocsPerRun(100, func() { CleanPath(test.result) })
+		allocs := testing.AllocsPerRun(100, func() { cleanPath(test.result) })
 		if allocs > 0 {
-			t.Errorf("CleanPath(%q): %v allocs, want zero", test.result, allocs)
+			t.Errorf("cleanPath(%q): %v allocs, want zero", test.result, allocs)
 		}
 	}
 }
