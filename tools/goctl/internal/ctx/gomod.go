@@ -91,7 +91,7 @@ func getRealModule(workDir string, execRun execx.RunFunc) (*Module, error) {
 	for _, m := range modules {
 		realDir, err := pathx.ReadLink(m.Dir)
 		if err != nil {
-			return nil, errors.Errorf("failed to read go.mod, dir: %s, error: %w", m.Dir, err)
+			return nil, errors.Errorf("failed to read go.mod, dir: %s, error: %v", m.Dir, err)
 		}
 		realDir += string(os.PathSeparator)
 		if strings.HasPrefix(workDir, realDir) {

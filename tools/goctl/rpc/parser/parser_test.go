@@ -71,7 +71,7 @@ func TestDefaultProtoParse_Option(t *testing.T) {
 	data, err := p.Parse("./test_option.proto")
 	assert.Nil(t, err)
 	assert.Equal(t, "github.com/cocktail828/go-tools/tools/goctl", data.GoPackage)
-	assert.Equal(t, "go_zero", data.PbPackage)
+	assert.Equal(t, "goctl", data.PbPackage)
 }
 
 func TestDefaultProtoParse_Option2(t *testing.T) {
