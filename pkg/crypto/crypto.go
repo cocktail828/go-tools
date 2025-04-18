@@ -16,8 +16,8 @@ import (
 func SHA256(src string) string {
 	h := sha256.New()
 	h.Write([]byte(src))
-	sum := h.Sum(nil)
-	return hex.EncodeToString(sum)
+	data := h.Sum(nil)
+	return hex.EncodeToString(data)
 }
 
 func MD5(str string) string {
@@ -35,47 +35,58 @@ func PasswordEncrypt(pwd string) (string, error) {
 	return string(bytes), err
 }
 
-func Base64Decode(pwd string) (string, error) {
-	bytes, err := base64.StdEncoding.DecodeString(pwd)
+type Codec interface {
+	Encode([]byte) ([]byte, error)
+	Decode([]byte) ([]byte, error)
+}
+
+type Base64Codec struct{}
+
+func (Base64Codec) Decode(bs []byte) ([]byte, error) {
+	bytes, err := base64.StdEncoding.DecodeString(string(bs))
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-	return string(bytes), err
+	return bytes, err
 }
 
-func Base64Encode(pwd string) string {
-	return base64.StdEncoding.EncodeToString([]byte(pwd))
+func (Base64Codec) Encode(bs []byte) ([]byte, error) {
+	return []byte(base64.StdEncoding.EncodeToString(bs)), nil
 }
 
-func AESEncrypt(plaintext, key []byte) ([]byte, error) {
-	block, err := aes.NewCipher(key)
+type AESCodec struct {
+	Key []byte
+}
+
+func (c AESCodec) Encode(bs []byte) ([]byte, error) {
+	block, err := aes.NewCipher(c.Key)
 	if err != nil {
 		return nil, err
 	}
 
-	ciphertext := make([]byte, aes.BlockSize+len(plaintext))
+	ciphertext := make([]byte, aes.BlockSize+len(bs))
 	iv := ciphertext[:aes.BlockSize]
 	if _, err := io.ReadFull(rand.Reader, iv); err != nil {
 		return nil, err
 	}
 
 	stream := cipher.NewCFBEncrypter(block, iv)
-	stream.XORKeyStream(ciphertext[aes.BlockSize:], plaintext)
+	stream.XORKeyStream(ciphertext[aes.BlockSize:], bs)
 
 	return ciphertext, nil
 }
 
-func AESDecrypt(ciphertext, key []byte) ([]byte, error) {
-	block, err := aes.NewCipher(key)
+func (c AESCodec) Decode(bs []byte) ([]byte, error) {
+	block, err := aes.NewCipher(c.Key)
 	if err != nil {
 		return nil, err
 	}
 
-	iv := ciphertext[:aes.BlockSize]
-	ciphertext = ciphertext[aes.BlockSize:]
+	iv := bs[:aes.BlockSize]
+	bs = bs[aes.BlockSize:]
 
 	stream := cipher.NewCFBDecrypter(block, iv)
-	stream.XORKeyStream(ciphertext, ciphertext)
+	stream.XORKeyStream(bs, bs)
 
-	return ciphertext, nil
+	return bs, nil
 }

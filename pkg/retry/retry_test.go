@@ -19,7 +19,7 @@ func TestDelay(t *testing.T) {
 			"fixed",
 			func(t *testing.T) {
 				for i := 0; i < 100; i++ {
-					assert.Equal(t, time.Second, retry.FixedDelay(time.Second)(uint(i), nil))
+					assert.Equal(t, time.Second, retry.FixedDelay(time.Second)(uint(i)))
 				}
 			},
 		},
@@ -27,7 +27,7 @@ func TestDelay(t *testing.T) {
 			"random",
 			func(t *testing.T) {
 				for i := 0; i < 10; i++ {
-					assert.Greater(t, time.Second, retry.RandomDelay(time.Second)(uint(i), nil))
+					assert.Greater(t, time.Second, retry.RandomDelay(time.Second)(uint(i)))
 				}
 			},
 		},
@@ -36,7 +36,7 @@ func TestDelay(t *testing.T) {
 			func(t *testing.T) {
 				arr := []time.Duration{time.Second, time.Second << 1, time.Second << 2, time.Second << 3, time.Second << 3, time.Second << 3}
 				for i := 0; i < len(arr); i++ {
-					assert.Equal(t, arr[i], retry.BackOffDelay(time.Second, 3)(uint(i), nil))
+					assert.Equal(t, arr[i], retry.BackOffDelay(time.Second, 3)(uint(i)))
 				}
 			},
 		},

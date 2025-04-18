@@ -44,7 +44,7 @@ func DoWithData[T any](f func() (T, error), opts ...Option) (T, error) {
 		}
 
 		select {
-		case <-time.After(cfg.delay(n, err)):
+		case <-time.After(cfg.delay(n)):
 		case <-cfg.context.Done():
 			return t, errs
 		}

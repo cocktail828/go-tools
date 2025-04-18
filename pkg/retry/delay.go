@@ -6,37 +6,43 @@ import (
 	"time"
 )
 
-type DelayFunc func(attempt uint, err error) time.Duration
+type DelayFunc func(attempt uint) time.Duration
 
-// BackOffDelay is a DelayType which increases delay between consecutive retries
-// Delay set delay between retry, default is 100ms
+func init() {
+	rand.Seed(time.Now().UnixNano())
+}
+
 func BackOffDelay(delay time.Duration, maxBackOffN uint) DelayFunc {
-	// 1 << 63 would overflow signed int64 (time.Duration), thus 62.
-	const max uint = 62
 	if delay <= 0 {
-		delay = 1
+		delay = time.Millisecond * 100
 	}
 
-	if maxBackOffN == 0 {
-		maxBackOffN = max - uint(math.Floor(math.Log2(float64(delay))))
+	maxPossibleAttempt := uint(math.Log2(float64(math.MaxInt64 / int64(delay))))
+	if maxBackOffN == 0 || maxBackOffN > maxPossibleAttempt {
+		maxBackOffN = maxPossibleAttempt
 	}
 
-	return func(attempt uint, err error) time.Duration {
-		if attempt > maxBackOffN {
-			attempt = maxBackOffN
-		}
-		return delay << attempt
+	return func(attempt uint) time.Duration {
+		return delay * (1 << min(attempt, maxBackOffN))
 	}
 }
 
-// FixedDelay is a DelayType which keeps delay the same through all iterations
 func FixedDelay(v time.Duration) DelayFunc {
-	return func(attempt uint, err error) time.Duration { return v }
+	if v <= 0 {
+		v = time.Millisecond * 100
+	}
+	return func(attempt uint) time.Duration { return v }
 }
 
-// RandomDelay is a DelayType which picks a random delay up to maxJitter
 func RandomDelay(maxJitter time.Duration) DelayFunc {
-	return func(attempt uint, err error) time.Duration {
+	return func(attempt uint) time.Duration {
 		return time.Duration(rand.Int63n(int64(maxJitter)))
 	}
+}
+
+func min(a, b uint) uint {
+	if a < b {
+		return a
+	}
+	return b
 }
