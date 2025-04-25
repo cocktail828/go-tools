@@ -3,8 +3,9 @@
 package main_test
 
 import (
-	"github.com/cocktail828/go-tools/pkg/errorx"
+	"fmt"
 	"github.com/pkg/errors"
+	"io"
 	"strconv"
 )
 
@@ -24,17 +25,31 @@ func _() {
 	_ = x[GeneralXrr9-9]
 	_ = x[GeneralXrr10-10]
 	_ = x[GeneralXrr11-11]
+	_ = x[GeneralXrr20-1000]
+	_ = x[GeneralXrr21-1002]
 }
 
-const _errcode_name = "unknow errorunknow errorunknow errorunknow errorunknow errorunknow errorunknow errorunknow errorunknow errorunknow errorunknow errorunknow error"
+const (
+	_errcode_name_0 = "unknow errorunknow errorunknow errorunknow errorunknow errorunknow errorunknow errorunknow errorunknow errorunknow errorunknow errorunknow error"
+	_errcode_name_1 = "unknow error"
+	_errcode_name_2 = "unknow error"
+)
 
-var _errcode_index = [...]uint8{0, 12, 24, 36, 48, 60, 72, 84, 96, 108, 120, 132, 144}
+var (
+	_errcode_index_0 = [...]uint8{0, 12, 24, 36, 48, 60, 72, 84, 96, 108, 120, 132, 144}
+)
 
 func (i errcode) Desc() string {
-	if i >= errcode(len(_errcode_index)-1) {
+	switch {
+	case i <= 11:
+		return _errcode_name_0[_errcode_index_0[i]:_errcode_index_0[i+1]]
+	case i == 1000:
+		return _errcode_name_1
+	case i == 1002:
+		return _errcode_name_2
+	default:
 		return "errcode(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _errcode_name[_errcode_index[i]:_errcode_index[i+1]]
 }
 
 func (i errcode) Code() uint32 {
@@ -42,21 +57,61 @@ func (i errcode) Code() uint32 {
 }
 
 func (i errcode) With(err error) error {
-	return errorx.New(i, err)
+	return &Error{i, err}
 }
 
 func (i errcode) Wrap(err error, message string) error {
-	return errorx.New(i, errors.Wrap(err, message))
+	return &Error{i, errors.Wrap(err, message)}
 }
 
 func (i errcode) Wrapf(err error, format string, args ...any) error {
-	return errorx.New(i, errors.Wrapf(err, format, args...))
+	return &Error{i, errors.Wrapf(err, format, args...)}
 }
 
 func (i errcode) WithMessage(message string) error {
-	return errorx.New(i, errors.New(message))
+	return &Error{i, errors.New(message)}
 }
 
 func (i errcode) WithMessagef(format string, args ...any) error {
-	return errorx.New(i, errors.Errorf(format, args...))
+	return &Error{i, errors.Errorf(format, args...)}
+}
+
+type Error struct {
+	ec    errcode
+	cause error
+}
+
+func (e *Error) Error() string {
+	if e.cause == nil || e.Code() == 0 {
+		return "" // success
+	}
+	return fmt.Sprintf("code: %d, desc: %s, cause: %q", e.Code(), e.Desc(), e.cause)
+}
+
+func (e *Error) Code() uint32 {
+	return e.ec.Code()
+}
+
+func (e *Error) Desc() string {
+	return e.ec.Desc()
+}
+
+func (e *Error) Cause() error {
+	return errors.Cause(e.cause)
+}
+
+// Unwrap provides compatibility for Go 1.13 error chains.
+func (e *Error) Unwrap() error { return e.cause }
+
+func (e *Error) Format(s fmt.State, verb rune) {
+	switch verb {
+	case 'v':
+		if s.Flag('+') {
+			fmt.Fprintf(s, "%+v\ncode: %d, desc: %s", e.Cause(), e.Code(), e.Desc())
+			return
+		}
+		fallthrough
+	case 's', 'q':
+		io.WriteString(s, e.Error())
+	}
 }

@@ -104,9 +104,10 @@ func main() {
 		g.Printf("package %s", g.pkg.name)
 		g.Printf("\n")
 		g.Printf("import(\n")
+		g.Printf("\t\"fmt\"\n")
+		g.Printf("\t\"io\"\n")
 		g.Printf("\t\"strconv\"\n")
 		g.Printf("\t\"github.com/pkg/errors\"\n")
-		g.Printf("\t\"github.com/cocktail828/go-tools/pkg/errorx\"\n")
 		g.Printf(")\n") // Used by all methods.
 
 		// Run generate for types that can be found. Keep the rest for the remainingTypes iteration.
@@ -566,7 +567,7 @@ func (g *Generator) declareNameVars(runs [][]Value, typeName string, suffix stri
 
 func (g *Generator) buildExtra(_ [][]Value, typeName string) {
 	g.Printf("\n")
-	g.Printf(stringFuncs, typeName)
+	g.Printf(stringFuncs, typeName, "code: %d, desc: %s, cause: %q", "%+v\\ncode: %d, desc: %s")
 }
 
 const stringFuncs = `func (i %[1]s) Code() uint32 {
@@ -574,25 +575,64 @@ const stringFuncs = `func (i %[1]s) Code() uint32 {
 }
 
 func (i %[1]s) With(err error) error {
-	return errorx.New(i, err)
+	return &Error{i, err}
 }
 
 func (i %[1]s) Wrap(err error, message string) error {
-	return errorx.New(i, errors.Wrap(err, message))
+	return &Error{i, errors.Wrap(err, message)}
 }
 
 func (i %[1]s) Wrapf(err error, format string, args ...any) error {
-	return errorx.New(i, errors.Wrapf(err, format, args...))
+	return &Error{i, errors.Wrapf(err, format, args...)}
 }
 
 func (i %[1]s) WithMessage(message string) error {
-	return errorx.New(i, errors.New(message))
+	return &Error{i, errors.New(message)}
 }
 
 func (i %[1]s) WithMessagef(format string, args ...any) error {
-	return errorx.New(i, errors.Errorf(format, args...))
+	return &Error{i, errors.Errorf(format, args...)}
 }
 
+type Error struct {
+	ec %[1]s
+	cause error
+}
+
+func (e *Error) Error() string {
+	if e.cause == nil || e.Code() == 0 {
+		return "" // success
+	}
+	return fmt.Sprintf("%[2]s", e.Code(), e.Desc(), e.cause)
+}
+
+func (e *Error) Code() uint32 {
+	return e.ec.Code()
+}
+
+func (e *Error) Desc() string {
+	return e.ec.Desc()
+}
+
+func (e *Error) Cause() error {
+	return errors.Cause(e.cause)
+}
+
+// Unwrap provides compatibility for Go 1.13 error chains.
+func (e *Error) Unwrap() error { return e.cause }
+
+func (e *Error) Format(s fmt.State, verb rune) {
+	switch verb {
+	case 'v':
+		if s.Flag('+') {
+			fmt.Fprintf(s, "%[3]s", e.Cause(), e.Code(), e.Desc())
+			return
+		}
+		fallthrough
+	case 's', 'q':
+		io.WriteString(s, e.Error())
+	}
+}
 `
 
 // buildOneRun generates the variables and String method for a single run of contiguous values.
