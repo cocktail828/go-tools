@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 
+	"github.com/cocktail828/go-tools/xlog"
 	"github.com/cocktail828/go-tools/xlog/colorful"
 )
 
@@ -26,15 +27,22 @@ func dump(prefix string, l *colorful.Logger) {
 }
 
 func main() {
+	log.SetFlags(log.Flags() | log.Llongfile)
+
 	func() {
 		fmt.Println("=============== default ==============")
-		log.SetFlags(log.Flags() | log.Llongfile)
 		dump("default", colorful.Default())
 	}()
 
 	func() {
 		fmt.Println("=============== new ==============")
-		log.SetFlags(log.Flags() | log.Llongfile)
 		dump("new", colorful.NewColorfulLog(log.Default()))
+	}()
+
+	func() {
+		fmt.Println("=============== level ==============")
+		l := colorful.NewColorfulLog(log.Default())
+		l.SetLevel(xlog.LevelDebug)
+		dump("level", l)
 	}()
 }
