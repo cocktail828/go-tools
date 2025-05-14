@@ -1,7 +1,6 @@
 package colorful
 
 import (
-	"fmt"
 	"io"
 	"log"
 	"os"
@@ -10,10 +9,24 @@ import (
 	"github.com/fatih/color"
 )
 
+type lvprinter interface {
+	Level() xlog.Level
+	Sprint(v ...any) string
+	Sprintln(v ...any) string
+	Sprintf(format string, v ...any) string
+}
+
+type lvcolor struct {
+	lv xlog.Level
+	*color.Color
+}
+
+func (lc lvcolor) Level() xlog.Level { return lc.lv }
+
 type Logger struct {
 	*log.Logger
-	level                        xlog.Level
-	debu, info, warn, erro, fata *color.Color
+	level                               xlog.Level
+	print, debu, info, warn, erro, fata *lvcolor
 }
 
 // an wrapper of *log.Logger with colorful output
@@ -24,42 +37,31 @@ func NewColorful(out io.Writer, prefix string, flag int) *Logger {
 func NewColorfulLog(l *log.Logger) *Logger {
 	return &Logger{
 		Logger: l,
-		debu:   color.New().Add(color.Italic, color.Bold),
-		info:   color.New(),
-		warn:   color.New(color.FgYellow),
-		erro:   color.New(color.FgRed),
-		fata:   color.New(color.FgRed, color.Bold),
+		print:  &lvcolor{xlog.LevelFatal, color.New()}, // The printer will definitely be able to print out the log with high log level.
+		debu:   &lvcolor{xlog.LevelDebug, color.New().Add(color.Italic, color.Bold)},
+		info:   &lvcolor{xlog.LevelInfo, color.New()},
+		warn:   &lvcolor{xlog.LevelWarn, color.New(color.FgYellow)},
+		erro:   &lvcolor{xlog.LevelError, color.New(color.FgRed)},
+		fata:   &lvcolor{xlog.LevelFatal, color.New(color.FgRed, color.Bold)},
 	}
 }
 
-func (l *Logger) WithColor(lv xlog.Level, c *color.Color) {
-	switch lv {
-	case xlog.LevelDebug:
-		l.debu = c
-	case xlog.LevelInfo:
-		l.info = c
-	case xlog.LevelWarn:
-		l.warn = c
-	case xlog.LevelError:
-		l.erro = c
-	case xlog.LevelFatal:
-		l.fata = c
+func (l *Logger) SetColor(lv xlog.Level, c *color.Color) {
+	colors := []*lvcolor{l.debu, l.info, l.warn, l.erro, l.fata}
+	for _, p := range colors {
+		if p.lv == lv && c != nil {
+			p.Color = c
+		}
 	}
 }
 
 func (l *Logger) iterate(f func(c *color.Color), levels ...xlog.Level) {
+	colors := []*lvcolor{l.debu, l.info, l.warn, l.erro, l.fata}
 	for _, lv := range levels {
-		switch lv {
-		case xlog.LevelDebug:
-			f(l.debu)
-		case xlog.LevelInfo:
-			f(l.info)
-		case xlog.LevelWarn:
-			f(l.warn)
-		case xlog.LevelError:
-			f(l.erro)
-		case xlog.LevelFatal:
-			f(l.fata)
+		for _, p := range colors {
+			if p.lv == lv && f != nil {
+				f(p.Color)
+			}
 		}
 	}
 }
@@ -78,83 +80,44 @@ func (l *Logger) SetLevel(lv xlog.Level) {
 	l.level = lv
 }
 
-func (l *Logger) log(depth int, lv xlog.Level, stringer func() string) {
-	if lv >= l.level {
-		l.Logger.Output(depth, stringer())
+func (l *Logger) log(depth int, printer lvprinter, v ...any) {
+	if printer.Level() >= l.level {
+		l.Logger.Output(depth, printer.Sprint(v...))
 	}
 }
 
-func (l *Logger) Print(v ...any) {
-	l.log(3, xlog.LevelFatal, func() string { return fmt.Sprint(v...) })
+func (l *Logger) logln(depth int, printer lvprinter, v ...any) {
+	if printer.Level() >= l.level {
+		l.Logger.Output(depth, printer.Sprintln(v...))
+	}
 }
 
-func (l *Logger) Println(v ...any) {
-	l.log(3, xlog.LevelFatal, func() string { return fmt.Sprintln(v...) })
+func (l *Logger) logf(depth int, printer lvprinter, format string, v ...any) {
+	if printer.Level() >= l.level {
+		l.Logger.Output(depth, printer.Sprintf(format, v...))
+	}
 }
 
-func (l *Logger) Printf(format string, v ...any) {
-	l.log(3, xlog.LevelFatal, func() string { return fmt.Sprintf(format, v...) })
-}
+func (l *Logger) Print(v ...any)                 { l.log(3, l.print, v...) }
+func (l *Logger) Println(v ...any)               { l.logln(3, l.print, v...) }
+func (l *Logger) Printf(format string, v ...any) { l.logf(3, l.print, format, v...) }
 
-func (l *Logger) Debug(v ...any) {
-	l.log(3, xlog.LevelDebug, func() string { return l.debu.Sprint(v...) })
-}
+func (l *Logger) Debug(v ...any)                 { l.log(3, l.debu, v...) }
+func (l *Logger) Debugln(v ...any)               { l.logln(3, l.debu, v...) }
+func (l *Logger) Debugf(format string, v ...any) { l.logf(3, l.debu, format, v...) }
 
-func (l *Logger) Debugln(v ...any) {
-	l.log(3, xlog.LevelDebug, func() string { return l.debu.Sprintln(v...) })
-}
+func (l *Logger) Info(v ...any)                 { l.log(3, l.info, v...) }
+func (l *Logger) Infoln(v ...any)               { l.logln(3, l.info, v...) }
+func (l *Logger) Infof(format string, v ...any) { l.logf(3, l.info, format, v...) }
 
-func (l *Logger) Debugf(format string, v ...any) {
-	l.log(3, xlog.LevelDebug, func() string { return l.debu.Sprintf(format, v...) })
-}
+func (l *Logger) Warn(v ...any)                 { l.log(3, l.warn, v...) }
+func (l *Logger) Warnln(v ...any)               { l.logln(3, l.warn, v...) }
+func (l *Logger) Warnf(format string, v ...any) { l.logf(3, l.warn, format, v...) }
 
-func (l *Logger) Info(v ...any) {
-	l.log(3, xlog.LevelInfo, func() string { return l.info.Sprint(v...) })
-}
+func (l *Logger) Error(v ...any)                 { l.log(3, l.erro, v...) }
+func (l *Logger) Errorln(v ...any)               { l.logln(3, l.erro, v...) }
+func (l *Logger) Errorf(format string, v ...any) { l.logf(3, l.erro, format, v...) }
 
-func (l *Logger) Infoln(v ...any) {
-	l.log(3, xlog.LevelInfo, func() string { return l.info.Sprintln(v...) })
-}
-
-func (l *Logger) Infof(format string, v ...any) {
-	l.log(3, xlog.LevelInfo, func() string { return l.info.Sprintf(format, v...) })
-}
-
-func (l *Logger) Warn(v ...any) {
-	l.log(3, xlog.LevelWarn, func() string { return l.warn.Sprint(v...) })
-}
-
-func (l *Logger) Warnln(v ...any) {
-	l.log(3, xlog.LevelWarn, func() string { return l.warn.Sprintln(v...) })
-}
-
-func (l *Logger) Warnf(format string, v ...any) {
-	l.log(3, xlog.LevelWarn, func() string { return l.warn.Sprintf(format, v...) })
-}
-
-func (l *Logger) Error(v ...any) {
-	l.log(3, xlog.LevelError, func() string { return l.erro.Sprint(v...) })
-}
-
-func (l *Logger) Errorln(v ...any) {
-	l.log(3, xlog.LevelError, func() string { return l.erro.Sprintln(v...) })
-}
-
-func (l *Logger) Errorf(format string, v ...any) {
-	l.log(3, xlog.LevelError, func() string { return l.erro.Sprintf(format, v...) })
-}
-
-func (l *Logger) Fatal(v ...any) {
-	l.log(3, xlog.LevelFatal, func() string { return l.fata.Sprint(v...) })
-	os.Exit(1)
-}
-
-func (l *Logger) Fatalln(v ...any) {
-	l.log(3, xlog.LevelFatal, func() string { return l.fata.Sprintln(v...) })
-	os.Exit(1)
-}
-
-func (l *Logger) Fatalf(format string, v ...any) {
-	l.log(3, xlog.LevelFatal, func() string { return l.fata.Sprintf(format, v...) })
-	os.Exit(1)
-}
+func (l *Logger) Fatal(v ...any)                 { l.log(3, l.fata, v...); os.Exit(1) }
+func (l *Logger) Fatalln(v ...any)               { l.logln(3, l.fata, v...); os.Exit(1) }
+func (l *Logger) Fatalf(format string, v ...any) { l.logf(3, l.fata, format, v...); os.Exit(1) }
