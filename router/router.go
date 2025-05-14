@@ -157,12 +157,8 @@ func (r *Router) serve(root *Node, c Context) error {
 
 // rpc://xxx/yyy -> rpc, /xxx/yyy
 func (r *Router) ServeURI(uri string) error {
-	if !strings.Contains(uri, "://") {
-		return ErrMissSchema
-	}
-
 	schema, path, found := strings.Cut(uri, ":/")
-	if !found {
+	if !found || path == "" || path[0] != '/' {
 		return ErrMissSchema
 	}
 
