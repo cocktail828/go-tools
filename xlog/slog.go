@@ -64,12 +64,27 @@ func (wl *WrapperLogger) log(level slog.Level, msg string, args ...any) {
 	_ = wl.logger.Handler().Handle(context.Background(), r)
 }
 
+func (wl *WrapperLogger) logf(level slog.Level, format string, args ...any) {
+	if !wl.logger.Enabled(context.Background(), level) {
+		return
+	}
+	var pc uintptr
+	if wl.AddSource {
+		var pcs [1]uintptr
+		// skip [runtime.Callers, this function, this function's caller]
+		runtime.Callers(3, pcs[:])
+		pc = pcs[0]
+	}
+	r := slog.NewRecord(time.Now(), level, fmt.Sprintf(format, args...), pc)
+	_ = wl.logger.Handler().Handle(context.Background(), r)
+}
+
 func (wl *WrapperLogger) Debugln(msg string, args ...any) {
 	wl.log(slog.LevelDebug, msg, args...)
 }
 
 func (wl *WrapperLogger) Debugf(format string, args ...any) {
-	wl.log(slog.LevelDebug, fmt.Sprintf(format, args...))
+	wl.logf(slog.LevelDebug, format, args...)
 }
 
 func (wl *WrapperLogger) Infoln(msg string, args ...any) {
@@ -77,7 +92,7 @@ func (wl *WrapperLogger) Infoln(msg string, args ...any) {
 }
 
 func (wl *WrapperLogger) Infof(format string, args ...any) {
-	wl.log(slog.LevelInfo, fmt.Sprintf(format, args...))
+	wl.logf(slog.LevelInfo, format, args...)
 }
 
 func (wl *WrapperLogger) Warnln(msg string, args ...any) {
@@ -85,7 +100,7 @@ func (wl *WrapperLogger) Warnln(msg string, args ...any) {
 }
 
 func (wl *WrapperLogger) Warnf(format string, args ...any) {
-	wl.log(slog.LevelWarn, fmt.Sprintf(format, args...))
+	wl.logf(slog.LevelWarn, format, args...)
 }
 
 func (wl *WrapperLogger) Errorln(msg string, args ...any) {
@@ -93,5 +108,5 @@ func (wl *WrapperLogger) Errorln(msg string, args ...any) {
 }
 
 func (wl *WrapperLogger) Errorf(format string, args ...any) {
-	wl.log(slog.LevelError, fmt.Sprintf(format, args...))
+	wl.logf(slog.LevelError, format, args...)
 }
