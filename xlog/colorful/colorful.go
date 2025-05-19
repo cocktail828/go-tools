@@ -56,6 +56,10 @@ func (l *Logger) SetColor(lv xlog.Level, c *color.Color) {
 }
 
 func (l *Logger) iterate(f func(c *color.Color), levels ...xlog.Level) {
+	if len(levels) == 0 {
+		levels = xlog.AllLevels
+	}
+
 	colors := []*lvcolor{l.debu, l.info, l.warn, l.erro, l.fata}
 	for _, lv := range levels {
 		for _, p := range colors {
@@ -68,6 +72,10 @@ func (l *Logger) iterate(f func(c *color.Color), levels ...xlog.Level) {
 
 // disable all color if no level is passed
 func (l *Logger) DisableColor(levels ...xlog.Level) {
+	if len(levels) == 0 {
+		levels = xlog.AllLevels
+	}
+
 	l.iterate(func(c *color.Color) { c.DisableColor() }, levels...)
 }
 
@@ -76,9 +84,8 @@ func (l *Logger) EnableColor(levels ...xlog.Level) {
 	l.iterate(func(c *color.Color) { c.EnableColor() }, levels...)
 }
 
-func (l *Logger) SetLevel(lv xlog.Level) {
-	l.level = lv
-}
+func (l *Logger) SetLevel(lv xlog.Level) { l.level = lv }
+func (l *Logger) GetLevel() xlog.Level   { return l.level }
 
 func (l *Logger) log(depth int, printer lvprinter, v ...any) {
 	if printer.Level() >= l.level {

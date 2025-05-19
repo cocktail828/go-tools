@@ -23,6 +23,7 @@ func DisableColor(levels ...xlog.Level) { std.DisableColor() }
 func EnableColor(levels ...xlog.Level) { std.EnableColor(levels...) }
 
 func SetLevel(lv xlog.Level) { std.SetLevel(lv) }
+func GetLevel() xlog.Level   { return std.GetLevel() }
 
 func Print(v ...any)                 { std.log(3, std.print, v...) }
 func Println(v ...any)               { std.logln(3, std.print, v...) }
