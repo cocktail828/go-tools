@@ -1,19 +1,9 @@
 package hystrix
 
-type logger interface {
-	Printf(format string, items ...interface{})
-}
-
-// NoopLogger does not log anything.
-type NoopLogger struct{}
-
-// Printf does nothing.
-func (l NoopLogger) Printf(format string, items ...interface{}) {}
+import "github.com/cocktail828/go-tools/xlog"
 
 // the default logger that will be used in the Hystrix package. By default prints nothing.
-var log logger = NoopLogger{}
+var log xlog.Printer = xlog.NoopPrinter{}
 
 // SetLogger configures the logger that will be used. This only applies to the hystrix package.
-func SetLogger(l logger) {
-	log = l
-}
+func SetLogger(l xlog.Printer) { log = l }

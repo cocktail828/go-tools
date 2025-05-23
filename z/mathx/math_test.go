@@ -9,8 +9,6 @@ import (
 
 func TestNext2Power(t *testing.T) {
 	for k, v := range map[int64]int64{
-		-15: -8,
-		-16: -16,
 		0:   0,
 		1:   1,
 		2:   2,
@@ -43,4 +41,26 @@ func TestNumOfOnes(t *testing.T) {
 func TestBase62(t *testing.T) {
 	n := time.Now().UnixNano()
 	assert.Equal(t, n, FromBase62(ToBase62(n)))
+}
+
+func TestCeilOf(t *testing.T) {
+	tests := []struct {
+		num, base, expt int64
+	}{
+		{100, 10, 100},
+		{101, 10, 100},
+		{102, 10, 100},
+		{103, 10, 100},
+		{104, 10, 100},
+		{105, 10, 100},
+		{106, 10, 100},
+		{107, 10, 100},
+		{108, 10, 100},
+		{109, 10, 100},
+		{110, 10, 110},
+	}
+
+	for _, tt := range tests {
+		assert.Equal(t, tt.expt, CeilOf(tt.num, tt.base))
+	}
 }

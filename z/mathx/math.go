@@ -4,19 +4,6 @@ import "strings"
 
 // Next2Power rounds x up to the next power of 2, if it's not already one.
 func Next2Power(x int64) int64 {
-	if x >= 0 {
-		return next2Power(x)
-	}
-
-	if y := -next2Power(-x); x == y {
-		return y
-	} else {
-		return y / 2
-	}
-}
-
-// x >= 0
-func next2Power(x int64) int64 {
 	if x < 0 {
 		panic("x cannot be a negative value")
 	}
@@ -71,3 +58,5 @@ func FromBase62(s string) int64 {
 	}
 	return result
 }
+
+func CeilOf(x, base int64) int64 { return x - x%base }

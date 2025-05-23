@@ -72,10 +72,6 @@ func (l *Logger) iterate(f func(c *color.Color), levels ...xlog.Level) {
 
 // disable all color if no level is passed
 func (l *Logger) DisableColor(levels ...xlog.Level) {
-	if len(levels) == 0 {
-		levels = xlog.AllLevels
-	}
-
 	l.iterate(func(c *color.Color) { c.DisableColor() }, levels...)
 }
 

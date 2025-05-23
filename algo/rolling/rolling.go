@@ -25,18 +25,12 @@ type Rolling struct {
 	counters []counter
 }
 
-// NewDualRolling 创建一个新的 DualRolling 实例
+// NewRolling 创建一个新的 DualRolling 实例
 // win: 计数器窗口大小，单位：毫秒
 // num: 计数器数量，最终会向上取整为 2 的幂次方
 func NewRolling(num, win int) *Rolling {
-	num = int(mathx.Next2Power(int64(num)))
-	if num < MIN_COUNTER_NUM {
-		num = MIN_COUNTER_NUM
-	}
-
-	if win < MIN_COUNTER_SIZE {
-		win = MIN_COUNTER_SIZE
-	}
+	num = max(int(mathx.Next2Power(int64(num))), MIN_COUNTER_NUM)
+	win = max(win, MIN_COUNTER_SIZE)
 
 	return &Rolling{
 		win:      int64(win) * 1e6,
