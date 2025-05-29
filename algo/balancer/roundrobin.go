@@ -7,7 +7,7 @@ import (
 )
 
 type rrBalancer struct {
-	sync.RWMutex
+	mu    sync.RWMutex
 	pos   uint16
 	array []Node
 }
@@ -18,7 +18,7 @@ func NewRR(array []Node) Balancer {
 
 func (b *rrBalancer) Pick() (n Node) {
 	var array []Node
-	z.WithRLock(b, func() { array = b.array })
+	z.WithRLock(&b.mu, func() { array = b.array })
 
 	if len(array) == 0 {
 		return nil

@@ -7,7 +7,7 @@ import (
 )
 
 type wrrBalancer struct {
-	sync.Mutex
+	mu        sync.Mutex
 	array     []Node
 	busyArray []int
 }
@@ -26,7 +26,7 @@ func (b *wrrBalancer) Pick() (n Node) {
 		return
 	}
 
-	z.WithLock(b, func() {
+	z.WithLock(&b.mu, func() {
 		allWeight := 0
 		pos := -1
 		for i := 0; i < len(b.array); i++ {

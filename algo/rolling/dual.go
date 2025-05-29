@@ -15,10 +15,10 @@ type dualcounter struct {
 }
 
 type DualRolling struct {
-	win      int64 // 计数窗口大小, 单位纳秒, 需为毫秒的2次方幂
-	num      int64 // 计数器个数
-	bitMask  int64 // num-1
-	counters []dualcounter
+	precision  int64 // 计数窗口大小, 单位纳秒, 需为毫秒的2次方幂
+	numCounter int64 // 计数器个数
+	bitMask    int64 // num-1
+	counters   []dualcounter
 }
 
 // NewDualRolling 创建一个新的 DualRolling 实例
@@ -35,17 +35,17 @@ func NewDualRolling(win, num int) *DualRolling {
 	}
 
 	return &DualRolling{
-		win:      int64(win) * 1e6, // ns
-		num:      int64(num),       // 32.768s
-		bitMask:  int64(num) - 1,
-		counters: make([]dualcounter, num),
+		precision:  int64(win) * 1e6, // ns
+		numCounter: int64(num),       // 32.768s
+		bitMask:    int64(num) - 1,
+		counters:   make([]dualcounter, num),
 	}
 }
 
 func (r *DualRolling) String() string {
 	sb := &strings.Builder{}
-	fmt.Fprintf(sb, "Rolling: win:%dns, num:%d\n", r.win, r.num)
-	for i := int64(0); i < r.num; i++ {
+	fmt.Fprintf(sb, "Rolling: win:%dns, num:%d\n", r.precision, r.numCounter)
+	for i := int64(0); i < r.numCounter; i++ {
 		c := &r.counters[i]
 		posi := c.positive.Load()
 		nega := c.negative.Load()
@@ -59,8 +59,8 @@ func (r *DualRolling) String() string {
 // Incr 增加成功和失败的计数
 func (r *DualRolling) Incr(success, failure int) {
 	nsec := unixNano()
-	pos := (nsec / r.win) & r.bitMask
-	floor := round(nsec, r.win)
+	pos := (nsec / r.precision) & r.bitMask
+	floor := round(nsec, r.precision)
 	c := &r.counters[pos]
 
 	for {
@@ -82,19 +82,20 @@ func (r *DualRolling) Incr(success, failure int) {
 
 // Count 获取过去 num 个窗口的成功和失败次数
 func (r *DualRolling) Count(num int64) (posi int, nega int, win int) {
-	if num > r.num {
-		num = r.num
+	if num > r.numCounter {
+		num = r.numCounter
 	}
 
 	nsec := unixNano()
-	pos := (nsec / r.win) & r.bitMask
-	floor := round(nsec, r.win)
+	pos := (nsec / r.precision) & r.bitMask
+	limit := round(nsec, r.precision) - r.precision*(num-1)
+
 	for i := int64(0); i < num; i++ {
-		index := (pos - i + r.num) & r.bitMask
+		index := (pos - i + r.numCounter) & r.bitMask
 		c := &r.counters[index]
 
 		// check whether the counter is expired
-		if c.nanots.Load()+r.win*i < floor {
+		if c.nanots.Load() < limit {
 			break
 		}
 
