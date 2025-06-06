@@ -6,6 +6,8 @@ import (
 	"time"
 )
 
+var errNoop = errors.New("noop error")
+
 type Graceful struct {
 	Start func() error
 	Stop  func() error
@@ -13,7 +15,13 @@ type Graceful struct {
 
 func (g *Graceful) Launch(pctx context.Context) error {
 	ctx, cancel := context.WithCancelCause(pctx)
-	go func() { cancel(g.Start()) }()
+	go func() {
+		if err := g.Start(); err == nil {
+			cancel(errNoop)
+		} else {
+			cancel(err)
+		}
+	}()
 
 	if g.Stop == nil {
 		g.Stop = func() error { return nil }
@@ -21,7 +29,7 @@ func (g *Graceful) Launch(pctx context.Context) error {
 
 	<-ctx.Done()
 	err := context.Cause(ctx)
-	if err == context.Canceled {
+	if errors.Is(err, errNoop) {
 		err = nil
 	}
 	return errors.Join(err, g.Stop())
