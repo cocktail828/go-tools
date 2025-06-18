@@ -13,10 +13,8 @@ type TimeRecorder struct {
 
 // NewTimeRecorder creates a new TimeRecorder
 func NewTimeRecorder() *TimeRecorder {
-	return &TimeRecorder{
-		start: time.Now(),
-		last:  time.Now(),
-	}
+	now := time.Now()
+	return &TimeRecorder{now, now}
 }
 
 // Duration returns the duration from last record
