@@ -175,7 +175,7 @@ type Trie struct {
 	root *node
 }
 
-// Instanciate a Trie with an empty node as the root.
+// Instanciate a Trie.
 // routes: path->anchor
 func New(routes map[string]any) (*Trie, error) {
 	trie := &Trie{&node{}}

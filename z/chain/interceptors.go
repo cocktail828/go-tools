@@ -4,27 +4,27 @@ import (
 	"context"
 )
 
-type UnaryHandler[T any] func(ctx context.Context, in T) (any, error)
-type UnaryInterceptor[T any] func(ctx context.Context, in T, handler UnaryHandler[T]) (resp any, err error)
+type UnaryHandler func(ctx context.Context, in any) (any, error)
+type UnaryInterceptor func(ctx context.Context, in any, handler UnaryHandler) (resp any, err error)
 
-func getChainUnaryHandler[T any](interceptors []UnaryInterceptor[T], curr int, finalHandler UnaryHandler[T]) UnaryHandler[T] {
+func getChainUnaryHandler(interceptors []UnaryInterceptor, curr int, finalHandler UnaryHandler) UnaryHandler {
 	if curr == len(interceptors)-1 {
 		return finalHandler
 	}
 
-	return func(ctx context.Context, in T) (any, error) {
+	return func(ctx context.Context, in any) (any, error) {
 		return interceptors[curr+1](ctx, in, getChainUnaryHandler(interceptors, curr+1, finalHandler))
 	}
 }
 
-func ChainUnaryInterceptors[T any](interceptors []UnaryInterceptor[T]) UnaryInterceptor[T] {
+func ChainUnaryInterceptors(interceptors []UnaryInterceptor) UnaryInterceptor {
 	if len(interceptors) == 0 {
-		return func(ctx context.Context, in T, handler UnaryHandler[T]) (resp any, err error) {
+		return func(ctx context.Context, in any, handler UnaryHandler) (resp any, err error) {
 			return handler(ctx, in)
 		}
 	}
 
-	return func(ctx context.Context, in T, handler UnaryHandler[T]) (any, error) {
-		return interceptors[0](ctx, in, getChainUnaryHandler[T](interceptors, 0, handler))
+	return func(ctx context.Context, in any, handler UnaryHandler) (any, error) {
+		return interceptors[0](ctx, in, getChainUnaryHandler(interceptors, 0, handler))
 	}
 }
