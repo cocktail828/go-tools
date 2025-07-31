@@ -1,225 +1,219 @@
 package hystrix
 
 import (
+	"context"
+	"slices"
 	"sync"
 	"sync/atomic"
-	"time"
 
 	"github.com/cocktail828/go-tools/algo/rolling"
+	"github.com/cocktail828/go-tools/pkg/semaphore"
+	"github.com/cocktail828/go-tools/z/timex"
 )
 
-var (
-	// DefaultTimeout is how long to wait for command to complete, in milliseconds
-	DefaultTimeout = 1000 * time.Millisecond
-	// DefaultMuteWindow is how long, in milliseconds, to wait after a circuitbreaker opens before testing for recovery
-	DefaultMuteWindow = 5000 * time.Millisecond
-	// DefaultRecoveryProbes is how many probes circuitbreaker will try, before recovery
-	DefaultRecoveryProbes = 3
-	// DefaultMaxConcurrency is how many commands of the same type can run at the same time
-	DefaultMaxConcurrency = 10
-	// DefaultMinRequestNum is the minimum number of requests needed before a circuitbreaker can be tripped due to health
-	DefaultMinRequestNum = 20
-	// DefaultErrorPercentThreshold causes circuits to open once the rolling measure of errors exceeds this percent of requests
-	DefaultFailureThreshold = 20 // 0~100
-)
-
-type Setting struct {
-	Timeout                    time.Duration `json:"timeout"`     // ms
-	MuteWindow                 time.Duration `json:"mute_window"` // ms
-	Probes                     int           `json:"probes"`
-	MaxConcurrency             int           `json:"max_concurrency"`
-	HealthCheckMinReqThreshold int           `json:"min_request_threshold"`
-	OpenOnFailureThreshold     int           `json:"failure_threshold"` // 0~100
+type keepAlive struct {
+	mu    sync.RWMutex
+	next  int
+	array []bool
 }
 
-func (s *Setting) Normalize() {
-	if s.Timeout <= 0 {
-		s.Timeout = DefaultTimeout
-	}
-
-	if s.MuteWindow <= 0 {
-		s.MuteWindow = DefaultMuteWindow
-	}
-
-	if s.Probes <= 0 {
-		s.Probes = DefaultRecoveryProbes
-	}
-
-	if s.MaxConcurrency <= 0 {
-		s.MaxConcurrency = DefaultMaxConcurrency
-	}
-
-	if s.HealthCheckMinReqThreshold <= 0 {
-		s.HealthCheckMinReqThreshold = DefaultMinRequestNum
-	}
-
-	if s.OpenOnFailureThreshold <= 0 {
-		s.OpenOnFailureThreshold = DefaultFailureThreshold
-	}
+func (r *keepAlive) Update(ok bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.array[r.next] = ok
+	r.next = (r.next + 1) % len(r.array)
 }
 
-func Configure(settings map[string]Setting) {
-	for k, v := range settings {
-		ConfigureCommand(k, v)
-	}
+func (r *keepAlive) IsHealthy() bool {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return !slices.Contains(r.array, false)
 }
 
-// ConfigureCommand 方法用于配置单个断路器, may blocked
-func ConfigureCommand(name string, setting Setting) {
-	setting.Normalize()
-	val, exist := circuitBreakers.LoadOrStore(name, newCircuitBreaker(name, setting))
-	if exist { // overwrite old settings
-		cb := val.(*CircuitBreaker)
-		cb.updateSetting(setting)
-	}
+func (r *keepAlive) Reset() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.next = 0
+	r.array = make([]bool, len(r.array))
 }
 
-var (
-	// name -> *CircuitBreaker
-	circuitBreakers = &sync.Map{}
-)
-
-type CircuitBreaker struct {
-	name        string
-	setting     Setting
-	lastTestAt  atomic.Int64  // nanoseconds
-	isOpen      atomic.Bool   // circuit state
-	isForceOpen bool          // manually trun on/off the circuit
-	tickets     chan struct{} // for concurrency control
-	statistic   Statistic
-	recovery    Recovery
+type circuitBreaker struct {
+	Config
+	lastTestAt  atomic.Int64        // last single test timestamp in nanoseconds
+	isOpen      atomic.Bool         // circuit state
+	isForceOpen bool                // manually turn on/off the circuit
+	tickets     *semaphore.Weighted // for concurrency control
+	statistic   *rolling.Rolling
+	recovery    keepAlive
 }
 
-func GetCircuit(name string) *CircuitBreaker {
-	s := Setting{}
-	s.Normalize()
-	val, _ := circuitBreakers.LoadOrStore(name, newCircuitBreaker(name, s))
-	return val.(*CircuitBreaker)
-}
-
-func newCircuitBreaker(name string, s Setting) *CircuitBreaker {
-	cb := &CircuitBreaker{
-		name:    name,
-		setting: s,
-		tickets: make(chan struct{}, s.MaxConcurrency),
-		statistic: Statistic{
-			requests: rolling.NewRolling(0, 128),
-			success:  rolling.NewRolling(0, 128),
-			failure:  rolling.NewRolling(0, 128),
+func NewCircuitBreaker(cfg Config) *circuitBreaker {
+	cfg.Normalize()
+	return &circuitBreaker{
+		Config:    cfg,
+		tickets:   semaphore.NewWeighted(int64(cfg.MaxConcurrency)),
+		statistic: rolling.NewRolling(128),
+		recovery: keepAlive{
+			array: make([]bool, cfg.KeepAliveProbes),
 		},
-		recovery: Recovery{array: make([]bool, s.Probes)},
 	}
-
-	for i := 0; i < cb.setting.MaxConcurrency; i++ {
-		cb.tickets <- struct{}{}
-	}
-
-	return cb
 }
 
-func (cb *CircuitBreaker) activeCount() int {
-	return cb.setting.MaxConcurrency - len(cb.tickets)
+func (cb *circuitBreaker) Update(cfg Config) {
+	cb.Config.Update(cfg)
+	cb.tickets.Resize(int64(cb.MaxConcurrency))
+}
+
+func (cb *circuitBreaker) ActiveCount() int {
+	return int(cb.tickets.Assign())
 }
 
 // open or close the circuitbreaker manually
-func (cb *CircuitBreaker) Manually(toggle bool) {
+func (cb *circuitBreaker) Trigger(toggle bool) {
 	cb.isForceOpen = toggle
 }
 
-func (cb *CircuitBreaker) IsOpen() bool {
+func (cb *circuitBreaker) QPS() float64 {
+	return cb.qps(timex.UnixNano())
+}
+
+func (cb *circuitBreaker) qps(nsec int64) float64 {
+	v0, v1 := cb.statistic.At(nsec).DualQPS(24)
+	return v0 + v1
+}
+
+func (cb *circuitBreaker) FailRate() int {
+	return cb.failRate(timex.UnixNano())
+}
+
+func (cb *circuitBreaker) failRate(nsec int64) int {
+	var errPct float64
+	if cnt0, cnt1, _ := cb.statistic.At(nsec).DualCount(24); cnt0+cnt1 > 0 {
+		errPct = float64(cnt1*100) / float64(cnt0+cnt1)
+	}
+	return int(errPct + 0.5)
+}
+
+func (cb *circuitBreaker) allowRequest() bool {
 	if cb.isForceOpen {
-		return true
-	}
-
-	msec := nowFunc().UnixMilli()
-	if cb.isOpen.Load() {
-		// recovery?
-		if cb.recovery.IsHealthy() {
-			cb.setClose()
-			return false
-		}
-		return true
-	}
-
-	// regardless of whether it succeeds or not, do not perform a health check when the current QPS is too low.
-	if int(cb.statistic.QPS(msec)) < cb.setting.HealthCheckMinReqThreshold {
 		return false
 	}
 
-	// too many failures, open the circuitbreaker
-	if cb.statistic.FailRate(msec) >= cb.setting.OpenOnFailureThreshold {
-		cb.setOpen()
-		return true
-	}
+	nsec := timex.UnixNano()
+	if cb.isOpen.Load() { // recovery?
+		if cb.recovery.IsHealthy() {
+			cb.setClose()
+			return true
+		}
 
-	return false
-}
-
-func (cb *CircuitBreaker) allowRequest() bool {
-	return !cb.IsOpen() || cb.allowSingleTest()
-}
-
-// single test should be applied when circuit is opened
-func (cb *CircuitBreaker) allowSingleTest() bool {
-	if cb.isOpen.Load() {
-		msec := nowFunc().UnixNano()
+		// single test should be applied when circuit is opened
 		lastTestAt := cb.lastTestAt.Load()
-		if msec > lastTestAt+cb.setting.MuteWindow.Nanoseconds() {
-			swapped := cb.lastTestAt.CompareAndSwap(lastTestAt, msec)
+		if nsec > lastTestAt+cb.KeepAliveInterval.Nanoseconds() {
+			swapped := cb.lastTestAt.CompareAndSwap(lastTestAt, nsec)
 			if swapped {
-				log.Printf("hystrix-go: allowing single test - %v\n", cb.name)
+				log.Printf("hystrix-go: allowing single test.\n")
 			}
 			return swapped
 		}
+
+		return false
 	}
 
-	return false
+	// regardless of whether it succeeds or not, do not perform a health check when the current qps is too low.
+	if int(cb.qps(nsec)) < cb.MinQPSThreshold {
+		return true
+	}
+
+	// too many failures, open the circuitbreaker
+	if cb.failRate(nsec) >= cb.FailureThreshold {
+		cb.setOpen()
+		return false
+	}
+
+	return true
 }
 
-func (cb *CircuitBreaker) setOpen() {
+func (cb *circuitBreaker) setOpen() {
 	if cb.isOpen.CompareAndSwap(false, true) {
-		cb.lastTestAt.Store(nowFunc().UnixNano())
+		cb.lastTestAt.Store(timex.UnixNano())
 		cb.statistic.Reset()
-		log.Printf("hystrix-go: opening circuit - %v\n", cb.name)
+		log.Printf("hystrix-go: opening circuitbreaker.\n")
 	}
 }
 
-func (cb *CircuitBreaker) setClose() {
+func (cb *circuitBreaker) setClose() {
 	if cb.isOpen.CompareAndSwap(true, false) {
 		cb.recovery.Reset()
 		cb.statistic.Reset()
-		log.Printf("hystrix-go: closing circuit - %v\n", cb.name)
+		log.Printf("hystrix-go: closing circuitbreaker.\n")
 	}
 }
 
-func (cb *CircuitBreaker) updateSetting(setting Setting) {
-	for i := setting.MaxConcurrency; i < cb.setting.MaxConcurrency; i++ {
-		// for narrow
-		<-cb.tickets
-	}
-
-	for i := cb.setting.MaxConcurrency; i < setting.MaxConcurrency; i++ {
-		// for expand
-		cb.tickets <- struct{}{}
-	}
-
-	cb.setting.Timeout = setting.Timeout
-	cb.setting.MuteWindow = setting.MuteWindow
-	cb.setting.MaxConcurrency = setting.MaxConcurrency
-	cb.setting.HealthCheckMinReqThreshold = setting.HealthCheckMinReqThreshold
-	cb.setting.OpenOnFailureThreshold = setting.OpenOnFailureThreshold
+type summary struct {
+	err       error
+	startNano int64 // nanoseconds
+	stopNano  int64
 }
 
-func (cb *CircuitBreaker) feedback(eventType EventType, start, stop time.Time, runDuration time.Duration) {
+func (cb *circuitBreaker) feedback(s summary) {
 	if cb.isOpen.Load() {
-		cb.recovery.Update(eventType == SuccessEvent)
+		cb.recovery.Update(s.err == nil)
 	}
 
-	cb.statistic.Update(Event{
-		eventType:        eventType,
-		startAt:          start,
-		stopAt:           stop,
-		runDuration:      runDuration,
-		concurrencyInUse: float64(cb.activeCount()) / float64(cb.setting.MaxConcurrency),
-	})
+	nsec := s.stopNano
+	if s.err == nil {
+		cb.statistic.At(nsec).DualIncrBy(1, 0)
+	} else {
+		cb.statistic.At(nsec).DualIncrBy(0, 1)
+	}
+}
+
+// GoC runs your function while tracking the health of previous calls to it.
+// If your function begins slowing down or failing repeatedly, we will block
+// new calls to it for you to give the dependent service time to repair.
+//
+// Define a fallback function if you want to define some code to execute during outages.
+func (cb *circuitBreaker) GoC(ctx context.Context, runable func(context.Context) error) chan error {
+	nanosec := timex.UnixNano()
+	errchan := make(chan error, 1)
+	if !cb.tickets.TryAcquire(1) {
+		cb.feedback(summary{ErrMaxConcurrency, nanosec, nanosec})
+		errchan <- ErrMaxConcurrency
+		return errchan
+	}
+
+	if !cb.allowRequest() {
+		cb.feedback(summary{ErrCircuitOpen, nanosec, nanosec})
+		errchan <- ErrCircuitOpen
+		return errchan
+	}
+
+	resultChan := make(chan summary, 1)
+	runStart := timex.UnixNano()
+	go func() {
+		err := runable(ctx)
+		resultChan <- summary{err, runStart, timex.UnixNano()}
+	}()
+
+	go func() {
+		tmoCtx, cancel := context.WithTimeout(context.Background(), cb.Timeout)
+		defer cancel()
+		defer cb.tickets.Release(1)
+
+		select {
+		case rc := <-resultChan:
+			errchan <- rc.err
+			cb.feedback(rc)
+
+		case <-ctx.Done():
+			errchan <- ErrCanceled
+			cb.feedback(summary{ErrCanceled, runStart, timex.UnixNano()})
+
+		case <-tmoCtx.Done():
+			errchan <- ErrTimeout
+			cb.feedback(summary{ErrTimeout, runStart, timex.UnixNano()})
+		}
+	}()
+
+	return errchan
 }

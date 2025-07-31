@@ -60,3 +60,13 @@ func FromBase62(s string) int64 {
 }
 
 func CeilOf(x, base int64) int64 { return x - x%base }
+
+func MergeInt32(high, low int32) int64 {
+	return (int64(high) << 32) | int64(low)
+}
+
+func SplitInt64(n int64) (high, low int32) {
+	low = int32(n & 0xFFFFFFFF)
+	high = int32((n >> 32) & 0xFFFFFFFF)
+	return
+}
