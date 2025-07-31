@@ -1,19 +1,25 @@
 package queue
 
 import (
-	"fmt"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestRingList(t *testing.T) {
-	rq := NewRingQueue(4)
+	cnt := 4
+	rq := NewRingQueue(cnt)
 	nodes := []int{1, 2, 3, 4, 5, 6, 7, 8, 9}
-	for _, n := range nodes {
-		rq.Insert(n)
+	for i, n := range nodes {
+		if i < cnt {
+			assert.True(t, rq.Insert(n))
+		} else {
+			assert.False(t, rq.Insert(n))
+		}
 	}
 
 	for i := 0; i < 10; i++ {
-		fmt.Println("===", rq.Poll())
+		assert.Equal(t, i%4+1, rq.Poll().Value.(int))
 	}
 
 	for i := 0; i < 10; i++ {
@@ -21,6 +27,6 @@ func TestRingList(t *testing.T) {
 	}
 
 	for i := 0; i < 10; i++ {
-		fmt.Println("###", rq.Poll())
+		assert.Nil(t, rq.Poll())
 	}
 }

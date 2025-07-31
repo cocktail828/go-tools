@@ -35,7 +35,7 @@ func NewFileConfigor(root string, filters ...Filter) (nacs.Configor, error) {
 		configs:    map[string][]byte{},
 	}
 
-	os.MkdirAll(root, os.ModeDir)
+	os.MkdirAll(root, os.ModePerm)
 	if err := filepath.WalkDir(root, func(path string, d fs.DirEntry, e error) error {
 		if e != nil {
 			return e

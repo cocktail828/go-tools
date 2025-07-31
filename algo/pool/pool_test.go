@@ -2,7 +2,6 @@ package pool_test
 
 import (
 	"context"
-	"fmt"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -22,12 +21,12 @@ var (
 type Conn struct{ isOpen bool }
 
 func (c *Conn) Ping(ctx context.Context) error {
-	fmt.Println("conn Ping")
+	// fmt.Println("conn Ping")
 	return nil
 }
 
 func (c *Conn) Close() error {
-	fmt.Println("conn Close")
+	// fmt.Println("conn Close")
 	c.isOpen = false
 	gOpenCount.Add(-1)
 	return nil
@@ -46,7 +45,7 @@ func (c *Conn) IsValid() bool {
 type FakeDriver struct{}
 
 func (d *FakeDriver) Open(ctx context.Context, name string) (driver.Conn, error) {
-	fmt.Println("driver Open", name)
+	// fmt.Println("driver Open", name)
 	gOpenCount.Add(1)
 	return &Conn{isOpen: true}, nil
 }
@@ -63,10 +62,10 @@ func TestPool(t *testing.T) {
 
 	for i := 0; i < 3; i++ {
 		z.Must(db.DoContext(context.Background(), func(ci driver.Conn) error {
-			fmt.Printf("inner %#v\n", db.Stats())
+			t.Logf("inner %#v\n", db.Stats())
 			return nil
 		}))
-		fmt.Printf("outer %#v\n", db.Stats())
+		t.Logf("outer %#v\n", db.Stats())
 	}
 }
 
@@ -116,12 +115,12 @@ func TestPoolMaxConn(t *testing.T) {
 	}
 	wg.Wait()
 
-	fmt.Printf("%#v\n", db.Stats())
+	t.Logf("%#v\n", db.Stats())
 	assert.Equal(t, nil, db.Do(func(ci driver.Conn) error {
 		return nil
 	}))
 	wgc.Wait()
-	fmt.Printf("%#v\n", db.Stats())
+	t.Logf("%#v\n", db.Stats())
 }
 
 func BenchmarkPool(b *testing.B) {

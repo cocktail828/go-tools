@@ -3,7 +3,6 @@ package cm4
 import (
 	"testing"
 
-	"github.com/cocktail828/go-tools/z/mathx"
 	"github.com/stretchr/testify/require"
 )
 
@@ -57,15 +56,6 @@ func TestCM4Clear(t *testing.T) {
 	for i := 0; i < 16; i++ {
 		require.Equal(t, int64(0), s.Estimate(uint64(i)))
 	}
-}
-
-func TestNext2Power(t *testing.T) {
-	sz := 12 << 30
-	szf := float64(sz) * 0.01
-	val := int64(szf)
-	t.Logf("szf = %.2f val = %d\n", szf, val)
-	pow := mathx.Next2Power(val)
-	t.Logf("pow = %d. mult 4 = %d\n", pow, pow*4)
 }
 
 func BenchmarkCM4Increment(b *testing.B) {

@@ -13,14 +13,12 @@ import (
 )
 
 func TestRegular(t *testing.T) {
-	filePath := "/tmp/nacs"
-	configor, err := regular.NewFileConfigor(filePath, regular.WithSuffix(".findercache"))
+	rootdir := os.TempDir()
+	configor, err := regular.NewFileConfigor(rootdir, regular.WithSuffix(".findercache"))
 	z.Must(err)
 	defer configor.Close()
 
-	if err := configor.SetConfig(nacs.Config{Fname: "key1.findercache"}, []byte("value1")); err != nil {
-		panic(err)
-	}
+	assert.NoError(t, configor.SetConfig(nacs.Config{Fname: "key1.findercache"}, []byte("value1")))
 
 	value, err := configor.GetConfig(nacs.Config{Fname: "key1.findercache"})
 	z.Must(err)
@@ -36,6 +34,6 @@ func TestRegular(t *testing.T) {
 	z.Must(err)
 
 	time.Sleep(time.Millisecond * 500)
-	os.WriteFile("/tmp/nacs/key1.findercache", []byte("value2"), os.ModePerm)
+	os.WriteFile(rootdir+"/key1.findercache", []byte("value2"), os.ModePerm)
 	<-ctx.Done()
 }

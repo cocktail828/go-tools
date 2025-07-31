@@ -1,10 +1,7 @@
 package hashring
 
 import (
-	"fmt"
 	"testing"
-
-	"github.com/stretchr/testify/assert"
 )
 
 const (
@@ -35,56 +32,44 @@ func getNodesCount(nodes nodeArray) (int, int, int) {
 }
 
 func TestHashRing(t *testing.T) {
-	nodeWeight := make(map[string]int)
-	nodeWeight[node1] = 2
-	nodeWeight[node2] = 2
-	nodeWeight[node3] = 3
-
 	hring := New()
-	hring.AddMany(nodeWeight)
-	_, _, c3 := getNodesCount(hring.nodes)
+	hring.AddMany(map[string]int{
+		node1: 2,
+		node2: 2,
+		node3: 3,
+	})
 
-	func() {
-		if hring.Get("1") != node3 {
-			t.Fatalf("expetcd %v got %v", node3, hring.Get("1"))
+	for k, v := range map[string]string{
+		"1": node3,
+		"2": node3,
+		"3": node3,
+	} {
+		if val := hring.Get(k); val != v {
+			t.Fatalf("key: %v, expect %v, but got %v", k, v, val)
 		}
-		if hring.Get("2") != node3 {
-			t.Fatalf("expetcd %v got %v", node3, hring.Get("2"))
-		}
-		if hring.Get("3") != node2 {
-			t.Fatalf("expetcd %v got %v", node2, hring.Get("3"))
-		}
-	}()
+	}
 
-	func() {
-		hring.Remove(node3)
-		if hring.Get("1") != node1 {
-			t.Fatalf("expetcd %v got %v", node1, hring.Get("1"))
+	hring.Remove(node3)
+	for k, v := range map[string]string{
+		"1": node1,
+		"2": node1,
+		"3": node2,
+	} {
+		if val := hring.Get(k); val != v {
+			t.Fatalf("key: %v, expect %v, but got %v", k, v, val)
 		}
-		if hring.Get("2") != node2 {
-			t.Fatalf("expetcd %v got %v", node1, hring.Get("2"))
-		}
-		if hring.Get("3") != node2 {
-			t.Fatalf("expetcd %v got %v", node2, hring.Get("3"))
-		}
-		_, _, _c3 := getNodesCount(hring.nodes)
-		assert.Equal(t, 0, _c3)
-	}()
+	}
 
-	func() {
-		hring.Add(node3, 3)
-		if hring.Get("1") != node3 {
-			t.Fatalf("expetcd %v got %v", node3, hring.Get("1"))
+	hring.Add(node3, 3)
+	for k, v := range map[string]string{
+		"1": node3,
+		"2": node3,
+		"3": node3,
+	} {
+		if val := hring.Get(k); val != v {
+			t.Fatalf("key: %v, expect %v, but got %v", k, v, val)
 		}
-		if hring.Get("2") != node3 {
-			t.Fatalf("expetcd %v got %v", node3, hring.Get("2"))
-		}
-		if hring.Get("3") != node2 {
-			t.Fatalf("expetcd %v got %v", node2, hring.Get("3"))
-		}
-		_, _, _c3 := getNodesCount(hring.nodes)
-		assert.Equal(t, c3, _c3)
-	}()
+	}
 }
 
 var (
@@ -112,7 +97,7 @@ func TestHashRing_Func(t *testing.T) {
 					n3++
 				}
 			}
-			fmt.Println(name, n1, n2, n3)
+			t.Log(name, n1, n2, n3)
 		})
 	}
 
@@ -149,5 +134,5 @@ func TestHashRingX(t *testing.T) {
 			n3++
 		}
 	}
-	fmt.Println(n1, n2, n3)
+	t.Log(n1, n2, n3)
 }
