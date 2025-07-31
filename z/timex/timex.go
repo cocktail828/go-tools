@@ -13,4 +13,6 @@ var (
 //go:linkname runtimeNano runtime.nanotime
 func runtimeNano() int64
 
+func ResetTime() { UnixNano = runtimeNano }
+
 func SetTime(f func() int64) { UnixNano = f }

@@ -2,10 +2,8 @@ package hystrix
 
 import (
 	"context"
-	"io"
 	"net"
 	"slices"
-	"sync"
 	"testing"
 	"time"
 
@@ -14,7 +12,8 @@ import (
 )
 
 func TestSuccess(t *testing.T) {
-	timex.SetTime(func() int64 { return time.Minute.Nanoseconds() })
+	timex.SetTime(func() int64 { return 0 })
+	defer timex.ResetTime()
 
 	assert.NoError(t, DoC(
 		context.Background(),
@@ -61,33 +60,19 @@ func TestFailOnTimeout(t *testing.T) {
 	)
 }
 
-func TestMaxConcurrency(t *testing.T) {
-	wg := sync.WaitGroup{}
-	var good, bad int
-	var cnt = 20
+func TestFailOnNoTicket(t *testing.T) {
+	GetCircuit(t.Name()).MaxConcurrency = 1
+	GetCircuit(t.Name()).tickets.Resize(1)
+	GetCircuit(t.Name()).tickets.Acquire(context.TODO(), 1)
 
-	for i := 0; i < cnt; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			if err := DoC(
-				context.Background(),
-				t.Name(),
-				func(ctx context.Context) error {
-					time.Sleep(800 * time.Millisecond)
-					return nil
-				},
-			); err == ErrMaxConcurrency {
-				bad++
-			} else {
-				good++
-			}
-		}()
-	}
-
-	wg.Wait()
-	assert.Equal(t, cnt-DefaultMaxConcurrency, bad)
-	assert.Equal(t, DefaultMaxConcurrency, good)
+	assert.Equal(t, ErrMaxConcurrency, DoC(
+		context.Background(),
+		t.Name(),
+		func(ctx context.Context) error {
+			// the func will never be called
+			panic("the method should never be called")
+		}),
+	)
 }
 
 func TestManualy(t *testing.T) {
@@ -110,52 +95,6 @@ func TestManualy(t *testing.T) {
 	})
 }
 
-// func TestCloseCircuitAfterSuccess(t *testing.T) {
-// 	GetCircuit(t.Name().KeepAliveInterval: 50 * time.Millisecond})
-// 	cb := GetCircuit(t.Name())
-// 	cb.setOpen()
-
-// 	errChan := GoC(context.Background(), t.Name(), fakeFunc(nil))
-
-// 	err := <-errChan
-// 	assert.Equal(t, ErrCircuitOpen, err)
-
-// 	for i := 0; i < DefaultRecoveryProbes; i++ {
-// 		// wait for allow single test
-// 		time.Sleep(50 * time.Millisecond)
-// 		<-GoC(context.Background(), t.Name(), fakeFunc(nil))
-// 	}
-// 	assert.False(t, cb.IsOpen())
-// }
-
-func TestFailAfterTimeout(t *testing.T) {
-	GetCircuit(t.Name()).Timeout = 10 * time.Millisecond
-
-	assert.Equal(t, ErrTimeout, DoC(
-		context.Background(),
-		t.Name(),
-		func(ctx context.Context) error {
-			time.Sleep(500 * time.Millisecond)
-			return net.ErrClosed
-		}),
-	)
-}
-
-func TestRejected(t *testing.T) {
-	GetCircuit(t.Name()).MaxConcurrency = 1
-	GetCircuit(t.Name()).tickets.Resize(1)
-	GetCircuit(t.Name()).tickets.Acquire(context.TODO(), 1)
-
-	assert.Equal(t, ErrMaxConcurrency, DoC(
-		context.Background(),
-		t.Name(),
-		func(ctx context.Context) error {
-			// the func will never be called
-			panic("the method should never be called")
-		}),
-	)
-}
-
 func TestReturnTicket(t *testing.T) {
 	GetCircuit(t.Name()).Timeout = 10 * time.Millisecond
 
@@ -170,38 +109,89 @@ func TestReturnTicket(t *testing.T) {
 	assert.Equal(t, 0, GetCircuit(t.Name()).ActiveCount())
 }
 
-func TestDoC_Success(t *testing.T) {
-	assert.NoError(t, DoC(
-		context.Background(),
-		t.Name(),
-		func(ctx context.Context) error { return nil },
-	))
-}
+func TestOpenOnTooManyFail(t *testing.T) {
+	defer timex.ResetTime()
+	timex.SetTime(func() int64 { return 0 })
 
-func TestCircuitOpenOnFail(t *testing.T) {
 	GetCircuit(t.Name()).MinQPSThreshold = 2
-	assert.NoError(t, DoC(
-		context.Background(),
-		t.Name(),
-		func(ctx context.Context) error { return nil },
-	))
-
-	for i := 0; i < 3; i++ {
-		DoC(
-			context.Background(),
-			t.Name(),
-			func(ctx context.Context) error { return io.ErrClosedPipe },
-		)
+	timex.SetTime(func() int64 { return 0 })
+	for i := 0; i < 100; i++ {
+		if i < 80 {
+			assert.NoError(t, DoC(
+				context.Background(),
+				t.Name(),
+				func(ctx context.Context) error { return nil },
+			))
+		} else {
+			assert.Equal(t, net.ErrClosed, DoC(
+				context.Background(),
+				t.Name(),
+				func(ctx context.Context) error { return net.ErrClosed },
+			))
+		}
 	}
 
-	GetCircuit(t.Name()).Timeout = 10 * time.Millisecond
-	assert.Equal(t, ErrCircuitOpen, DoC(context.Background(), t.Name(), func(ctx context.Context) error {
-		time.Sleep(100 * time.Millisecond)
-		return nil
-	}))
+	assert.Equal(t, 20, GetCircuit(t.Name()).FailRate())
+	assert.Equal(t, ErrCircuitOpen, DoC(
+		context.Background(),
+		t.Name(),
+		func(ctx context.Context) error {
+			time.Sleep(100 * time.Millisecond)
+			return nil
+		}),
+	)
 }
 
 func TestSingleTest(t *testing.T) {
 	timex.SetTime(func() int64 { return 0 })
+	defer timex.ResetTime()
 
+	GetCircuit(t.Name()).MinQPSThreshold = 2
+	timex.SetTime(func() int64 { return 0 })
+	for i := 0; i < 100; i++ {
+		if i < 80 {
+			assert.NoError(t, DoC(
+				context.Background(),
+				t.Name(),
+				func(ctx context.Context) error { return nil },
+			))
+		} else {
+			assert.Equal(t, net.ErrClosed, DoC(
+				context.Background(),
+				t.Name(),
+				func(ctx context.Context) error { return net.ErrClosed },
+			))
+		}
+	}
+
+	assert.Equal(t, 20, GetCircuit(t.Name()).FailRate())
+	assert.Equal(t, ErrCircuitOpen, DoC(
+		context.Background(),
+		t.Name(),
+		func(ctx context.Context) error {
+			time.Sleep(100 * time.Millisecond)
+			return nil
+		}),
+	)
+
+	for i := 0; i < 5; i++ {
+		timex.SetTime(func() int64 { return GetCircuit(t.Name()).KeepAliveInterval.Nanoseconds() * int64(i+1) })
+		assert.Equal(t, nil, DoC(
+			context.Background(),
+			t.Name(),
+			func(ctx context.Context) error {
+				assert.EqualValues(t, true, ctx.Value(singleTestMeta{}))
+				return nil
+			}),
+		)
+	}
+
+	assert.Equal(t, nil, DoC(
+		context.Background(),
+		t.Name(),
+		func(ctx context.Context) error {
+			assert.EqualValues(t, false, ctx.Value(singleTestMeta{}))
+			return nil
+		}),
+	)
 }

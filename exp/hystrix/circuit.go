@@ -94,43 +94,43 @@ func (cb *circuitBreaker) failRate(nsec int64) int {
 	return int(errPct + 0.5)
 }
 
-func (cb *circuitBreaker) allowRequest() bool {
+func (cb *circuitBreaker) allowRequest() (allow, singletest bool) {
 	if cb.isForceOpen {
-		return false
+		return false, false
 	}
 
 	nsec := timex.UnixNano()
 	if cb.isOpen.Load() { // recovery?
 		if cb.recovery.IsHealthy() {
 			cb.setClose()
-			return true
+			return true, false
 		}
 
 		// single test should be applied when circuit is opened
 		lastTestAt := cb.lastTestAt.Load()
-		if nsec > lastTestAt+cb.KeepAliveInterval.Nanoseconds() {
+		if nsec >= lastTestAt+cb.KeepAliveInterval.Nanoseconds() {
 			swapped := cb.lastTestAt.CompareAndSwap(lastTestAt, nsec)
 			if swapped {
 				log.Printf("hystrix-go: allowing single test.\n")
 			}
-			return swapped
+			return swapped, true
 		}
 
-		return false
+		return false, false
 	}
 
 	// regardless of whether it succeeds or not, do not perform a health check when the current qps is too low.
 	if int(cb.qps(nsec)) < cb.MinQPSThreshold {
-		return true
+		return true, false
 	}
 
 	// too many failures, open the circuitbreaker
 	if cb.failRate(nsec) >= cb.FailureThreshold {
 		cb.setOpen()
-		return false
+		return false, false
 	}
 
-	return true
+	return true, false
 }
 
 func (cb *circuitBreaker) setOpen() {
@@ -151,12 +151,13 @@ func (cb *circuitBreaker) setClose() {
 
 type summary struct {
 	err       error
+	isTestReq bool
 	startNano int64 // nanoseconds
 	stopNano  int64
 }
 
 func (cb *circuitBreaker) feedback(s summary) {
-	if cb.isOpen.Load() {
+	if cb.isOpen.Load() && s.isTestReq {
 		cb.recovery.Update(s.err == nil)
 	}
 
@@ -168,6 +169,8 @@ func (cb *circuitBreaker) feedback(s summary) {
 	}
 }
 
+type singleTestMeta struct{}
+
 // GoC runs your function while tracking the health of previous calls to it.
 // If your function begins slowing down or failing repeatedly, we will block
 // new calls to it for you to give the dependent service time to repair.
@@ -177,13 +180,14 @@ func (cb *circuitBreaker) GoC(ctx context.Context, runable func(context.Context)
 	nanosec := timex.UnixNano()
 	errchan := make(chan error, 1)
 	if !cb.tickets.TryAcquire(1) {
-		cb.feedback(summary{ErrMaxConcurrency, nanosec, nanosec})
+		cb.feedback(summary{ErrMaxConcurrency, false, nanosec, nanosec})
 		errchan <- ErrMaxConcurrency
 		return errchan
 	}
 
-	if !cb.allowRequest() {
-		cb.feedback(summary{ErrCircuitOpen, nanosec, nanosec})
+	allow, singletest := cb.allowRequest()
+	if !allow {
+		cb.feedback(summary{ErrCircuitOpen, false, nanosec, nanosec})
 		errchan <- ErrCircuitOpen
 		return errchan
 	}
@@ -191,8 +195,8 @@ func (cb *circuitBreaker) GoC(ctx context.Context, runable func(context.Context)
 	resultChan := make(chan summary, 1)
 	runStart := timex.UnixNano()
 	go func() {
-		err := runable(ctx)
-		resultChan <- summary{err, runStart, timex.UnixNano()}
+		err := runable(context.WithValue(ctx, singleTestMeta{}, singletest))
+		resultChan <- summary{err, singletest, runStart, timex.UnixNano()}
 	}()
 
 	go func() {
@@ -207,11 +211,11 @@ func (cb *circuitBreaker) GoC(ctx context.Context, runable func(context.Context)
 
 		case <-ctx.Done():
 			errchan <- ErrCanceled
-			cb.feedback(summary{ErrCanceled, runStart, timex.UnixNano()})
+			cb.feedback(summary{ErrCanceled, singletest, runStart, timex.UnixNano()})
 
 		case <-tmoCtx.Done():
 			errchan <- ErrTimeout
-			cb.feedback(summary{ErrTimeout, runStart, timex.UnixNano()})
+			cb.feedback(summary{ErrTimeout, singletest, runStart, timex.UnixNano()})
 		}
 	}()
 
