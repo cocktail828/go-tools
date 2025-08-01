@@ -47,7 +47,6 @@ func TestTrieCompression(t *testing.T) {
 	if trie.root.Children["/adc"] == nil {
 		t.Errorf("%+v", trie.root)
 	}
-
 }
 
 func TestParamInsert(t *testing.T) {

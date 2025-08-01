@@ -10,9 +10,9 @@ import (
 )
 
 const (
-	ROLLING_MIN_COUNTER = 128
-	ROLLING_WINSIZE     = 128
-	ROLLING_PRECISION   = ROLLING_WINSIZE * 1e6 // 128 ms
+	_ROLLING_MIN_COUNTER = 128
+	_ROLLING_WINSIZE     = 128
+	_ROLLING_PRECISION   = _ROLLING_WINSIZE * 1e6 // 128 ms
 )
 
 type Rolling struct {
@@ -26,7 +26,7 @@ type Rolling struct {
 // NewRolling 创建一个新的滑动计数器实例, 精度为 128 ms
 // num: 计数器数量，向上取整为 2 的幂
 func NewRolling(num int) *Rolling {
-	num = max(int(mathx.Next2Power(int64(num))), ROLLING_MIN_COUNTER)
+	num = max(int(mathx.Next2Power(int64(num))), _ROLLING_MIN_COUNTER)
 	return &Rolling{
 		numCounter: int64(num),
 		counters: make([]struct {
@@ -50,18 +50,18 @@ func (r *Rolling) String() string {
 }
 
 func (r *Rolling) indexByTime(nsec int64) int64 {
-	return (nsec / ROLLING_PRECISION) & (r.numCounter - 1)
+	return (nsec / _ROLLING_PRECISION) & (r.numCounter - 1)
 }
 
 func (r *Rolling) floorOfTime(nsec int64) int64 {
-	return (nsec / ROLLING_PRECISION) * ROLLING_PRECISION
+	return (nsec / _ROLLING_PRECISION) * _ROLLING_PRECISION
 }
 
 func (r *Rolling) calcQPS(cnt, win int64) float64 {
 	if win == 0 {
 		return 0
 	}
-	return float64(cnt) * 1e3 / float64(win) / ROLLING_WINSIZE
+	return float64(cnt) * 1e3 / float64(win) / _ROLLING_WINSIZE
 }
 
 func (r *Rolling) incrBy(nsec, n int64) {
@@ -85,7 +85,7 @@ func (r *Rolling) count(dual bool, nsec, num int64) (int64, int64, int64) {
 
 	var cnt0, cnt1, win int64
 	edge := r.indexByTime(nsec)
-	old := r.floorOfTime(nsec) - ROLLING_PRECISION*(num-1)
+	old := r.floorOfTime(nsec) - _ROLLING_PRECISION*(num-1)
 
 	for i := int64(0); i < num; i++ {
 		indexByTime := (edge - i + r.numCounter) & (r.numCounter - 1)

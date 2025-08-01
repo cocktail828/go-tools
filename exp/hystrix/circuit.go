@@ -11,6 +11,10 @@ import (
 	"github.com/cocktail828/go-tools/z/timex"
 )
 
+const (
+	_COUNTER_WIN_SIZE = 24
+)
+
 type keepAlive struct {
 	mu    sync.RWMutex
 	next  int
@@ -64,31 +68,33 @@ func (cb *circuitBreaker) Update(cfg Config) {
 	cb.tickets.Resize(int64(cb.MaxConcurrency))
 }
 
-func (cb *circuitBreaker) ActiveCount() int {
-	return int(cb.tickets.Assign())
+type Metric struct {
+	Concurrency int     // 并发数
+	FailRate    int     // 0~100
+	QPS         float64 // 5s 内的 QPS
+}
+
+func (cb *circuitBreaker) Metric() Metric {
+	return Metric{
+		Concurrency: int(cb.tickets.Assign()),
+		FailRate:    cb.failRate(timex.UnixNano()),
+		QPS:         cb.qps(timex.UnixNano()),
+	}
 }
 
 // open or close the circuitbreaker manually
-func (cb *circuitBreaker) Trigger(toggle bool) {
-	cb.isForceOpen = toggle
-}
-
-func (cb *circuitBreaker) QPS() float64 {
-	return cb.qps(timex.UnixNano())
+func (cb *circuitBreaker) Trigger(isopen bool) {
+	cb.isForceOpen = isopen
 }
 
 func (cb *circuitBreaker) qps(nsec int64) float64 {
-	v0, v1 := cb.statistic.At(nsec).DualQPS(24)
+	v0, v1 := cb.statistic.At(nsec).DualQPS(_COUNTER_WIN_SIZE)
 	return v0 + v1
-}
-
-func (cb *circuitBreaker) FailRate() int {
-	return cb.failRate(timex.UnixNano())
 }
 
 func (cb *circuitBreaker) failRate(nsec int64) int {
 	var errPct float64
-	if cnt0, cnt1, _ := cb.statistic.At(nsec).DualCount(24); cnt0+cnt1 > 0 {
+	if cnt0, cnt1, _ := cb.statistic.At(nsec).DualCount(_COUNTER_WIN_SIZE); cnt0+cnt1 > 0 {
 		errPct = float64(cnt1*100) / float64(cnt0+cnt1)
 	}
 	return int(errPct + 0.5)
@@ -100,9 +106,10 @@ func (cb *circuitBreaker) allowRequest() (allow, singletest bool) {
 	}
 
 	nsec := timex.UnixNano()
-	if cb.isOpen.Load() { // recovery?
+	if cb.isOpen.Load() {
+		// recovery?
 		if cb.recovery.IsHealthy() {
-			cb.setClose()
+			cb.trigger(false)
 			return true, false
 		}
 
@@ -126,37 +133,37 @@ func (cb *circuitBreaker) allowRequest() (allow, singletest bool) {
 
 	// too many failures, open the circuitbreaker
 	if cb.failRate(nsec) >= cb.FailureThreshold {
-		cb.setOpen()
+		cb.trigger(true)
 		return false, false
 	}
 
 	return true, false
 }
 
-func (cb *circuitBreaker) setOpen() {
-	if cb.isOpen.CompareAndSwap(false, true) {
-		cb.lastTestAt.Store(timex.UnixNano())
-		cb.statistic.Reset()
-		log.Printf("hystrix-go: opening circuitbreaker.\n")
+func (cb *circuitBreaker) trigger(open bool) {
+	if open {
+		if cb.isOpen.CompareAndSwap(false, true) {
+			cb.lastTestAt.Store(timex.UnixNano())
+			cb.statistic.Reset()
+			log.Printf("hystrix-go: opening circuitbreaker.\n")
+		}
+	} else {
+		if cb.isOpen.CompareAndSwap(true, false) {
+			cb.recovery.Reset()
+			cb.statistic.Reset()
+			log.Printf("hystrix-go: closing circuitbreaker.\n")
+		}
 	}
 }
 
-func (cb *circuitBreaker) setClose() {
-	if cb.isOpen.CompareAndSwap(true, false) {
-		cb.recovery.Reset()
-		cb.statistic.Reset()
-		log.Printf("hystrix-go: closing circuitbreaker.\n")
-	}
-}
-
-type summary struct {
+type snapshot struct {
 	err       error
 	isTestReq bool
 	startNano int64 // nanoseconds
 	stopNano  int64
 }
 
-func (cb *circuitBreaker) feedback(s summary) {
+func (cb *circuitBreaker) feedback(s snapshot) {
 	if cb.isOpen.Load() && s.isTestReq {
 		cb.recovery.Update(s.err == nil)
 	}
@@ -180,23 +187,23 @@ func (cb *circuitBreaker) GoC(ctx context.Context, runable func(context.Context)
 	nanosec := timex.UnixNano()
 	errchan := make(chan error, 1)
 	if !cb.tickets.TryAcquire(1) {
-		cb.feedback(summary{ErrMaxConcurrency, false, nanosec, nanosec})
+		cb.feedback(snapshot{ErrMaxConcurrency, false, nanosec, nanosec})
 		errchan <- ErrMaxConcurrency
 		return errchan
 	}
 
 	allow, singletest := cb.allowRequest()
 	if !allow {
-		cb.feedback(summary{ErrCircuitOpen, false, nanosec, nanosec})
+		cb.feedback(snapshot{ErrCircuitOpen, false, nanosec, nanosec})
 		errchan <- ErrCircuitOpen
 		return errchan
 	}
 
-	resultChan := make(chan summary, 1)
+	resultChan := make(chan snapshot, 1)
 	runStart := timex.UnixNano()
 	go func() {
 		err := runable(context.WithValue(ctx, singleTestMeta{}, singletest))
-		resultChan <- summary{err, singletest, runStart, timex.UnixNano()}
+		resultChan <- snapshot{err, singletest, runStart, timex.UnixNano()}
 	}()
 
 	go func() {
@@ -211,11 +218,11 @@ func (cb *circuitBreaker) GoC(ctx context.Context, runable func(context.Context)
 
 		case <-ctx.Done():
 			errchan <- ErrCanceled
-			cb.feedback(summary{ErrCanceled, singletest, runStart, timex.UnixNano()})
+			cb.feedback(snapshot{ErrCanceled, singletest, runStart, timex.UnixNano()})
 
 		case <-tmoCtx.Done():
 			errchan <- ErrTimeout
-			cb.feedback(summary{ErrTimeout, singletest, runStart, timex.UnixNano()})
+			cb.feedback(snapshot{ErrTimeout, singletest, runStart, timex.UnixNano()})
 		}
 	}()
 

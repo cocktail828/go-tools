@@ -106,7 +106,7 @@ func TestReturnTicket(t *testing.T) {
 			select {}
 		}),
 	)
-	assert.Equal(t, 0, GetCircuit(t.Name()).ActiveCount())
+	assert.EqualValues(t, 0, GetCircuit(t.Name()).tickets.Assign())
 }
 
 func TestOpenOnTooManyFail(t *testing.T) {
@@ -131,7 +131,7 @@ func TestOpenOnTooManyFail(t *testing.T) {
 		}
 	}
 
-	assert.Equal(t, 20, GetCircuit(t.Name()).FailRate())
+	assert.Equal(t, 20, GetCircuit(t.Name()).failRate(timex.UnixNano()))
 	assert.Equal(t, ErrCircuitOpen, DoC(
 		context.Background(),
 		t.Name(),
@@ -164,7 +164,7 @@ func TestSingleTest(t *testing.T) {
 		}
 	}
 
-	assert.Equal(t, 20, GetCircuit(t.Name()).FailRate())
+	assert.Equal(t, 20, GetCircuit(t.Name()).failRate(timex.UnixNano()))
 	assert.Equal(t, ErrCircuitOpen, DoC(
 		context.Background(),
 		t.Name(),

@@ -26,11 +26,11 @@ func TestCount(t *testing.T) {
 func TestQPS(t *testing.T) {
 	r := NewRolling(128)
 	for i := int64(0); i < 13; i++ {
-		timex.SetTime(func() int64 { return i * ROLLING_PRECISION })
+		timex.SetTime(func() int64 { return i * _ROLLING_PRECISION })
 		r.IncrBy(100 * int(i+1))
 	}
 
-	timex.SetTime(func() int64 { return 12 * ROLLING_PRECISION })
+	timex.SetTime(func() int64 { return 12 * _ROLLING_PRECISION })
 	assert.EqualValues(t, 5859.375, r.QPS(12))
 
 	timex.SetTime(func() int64 { return 0 })
@@ -46,7 +46,7 @@ func TestIncrExpire(t *testing.T) {
 	timex.SetTime(func() int64 { return 0 })
 	r.IncrBy(100)
 
-	timex.SetTime(func() int64 { return ROLLING_MIN_COUNTER * ROLLING_PRECISION })
+	timex.SetTime(func() int64 { return _ROLLING_MIN_COUNTER * _ROLLING_PRECISION })
 	r.IncrBy(23)
 	cnt, win := r.Count(1)
 	assert.EqualValues(t, 23, cnt)

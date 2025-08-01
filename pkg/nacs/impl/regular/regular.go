@@ -10,7 +10,7 @@ import (
 	"regexp"
 	"sync"
 
-	"github.com/cocktail828/go-tools/pkg/nacs"
+	"github.com/cocktail828/go-tools/pkg/nacs/configuration"
 	"github.com/cocktail828/go-tools/z"
 	"github.com/pkg/errors"
 	"gopkg.in/fsnotify.v1"
@@ -25,7 +25,7 @@ type fileConfigor struct {
 	configs    map[string][]byte // name -> payload
 }
 
-func NewFileConfigor(root string, filters ...Filter) (nacs.Configor, error) {
+func NewFileConfigor(root string, filters ...Filter) (configuration.Configor, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	fc := fileConfigor{
 		runningCtx: ctx,
@@ -73,35 +73,39 @@ func (f *fileConfigor) loadConfigLocked(path string, d DirEntry) (err error) {
 	return
 }
 
-func (f *fileConfigor) GetConfig(cfg nacs.Config) ([]byte, error) {
+func filename(cfg configuration.Config) string {
+	return cfg.ID
+}
+
+func (f *fileConfigor) Get(cfg configuration.Config) ([]byte, error) {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
 
-	value, ok := f.configs[cfg.Fname]
+	value, ok := f.configs[filename(cfg)]
 	if !ok {
-		return nil, errors.Errorf("config fname %s not found", cfg.Fname)
+		return nil, errors.Errorf("config fname %s not found", filename(cfg))
 	}
 	return value, nil
 }
 
-func (f *fileConfigor) SetConfig(cfg nacs.Config, payload []byte) error {
+func (f *fileConfigor) Set(cfg configuration.Config, payload []byte) error {
 	z.WithLock(&f.mu, func() {
-		f.configs[cfg.Fname] = payload
+		f.configs[filename(cfg)] = payload
 	})
-	os.WriteFile(path.Join(f.root, cfg.Fname), payload, os.ModePerm)
+	os.WriteFile(path.Join(f.root, filename(cfg)), payload, os.ModePerm)
 	return nil
 }
 
-func (f *fileConfigor) DeleteConfig(cfg nacs.Config) (err error) {
+func (f *fileConfigor) Delete(cfg configuration.Config) (err error) {
 	z.WithLock(&f.mu, func() {
-		delete(f.configs, cfg.Fname)
+		delete(f.configs, filename(cfg))
 	})
-	os.Remove(path.Join(f.root, cfg.Fname))
+	os.Remove(path.Join(f.root, filename(cfg)))
 	return
 }
 
 // we should only care about write event
-func (f *fileConfigor) WatchConfig(cfg nacs.Config, listener nacs.ConfigListener) (context.CancelFunc, error) {
+func (f *fileConfigor) Monitor(cfg configuration.Config, listener configuration.Listener) (context.CancelFunc, error) {
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		return nil, errors.Errorf("failed to create watcher: %v", err)
@@ -111,7 +115,7 @@ func (f *fileConfigor) WatchConfig(cfg nacs.Config, listener nacs.ConfigListener
 		return nil, errors.Errorf("failed to watch file: %v", err)
 	}
 
-	re, err := regexp.Compile(cfg.Fname)
+	re, err := regexp.Compile(filename(cfg))
 	if err != nil {
 		return nil, err
 	}
@@ -135,14 +139,14 @@ func (f *fileConfigor) WatchConfig(cfg nacs.Config, listener nacs.ConfigListener
 						continue
 					}
 
-					cfg := nacs.Config{Fname: fname}
-					oldval, _ := f.GetConfig(cfg)
+					cfg := configuration.Config{ID: fname}
+					oldval, _ := f.Get(cfg)
 					if err := f.loadConfigLocked(event.Name, dirEntryImpl{fname}); err != nil {
 						listener(cfg, nil, err)
 						continue
 					}
 
-					current, _ := f.GetConfig(cfg)
+					current, _ := f.Get(cfg)
 					if !bytes.Equal(oldval, current) {
 						listener(cfg, current, nil)
 					}

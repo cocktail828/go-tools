@@ -40,6 +40,9 @@ func (cfg *Config) Normalize() {
 	cfg.MaxConcurrency = setter(0, DefaultMaxConcurrency)
 	cfg.MinQPSThreshold = setter(0, DefaultMinQPSNum)
 	cfg.FailureThreshold = setter(0, DefaultFailureThreshold)
+	if cfg.FailureThreshold >= 100 {
+		cfg.FailureThreshold = DefaultFailureThreshold
+	}
 }
 
 func (cfg *Config) Update(config Config) {
