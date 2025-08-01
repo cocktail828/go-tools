@@ -99,6 +99,55 @@ func isInMatches(test string, matches []Match) bool {
 	return false
 }
 
+func TestParam(t *testing.T) {
+	trie, err := New(map[string]any{
+		"/r/:id":           "resource",
+		"/r/:id/*property": "property",
+	})
+	if err != nil {
+		t.Error()
+	}
+
+	matches := trie.Find("/r/1")
+	if len(matches) != 1 {
+		t.Errorf("expected one anchor, got %d", len(matches))
+	}
+	if !isInMatches("resource", matches) {
+		t.Errorf("expected 'resource', got %+v", matches)
+	}
+	if matches[0].Params.ByName("id") != "1" {
+		t.Error()
+	}
+
+	matches = trie.Find("/r/1/property")
+	if len(matches) != 1 {
+		t.Errorf("expected one anchor, got %d", len(matches))
+	}
+	if !isInMatches("property", matches) {
+		t.Error("expected 'property'")
+	}
+	if matches[0].Params.ByName("id") != "1" {
+		t.Error()
+	}
+	if matches[0].Params.ByName("property") != "property" {
+		t.Error()
+	}
+
+	matches = trie.Find("/r/1/property.json")
+	if len(matches) != 1 {
+		t.Errorf("expected one anchor, got %d", len(matches))
+	}
+	if !isInMatches("property", matches) {
+		t.Error("expected 'property'")
+	}
+	if matches[0].Params.ByName("id") != "1" {
+		t.Error()
+	}
+	if matches[0].Params.ByName("property") != "property.json" {
+		t.Error()
+	}
+}
+
 func TestFind(t *testing.T) {
 	trie, err := New(map[string]any{
 		"/":                       "root",

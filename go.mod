@@ -10,7 +10,6 @@ require (
 	github.com/hashicorp/hcl/v2 v2.22.0
 	github.com/nacos-group/nacos-sdk-go/v2 v2.2.9
 	github.com/pkg/errors v0.9.1
-	github.com/samber/lo v1.49.1
 	github.com/stretchr/testify v1.10.0
 	go.etcd.io/etcd/client/v3 v3.5.14
 	golang.org/x/crypto v0.31.0
