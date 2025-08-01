@@ -8,7 +8,7 @@ import (
 type Eviction interface {
 	Stats
 	Set(string, any)
-	SetWithExpiration(string, any, time.Duration)
+	SetWithTTL(string, any, time.Duration)
 	Get(string) (any, bool)
 	Has(string) bool
 	Remove(string) bool

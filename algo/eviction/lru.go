@@ -38,10 +38,10 @@ func NewLRU(size uint, opts ...Option) Eviction {
 }
 
 func (c *LRU) Set(key string, value any) {
-	c.SetWithExpiration(key, value, c.expiration)
+	c.SetWithTTL(key, value, c.expiration)
 }
 
-func (c *LRU) SetWithExpiration(key string, value any, expiration time.Duration) {
+func (c *LRU) SetWithTTL(key string, value any, expiration time.Duration) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 

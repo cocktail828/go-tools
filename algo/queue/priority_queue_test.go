@@ -9,7 +9,7 @@ func TestPriorityQueue(t *testing.T) {
 	pq := New()
 	elements := []float64{5, 3, 7, 8, 6, 2, 9}
 	for _, e := range elements {
-		pq.Insert(e, e)
+		pq.Push(e, e)
 	}
 
 	sort.Float64s(elements)
@@ -28,8 +28,8 @@ func TestPriorityQueue(t *testing.T) {
 
 func TestPriorityQueueUpdate(t *testing.T) {
 	pq := New()
-	pq.Insert("foo", 3)
-	pq.Insert("bar", 4)
+	pq.Push("foo", 3)
+	pq.Push("bar", 4)
 	pq.UpdatePriority("bar", 2)
 
 	item, err := pq.Pop()
@@ -48,8 +48,8 @@ func TestPriorityQueueLen(t *testing.T) {
 		t.Fatal("empty queue should have length of 0")
 	}
 
-	pq.Insert("foo", 1)
-	pq.Insert("bar", 1)
+	pq.Push("foo", 1)
+	pq.Push("bar", 1)
 	if pq.Len() != 2 {
 		t.Fatal("queue should have lenght of 2 after 2 inserts")
 	}
@@ -57,9 +57,9 @@ func TestPriorityQueueLen(t *testing.T) {
 
 func TestDoubleAddition(t *testing.T) {
 	pq := New()
-	pq.Insert("foo", 2)
-	pq.Insert("bar", 3)
-	pq.Insert("bar", 1)
+	pq.Push("foo", 2)
+	pq.Push("bar", 3)
+	pq.Push("bar", 1)
 
 	if pq.Len() != 2 {
 		t.Fatal("queue should ignore inserting the same element twice")
@@ -82,7 +82,7 @@ func TestPopEmptyQueue(t *testing.T) {
 func TestUpdateNonExistingItem(t *testing.T) {
 	pq := New()
 
-	pq.Insert("foo", 4)
+	pq.Push("foo", 4)
 	pq.UpdatePriority("bar", 5)
 
 	if pq.Len() != 1 {

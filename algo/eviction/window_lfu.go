@@ -32,19 +32,19 @@ func NewWindowLFU(windowSize, totalSize, promotionThreshold uint, opts ...Option
 }
 
 func (w *WindowLFU) Set(key string, value any) {
-	w.SetWithExpiration(key, value, w.lfu.expiration)
+	w.SetWithTTL(key, value, w.lfu.expiration)
 }
 
 // Set adds a key-value pair to the cache with optional expiration.
-func (w *WindowLFU) SetWithExpiration(key string, value any, expiration time.Duration) {
+func (w *WindowLFU) SetWithTTL(key string, value any, expiration time.Duration) {
 	// Check if already in LFU
 	if _, found := w.lfu.Get(key); found {
-		w.lfu.SetWithExpiration(key, value, expiration)
+		w.lfu.SetWithTTL(key, value, expiration)
 		return
 	}
 
 	// Add to LRU if not in LFU
-	w.lru.SetWithExpiration(key, value, expiration)
+	w.lru.SetWithTTL(key, value, expiration)
 }
 
 // Get retrieves a value by key, promoting it to LFU if it meets the access threshold.

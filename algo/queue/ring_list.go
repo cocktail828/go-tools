@@ -19,7 +19,7 @@ func NewRingQueue(max int) *RingQueue {
 	}
 }
 
-func (rq *RingQueue) Insert(n any) bool {
+func (rq *RingQueue) Push(n any) bool {
 	rq.mu.Lock()
 	defer rq.mu.Unlock()
 
@@ -28,9 +28,6 @@ func (rq *RingQueue) Insert(n any) bool {
 	}
 
 	rq.list.PushBack(n)
-	if rq.curr == nil {
-		rq.curr = rq.list.Front()
-	}
 
 	return true
 }
@@ -44,11 +41,7 @@ func (rq *RingQueue) Remove(n *list.Element) {
 	}
 
 	if n == rq.curr {
-		if length := rq.list.Len(); length > 1 {
-			rq.pollLocked()
-		} else {
-			rq.curr = nil
-		}
+		rq.pollLocked()
 	}
 	rq.list.Remove(n)
 }
@@ -61,10 +54,14 @@ func (rq *RingQueue) Poll() *list.Element {
 
 func (rq *RingQueue) pollLocked() *list.Element {
 	if rq.curr == nil {
-		return nil
+		rq.curr = rq.list.Front()
 	}
 
 	node := rq.curr
+	if node == nil {
+		return nil
+	}
+
 	if next := node.Next(); next != nil {
 		rq.curr = node.Next()
 	} else {

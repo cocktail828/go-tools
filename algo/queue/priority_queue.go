@@ -6,7 +6,7 @@ import (
 	"sync"
 )
 
-var ErrEmptyQueue = errors.New("empty queue")
+var ErrEmptyQueue = errors.New("empty priority queue")
 
 type itemHeap []*item
 
@@ -63,8 +63,8 @@ func (pq *PriorityQueue) Len() int {
 	return pq.itemHeap.Len()
 }
 
-// Insert inserts a new element into the queue. No action is performed on duplicate elements.
-func (pq *PriorityQueue) Insert(v any, priority float64) {
+// Push inserts a new element into the queue. No action is performed on duplicate elements.
+func (pq *PriorityQueue) Push(v any, priority float64) {
 	pq.mu.Lock()
 	defer pq.mu.Unlock()
 	_, ok := pq.lookup[v]

@@ -12,9 +12,9 @@ func TestRingList(t *testing.T) {
 	nodes := []int{1, 2, 3, 4, 5, 6, 7, 8, 9}
 	for i, n := range nodes {
 		if i < cnt {
-			assert.True(t, rq.Insert(n))
+			assert.True(t, rq.Push(n))
 		} else {
-			assert.False(t, rq.Insert(n))
+			assert.False(t, rq.Push(n))
 		}
 	}
 

@@ -22,8 +22,8 @@ func TestCacheExpiration(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			cache := tt.cacheInit(2)
 
-			cache.SetWithExpiration("key1", "value1", 50*time.Millisecond)
-			cache.SetWithExpiration("key2", "value2", 100*time.Millisecond)
+			cache.SetWithTTL("key1", "value1", 50*time.Millisecond)
+			cache.SetWithTTL("key2", "value2", 100*time.Millisecond)
 
 			// 检查在过期前是否存在
 			value, exists := cache.Get("key1")

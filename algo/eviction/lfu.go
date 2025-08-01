@@ -21,8 +21,8 @@ type LFU struct {
 type lfuItem struct {
 	key       string
 	value     any
-	freqEntry *freqEntry
 	expireAt  time.Time
+	freqEntry *freqEntry
 }
 
 type freqEntry struct {
@@ -93,10 +93,10 @@ func (c *LFU) Decay() {
 }
 
 func (c *LFU) Set(key string, value any) {
-	c.SetWithExpiration(key, value, c.expiration)
+	c.SetWithTTL(key, value, c.expiration)
 }
 
-func (c *LFU) SetWithExpiration(key string, value any, expiration time.Duration) {
+func (c *LFU) SetWithTTL(key string, value any, expiration time.Duration) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
