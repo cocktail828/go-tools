@@ -10,14 +10,14 @@ func TestValidator(t *testing.T) {
 	validDSL := DSL{
 		Syntax:  "v1",
 		Project: "demo",
-		Services: []Service{
+		Services: []ServiceAST{
 			{
 				Interceptors: []string{"log", "recover"},
-				Groups: []Group{
+				Groups: []GroupAST{
 					{
 						Prefix:       "api",
 						Interceptors: []string{"auth"},
-						Routes: []Route{
+						Routes: []RouteAST{
 							{
 								Method:   "POST",
 								Path:     "/user/login",
@@ -35,18 +35,18 @@ func TestValidator(t *testing.T) {
 	invalidDSL := DSL{
 		Syntax:  "", // 违反required
 		Project: "demo",
-		Services: []Service{ // 违反len=1（此处有2个元素）
+		Services: []ServiceAST{ // 违反len=1（此处有2个元素）
 			{
 				Interceptors: []string{"", "recover"}, // 第一个元素违反required
-				Groups:       []Group{},               // 违反min=1
+				Groups:       []GroupAST{},            // 违反min=1
 			},
 			{
 				Interceptors: []string{"metric"},
-				Groups: []Group{
+				Groups: []GroupAST{
 					{
 						Prefix:       "",           // 违反required
 						Interceptors: []string{""}, // 违反required
-						Routes: []Route{
+						Routes: []RouteAST{
 							{
 								Method:   "", // 违反required
 								Path:     "/user/login",

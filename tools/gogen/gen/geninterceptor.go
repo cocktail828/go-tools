@@ -6,8 +6,6 @@ import (
 	"text/template"
 
 	"github.com/pkg/errors"
-
-	"github.com/cocktail828/go-tools/tools/gogen/ast"
 )
 
 var (
@@ -17,7 +15,7 @@ var (
 
 type GenInterceptor struct{}
 
-func (g GenInterceptor) Gen(dsl *ast.DSL) (Writer, error) {
+func (g GenInterceptor) Gen(dsl *DSLMeta) (Writer, error) {
 	ws := MultiFile{}
 	interceptorSet := map[string]struct{}{}
 
@@ -26,41 +24,38 @@ func (g GenInterceptor) Gen(dsl *ast.DSL) (Writer, error) {
 		return nil, err
 	}
 
-	genViaTpl := func(name string) error {
-		if _, ok := interceptorSet[name]; ok {
-			return errors.Errorf("interceptor[%v] has already been defined", name)
+	genViaTpl := func(incps ...string) error {
+		for _, ic := range incps {
+			if _, ok := interceptorSet[ic]; ok {
+				return errors.Errorf("interceptor[%v] has already been defined", ic)
+			}
+			interceptorSet[ic] = struct{}{}
+
+			sb := strings.Builder{}
+			if err := tpl.Execute(&sb, map[string]any{
+				"name": ic,
+			}); err != nil {
+				return err
+			}
+
+			ws = append(ws, File{
+				SubDir:  "interceptor",
+				Name:    strings.ToLower(ic) + ".go",
+				Payload: sb.String(),
+			})
 		}
-
-		interceptorSet[name] = struct{}{}
-
-		sb := strings.Builder{}
-		if err := tpl.Execute(&sb, map[string]any{
-			"name": name,
-		}); err != nil {
-			return err
-		}
-
-		ws = append(ws, File{
-			Path:    "interceptor",
-			Name:    strings.ToLower(name) + "_interceptor.go",
-			Payload: sb.String(),
-		})
 
 		return nil
 	}
 
 	for _, svc := range dsl.Services {
-		for _, ic := range svc.Interceptors {
-			if err := genViaTpl(ic); err != nil {
-				return nil, err
-			}
+		if err := genViaTpl(svc.Interceptors...); err != nil {
+			return nil, err
 		}
 
 		for _, grp := range svc.Groups {
-			for _, ic := range grp.Interceptors {
-				if err := genViaTpl(ic); err != nil {
-					return nil, err
-				}
+			if err := genViaTpl(grp.Interceptors...); err != nil {
+				return nil, err
 			}
 		}
 	}

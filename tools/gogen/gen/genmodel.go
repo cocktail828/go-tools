@@ -4,8 +4,6 @@ import (
 	_ "embed"
 	"strings"
 	"text/template"
-
-	"github.com/cocktail828/go-tools/tools/gogen/ast"
 )
 
 var (
@@ -15,7 +13,7 @@ var (
 
 type GenModel struct{}
 
-func (g GenModel) Gen(dsl *ast.DSL) (Writer, error) {
+func (g GenModel) Gen(dsl *DSLMeta) (Writer, error) {
 	set := map[string]struct{}{}
 
 	tpl, err := template.New("model").Parse(genmodelTpl)
@@ -23,37 +21,21 @@ func (g GenModel) Gen(dsl *ast.DSL) (Writer, error) {
 		return nil, err
 	}
 
-	gen := func(name string) string {
-		name = strings.Title(name)
-		if _, ok := set[name]; ok {
-			return ""
+	payloads := []string{"package model\n"}
+	for _, st := range dsl.Structs {
+		if _, ok := set[st.Name]; ok {
+			continue
 		}
-		set[name] = struct{}{}
+		set[st.Name] = struct{}{}
 
 		sb := strings.Builder{}
-		if err := tpl.Execute(&sb, map[string]any{
-			"name": name,
-		}); err != nil {
+		if err := tpl.Execute(&sb, st); err != nil {
 		}
-		return sb.String()
-	}
-
-	payloads := []string{"package model\n"}
-	for _, svc := range dsl.Services {
-		for _, grp := range svc.Groups {
-			for _, rt := range grp.Routes {
-				if rt.Request != "" {
-					payloads = append(payloads, gen(rt.Request))
-				}
-				if rt.Response != "" {
-					payloads = append(payloads, gen(rt.Response))
-				}
-			}
-		}
+		payloads = append(payloads, sb.String())
 	}
 
 	return File{
-		Path:    "model",
+		SubDir:  "model",
 		Name:    "model.go",
 		Payload: strings.Join(payloads, "\n"),
 	}, nil

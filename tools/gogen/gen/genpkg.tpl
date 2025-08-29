@@ -8,27 +8,57 @@ import (
     "syscall"
 
     "github.com/gin-gonic/gin"
+	"github.com/cocktail828/go-tools/configor"
+	"github.com/cocktail828/go-tools/pkg/nacs/configuration"
+	"github.com/cocktail828/go-tools/pkg/nacs/impl/regular"
 
+	"{{ .project}}/config"
     "{{ .project}}/handler"
-    {{ if .has_interceptor }}"{{ .project}}/interceptor"{{ end }}
+    {{ if .service.HasInterceptor }}"{{ .project}}/interceptor"{{ end }}
 )
 
 func main() {
-    r := gin.Default()
-    r.Use({{ range .interceptors }}
-        interceptor.{{ . }}Incp(/* init meta */ nil),{{ end }}
-    )
+	/* load config from file */
+	log.Printf("about to load config")
+	cfgor, err := regular.NewFileConfigor( /* the config dir */ "./", regular.WithSuffix(".toml"))
+	if err != nil {
+		log.Fatalf("load config fail: %v", err)
+	}
 
-    {{ range $grp := .service.Groups }}{
-        {{ .Prefix }}Group := r.Group("{{ .Prefix }}"{{ if $grp.Interceptors }}, {{ end }}{{ range $grp.Interceptors }}
-            interceptor.{{ . }}Incp(/* init meta */ nil),{{ end }}
-        )
+	payload, err := cfgor.Get(configuration.Config{ID: "server.toml"})
+	if err != nil {
+		log.Fatalf("regular.Get() config fail: %v", err)
+	}
+
+	cfg := config.Config{}
+	if err := configor.Load(&cfg, payload); err != nil {
+		log.Fatalf("parser config fail: %v", err)
+	}
+
+    /* manually change to other mode gin.DebugMode, gin.TestMode, gin.ReleaseMode */
+    gin.SetMode(gin.DebugMode)
+    r := gin.Default()
+    {{ if .service.Interceptors }}
+    /* register global interceptors */
+    r.Use({{ range .service.Interceptors }}
+        interceptor.{{ . }}( /* init via meta */ nil),{{ end }}
+    ){{ end }}
+    {{ range $group := .service.Groups }}{
+        /* register group with group level interceptors */
+        {{ if .Interceptors }}{{ .Name }}Group := r.Group("{{ .Prefix }}", {{ range .Interceptors }}
+            interceptor.{{ . }}( /* init via meta */ nil),{{ end }}
+        ){{ else }}{{ .Name }}Group := r.Group("{{ .Prefix }}"){{ end }}
         {{ range .Routes }}
-        {{ $grp.Prefix }}Group.Handle(http.Method{{ .Method }}, "{{ .Path }}", handler.{{ .Request }}Handler){{ end }}
+        {{ $group.Name }}Group.Handle(http.Method{{ .Method }}, "{{ .Path }}", handler.{{ .HandlerName }}){{ end }}
     }{{ end }}
 
-    // demo server start at ':8080'
-    srv := http.Server{Addr: ":8080"}
+    /* demo server start at ':8080' */
+    srv := http.Server{
+        Addr:    ":8080",
+        Handler: r,
+    }
+
+    log.Printf("about to start server at %q", srv.Addr)
     ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
     go func() {
         defer stop()

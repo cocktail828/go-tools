@@ -9,8 +9,8 @@ import (
 )
 
 func main() {
-	if len(os.Args) < 2 {
-		log.Fatal("Usage: generator <dsl file>")
+	if len(os.Args) < 3 {
+		log.Fatal("Usage: generator <dsl file> <target dir>")
 	}
 
 	dslFile := os.Args[1]
@@ -19,7 +19,9 @@ func main() {
 		log.Fatalf("parse error: %v", err)
 	}
 
-	if err := gogen.Generate("xxx", dsl); err != nil {
+	rootdir := os.Args[2]
+	os.MkdirAll(rootdir, 0755)
+	if err := gogen.Generate(rootdir, dsl); err != nil {
 		log.Fatalf("generate error: %v", err)
 	}
 

@@ -1,12 +1,13 @@
 package interceptor
 
 import (
-	"github.com/gin-gonic/gin"
+    "github.com/gin-gonic/gin"
 )
 
-func {{ .name }}Incp(in any) gin.HandlerFunc {
-	/* add some init code here */
+func {{ .name }}(in any) gin.HandlerFunc {
+    /* add some init code here */
 
-	return func(*gin.Context) {
-	}
+    return func(*gin.Context) {
+        /* add some business code here */
+    }
 }

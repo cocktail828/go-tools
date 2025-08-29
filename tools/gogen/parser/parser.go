@@ -2,12 +2,16 @@ package parser
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
+	"io"
 	"os"
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/cocktail828/go-tools/tools/gogen/ast"
+	"github.com/pkg/errors"
 )
 
 func assert(expr bool, format string, args ...any) {
@@ -17,18 +21,18 @@ func assert(expr bool, format string, args ...any) {
 }
 
 var (
-	reDirective = regexp.MustCompile(`^(\w+)(?:\s+([a-zA-Z0-9_]+(?:\s+[a-zA-Z0-9_]+)*))?`)
+	reDirective = regexp.MustCompile(`(@?[\w@.]+)(?:\s+([\w@./]+(?:\s+[\w@.]+)*))?`)
 	reRoute     = regexp.MustCompile(`(\S+)\s+(\S+)(?:\s*\(([^\)]*)\))?(?:\s+return\s*(?:\(([^\)]*)\))?)?`)
 )
 
-func parserRoute(input string) ast.Route {
+func parserRoute(input string) ast.RouteAST {
 	match := reRoute.FindStringSubmatch(input)
 	if match == nil {
 		panic("invalid 'route' syntax, check your dsl file")
 	}
 
-	return ast.Route{
-		Method:   strings.Title(match[1]),
+	return ast.RouteAST{
+		Method:   match[1],
 		Path:     match[2],
 		Request:  match[3],
 		Response: match[4],
@@ -42,11 +46,21 @@ func ParseDSL(file string) (*ast.DSL, error) {
 	}
 	defer f.Close()
 
-	var dsl ast.DSL
-	scanner := bufio.NewScanner(f)
+	payload, err := io.ReadAll(f)
+	if err != nil {
+		return nil, err
+	}
 
-	var curService *ast.Service
-	var curGroup *ast.Group
+	var dsl ast.DSL
+	dsl.Structs, err = parseStructs(string(payload))
+	if err != nil {
+		return nil, err
+	}
+
+	scanner := bufio.NewScanner(bytes.NewReader(payload))
+	var curService *ast.ServiceAST
+	var curGroup *ast.GroupAST
+	var curHandlerNameLine string
 
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
@@ -69,14 +83,9 @@ func ParseDSL(file string) (*ast.DSL, error) {
 				assert(len(dsl.Services) == 0, "only 1 'service' should be defined")
 
 				if len(matches) == 2 {
-					dsl.Services = append(dsl.Services, ast.Service{})
+					dsl.Services = append(dsl.Services, ast.ServiceAST{})
 				} else {
-					ss := strings.Fields(matches[2])
-					for i, s := range ss {
-						ss[i] = strings.Title(s)
-					}
-
-					dsl.Services = append(dsl.Services, ast.Service{Interceptors: ss})
+					dsl.Services = append(dsl.Services, ast.ServiceAST{Interceptors: strings.Fields(matches[2])})
 				}
 				curService = &dsl.Services[len(dsl.Services)-1]
 
@@ -85,26 +94,48 @@ func ParseDSL(file string) (*ast.DSL, error) {
 
 				args := strings.Fields(matches[2])
 				if len(args) == 1 {
-					curService.Groups = append(curService.Groups, ast.Group{Prefix: args[0]})
+					curService.Groups = append(curService.Groups, ast.GroupAST{Prefix: args[0]})
 				} else {
-					ss := args[1:]
-					for i, s := range ss {
-						ss[i] = strings.Title(s)
-					}
-
-					curService.Groups = append(curService.Groups, ast.Group{
+					curService.Groups = append(curService.Groups, ast.GroupAST{
 						Prefix:       args[0],
-						Interceptors: ss,
+						Interceptors: args[1:],
 					})
 				}
 				curGroup = &curService.Groups[len(curService.Groups)-1]
 
 			case "get", "head", "post", "put", "patch", "delete", "connect", "options", "trace":
 				assert(len(matches) == 3, "invalid 'route' syntax, check your dsl file")
-				curGroup.Routes = append(curGroup.Routes, parserRoute(line))
+				rt := parserRoute(line)
+				if curHandlerNameLine != "" {
+					rt.HandlerName = curHandlerNameLine
+					curHandlerNameLine = ""
+				}
+
+				if !slices.ContainsFunc(dsl.Structs, func(v ast.StructDef) bool {
+					if rt.Request == "" || v.Name == rt.Request {
+						return true
+					}
+					return false
+				}) {
+					return nil, errors.Errorf("request (%v) is not defined", rt.Request)
+				}
+
+				if !slices.ContainsFunc(dsl.Structs, func(v ast.StructDef) bool {
+					if rt.Response == "" || v.Name == rt.Response {
+						return true
+					}
+					return false
+				}) {
+					return nil, errors.Errorf("response (%v) is not defined", rt.Response)
+				}
+
+				curGroup.Routes = append(curGroup.Routes, rt)
+
+			case "@handler":
+				assert(len(matches) == 3, "invalid 'route.handler' syntax, check your dsl file")
+				curHandlerNameLine = matches[2]
 
 			default:
-				return nil, fmt.Errorf("unknown keyword: %s", keyword)
 			}
 		}
 	}
