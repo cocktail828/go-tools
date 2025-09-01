@@ -1,4 +1,4 @@
-package downloader_test
+package downloader
 
 import (
 	"context"
@@ -7,13 +7,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cocktail828/go-tools/pkg/netx/downloader"
 	"github.com/cocktail828/go-tools/z"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestDownload(t *testing.T) {
-	dl := downloader.Downloader{
+	dl := Downloader{
 		Client:         http.DefaultClient,
 		MaxConcurrency: 10,
 	}

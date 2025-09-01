@@ -1,30 +1,29 @@
-package chain_test
+package chain
 
 import (
 	"context"
 	"net"
 	"testing"
 
-	"github.com/cocktail828/go-tools/z/chain"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestRecurse(t *testing.T) {
 	slice := []string{}
-	s := chain.ChainUnaryInterceptors([]chain.UnaryInterceptor{
-		func(ctx context.Context, in any, handler chain.UnaryHandler) (resp any, err error) {
+	s := ChainUnaryInterceptors([]UnaryInterceptor{
+		func(ctx context.Context, in any, handler UnaryHandler) (resp any, err error) {
 			slice = append(slice, "1 in")
 			r, e := handler(ctx, in)
 			slice = append(slice, "1 out")
 			return r, e
 		},
-		func(ctx context.Context, in any, handler chain.UnaryHandler) (resp any, err error) {
+		func(ctx context.Context, in any, handler UnaryHandler) (resp any, err error) {
 			slice = append(slice, "2 in")
 			r, e := handler(ctx, in)
 			slice = append(slice, "2 out")
 			return r, e
 		},
-		func(ctx context.Context, in any, handler chain.UnaryHandler) (resp any, err error) {
+		func(ctx context.Context, in any, handler UnaryHandler) (resp any, err error) {
 			slice = append(slice, "3 in")
 			r, e := handler(ctx, in)
 			slice = append(slice, "3 out")
@@ -43,18 +42,18 @@ func TestRecurse(t *testing.T) {
 
 func TestFailure(t *testing.T) {
 	slice := []string{}
-	s := chain.ChainUnaryInterceptors([]chain.UnaryInterceptor{
-		func(ctx context.Context, in any, handler chain.UnaryHandler) (resp any, err error) {
+	s := ChainUnaryInterceptors([]UnaryInterceptor{
+		func(ctx context.Context, in any, handler UnaryHandler) (resp any, err error) {
 			slice = append(slice, "1 in")
 			r, e := handler(ctx, in)
 			slice = append(slice, "1 out")
 			return r, e
 		},
-		func(ctx context.Context, in any, handler chain.UnaryHandler) (resp any, err error) {
+		func(ctx context.Context, in any, handler UnaryHandler) (resp any, err error) {
 			slice = append(slice, "2 in")
 			return nil, net.ErrClosed
 		},
-		func(ctx context.Context, in any, handler chain.UnaryHandler) (resp any, err error) {
+		func(ctx context.Context, in any, handler UnaryHandler) (resp any, err error) {
 			slice = append(slice, "3 in")
 			r, e := handler(ctx, in)
 			slice = append(slice, "3 out")
@@ -71,7 +70,7 @@ func TestFailure(t *testing.T) {
 }
 
 func TestNilInter(t *testing.T) {
-	s := chain.ChainUnaryInterceptors([]chain.UnaryInterceptor{})
+	s := ChainUnaryInterceptors([]UnaryInterceptor{})
 	_, err := s(context.TODO(), nil, func(ctx context.Context, in any) (any, error) {
 		return nil, nil
 	})

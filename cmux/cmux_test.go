@@ -1,4 +1,4 @@
-// Copyright 2016 The cmux.CMux Authors. All rights reserved.
+// Copyright 2016 The CMux Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,7 +12,7 @@
 // implied. See the License for the specific language governing
 // permissions and limitations under the License.
 
-package cmux_test
+package cmux
 
 import (
 	"bytes"
@@ -36,7 +36,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cocktail828/go-tools/cmux"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/hpack"
 )
@@ -54,7 +53,7 @@ func abortOnErr(t *testing.T, errCh <-chan error) {
 	}
 }
 
-func safeServe(errCh chan<- error, muxl *cmux.CMux) {
+func safeServe(errCh chan<- error, muxl *CMux) {
 	if err := muxl.Serve(); err != nil &&
 		!slices.Contains([]error{context.Canceled, net.ErrClosed}, err) &&
 		!strings.Contains(err.Error(), "use of closed") {
@@ -143,7 +142,7 @@ func runTestHTTPServer(errCh chan<- error, l net.Listener) {
 			mu.Unlock()
 		},
 	}
-	if err := s.Serve(l); err != cmux.ErrServerClosed {
+	if err := s.Serve(l); err != ErrServerClosed {
 		errCh <- err
 	}
 }
@@ -207,7 +206,7 @@ func runTestRPCServer(errCh chan<- error, l net.Listener) {
 	for {
 		c, err := l.Accept()
 		if err != nil {
-			if err != cmux.ErrServerClosed {
+			if err != ErrServerClosed {
 				errCh <- err
 			}
 			return
@@ -243,10 +242,10 @@ func TestTimeout(t *testing.T) {
 
 	result := make(chan int, 5)
 	testDuration := time.Millisecond * 100
-	m := cmux.New(lis)
+	m := New(lis)
 	m.SetReadTimeout(testDuration)
-	http1 := m.Match(cmux.HTTP1Fast())
-	anyl := m.Match(cmux.Any())
+	http1 := m.Match(HTTP1Fast())
+	anyl := m.Match(Any())
 	go m.Serve()
 	go func() {
 		con, err := http1.Accept()
@@ -324,7 +323,7 @@ func TestRead(t *testing.T) {
 	l := newChanListener()
 	defer close(l.connCh)
 	l.connCh <- reader
-	muxl := cmux.New(l)
+	muxl := New(l)
 	// Register a bogus matcher to force buffering exactly the right amount.
 	// Before this fix, this would trigger a bug where `Read` would incorrectly
 	// report `io.EOF` when only the buffer had been consumed.
@@ -333,7 +332,7 @@ func TestRead(t *testing.T) {
 		_, _ = r.Read(b[:])
 		return false
 	})
-	anyl := muxl.Match(cmux.Any())
+	anyl := muxl.Match(Any())
 	go safeServe(errCh, muxl)
 	muxedConn, err := anyl.Accept()
 	if err != nil {
@@ -363,8 +362,8 @@ func TestAny(t *testing.T) {
 	l, closer := testListener(t)
 	defer closer()
 
-	muxl := cmux.New(l)
-	httpl := muxl.Match(cmux.Any())
+	muxl := New(l)
+	httpl := muxl.Match(Any())
 
 	go runTestHTTPServer(errCh, httpl)
 	go safeServe(errCh, muxl)
@@ -390,9 +389,9 @@ func TestTLS(t *testing.T) {
 	l, closer := testListener(t)
 	defer closer()
 
-	muxl := cmux.New(l)
-	tlsl := muxl.Match(cmux.TLS())
-	httpl := muxl.Match(cmux.Any())
+	muxl := New(l)
+	tlsl := muxl.Match(TLS())
+	httpl := muxl.Match(Any())
 
 	go runTestTLSServer(errCh, tlsl)
 	go runTestHTTPServer(errCh, httpl)
@@ -418,14 +417,14 @@ func TestHTTP2(t *testing.T) {
 
 	l := newChanListener()
 	l.connCh <- reader
-	muxl := cmux.New(l)
+	muxl := New(l)
 	// Register a bogus matcher that only reads one byte.
 	muxl.Match(func(r io.Reader) bool {
 		var b [1]byte
 		_, _ = r.Read(b[:])
 		return false
 	})
-	h2l := muxl.Match(cmux.HTTP2())
+	h2l := muxl.Match(HTTP2())
 	go safeServe(errCh, muxl)
 	muxedConn, err := h2l.Accept()
 	close(l.connCh)
@@ -448,16 +447,16 @@ func TestHTTP2(t *testing.T) {
 }
 
 func TestHTTP2MatchHeaderField(t *testing.T) {
-	testHTTP2MatchHeaderField(t, cmux.HTTP2HeaderField, "value", "value", "anothervalue")
+	testHTTP2MatchHeaderField(t, HTTP2HeaderField, "value", "value", "anothervalue")
 }
 
 func TestHTTP2MatchHeaderFieldPrefix(t *testing.T) {
-	testHTTP2MatchHeaderField(t, cmux.HTTP2HeaderFieldPrefix, "application/grpc+proto", "application/grpc", "application/json")
+	testHTTP2MatchHeaderField(t, HTTP2HeaderFieldPrefix, "application/grpc+proto", "application/grpc", "application/json")
 }
 
 func testHTTP2MatchHeaderField(
 	t *testing.T,
-	matcherConstructor func(string, string) cmux.Matcher,
+	matcherConstructor func(string, string) Matcher,
 	headerValue string,
 	matchValue string,
 	notMatchValue string,
@@ -493,7 +492,7 @@ func testHTTP2MatchHeaderField(
 
 	l := newChanListener()
 	l.connCh <- reader
-	muxl := cmux.New(l)
+	muxl := New(l)
 	// Register a bogus matcher that only reads one byte.
 	muxl.Match(func(r io.Reader) bool {
 		var b [1]byte
@@ -527,9 +526,9 @@ func TestHTTPGoRPC(t *testing.T) {
 	l, closer := testListener(t)
 	defer closer()
 
-	muxl := cmux.New(l)
-	httpl := muxl.Match(cmux.HTTP2(), cmux.HTTP1Fast())
-	rpcl := muxl.Match(cmux.Any())
+	muxl := New(l)
+	httpl := muxl.Match(HTTP2(), HTTP1Fast())
+	rpcl := muxl.Match(Any())
 
 	go runTestHTTPServer(errCh, httpl)
 	go runTestRPCServer(errCh, rpcl)
@@ -546,7 +545,7 @@ func TestMultipleMatchers(t *testing.T) {
 	l, closer := testListener(t)
 	defer closer()
 
-	muxl := cmux.New(l)
+	muxl := New(l)
 	unmatcher := func(r io.Reader) bool { return false }
 
 	go safeServe(errCh, muxl)
@@ -563,8 +562,8 @@ func TestListenerClose(t *testing.T) {
 	l := newChanListener()
 
 	c1, c2 := net.Pipe()
-	muxl := cmux.New(l)
-	anyl := muxl.Match(cmux.Any())
+	muxl := New(l)
+	anyl := muxl.Match(Any())
 
 	go safeServe(errCh, muxl)
 
@@ -581,7 +580,7 @@ func TestListenerClose(t *testing.T) {
 
 	// Second connection either goes through or it is closed.
 	if _, err := anyl.Accept(); err != nil {
-		if err != cmux.ErrServerClosed {
+		if err != ErrServerClosed {
 			t.Fatal(err)
 		}
 		c2.Close()
@@ -600,13 +599,13 @@ func TestClose(t *testing.T) {
 	l, closer := testListener(t)
 	defer closer()
 
-	muxl := cmux.New(l)
-	anyl := muxl.Match(cmux.Any())
+	muxl := New(l)
+	anyl := muxl.Match(Any())
 
 	go safeServe(errCh, muxl)
 
 	muxl.Close()
-	if _, err := anyl.Accept(); err != cmux.ErrServerClosed {
+	if _, err := anyl.Accept(); err != ErrServerClosed {
 		t.Fatal(err)
 	}
 }

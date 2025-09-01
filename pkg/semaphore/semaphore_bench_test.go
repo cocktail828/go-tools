@@ -2,14 +2,12 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package semaphore_test
+package semaphore
 
 import (
 	"context"
 	"fmt"
 	"testing"
-
-	"github.com/cocktail828/go-tools/pkg/semaphore"
 )
 
 // weighted is an interface matching a subset of *Weighted.  It allows
@@ -84,7 +82,7 @@ func BenchmarkNewSeq(b *testing.B) {
 	for _, cap := range []int64{1, 128} {
 		b.Run(fmt.Sprintf("Weighted-%d", cap), func(b *testing.B) {
 			for i := 0; i < b.N; i++ {
-				_ = semaphore.NewWeighted(cap)
+				_ = NewWeighted(cap)
 			}
 		})
 		b.Run(fmt.Sprintf("semChan-%d", cap), func(b *testing.B) {
@@ -115,7 +113,7 @@ func BenchmarkAcquireSeq(b *testing.B) {
 			name string
 			w    weighted
 		}{
-			{"Weighted", semaphore.NewWeighted(c.cap)},
+			{"Weighted", NewWeighted(c.cap)},
 			{"semChan", newSemChan(c.cap)},
 		} {
 			b.Run(fmt.Sprintf("%s-acquire-%d-%d-%d", w.name, c.cap, c.size, c.N), func(b *testing.B) {

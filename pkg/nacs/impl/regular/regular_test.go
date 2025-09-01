@@ -1,4 +1,4 @@
-package regular_test
+package regular
 
 import (
 	"context"
@@ -7,14 +7,13 @@ import (
 	"time"
 
 	"github.com/cocktail828/go-tools/pkg/nacs/configuration"
-	"github.com/cocktail828/go-tools/pkg/nacs/impl/regular"
 	"github.com/cocktail828/go-tools/z"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestRegular(t *testing.T) {
 	rootdir := os.TempDir()
-	configor, err := regular.NewFileConfigor(rootdir, regular.WithSuffix(".findercache"))
+	configor, err := NewFileConfigor(rootdir, WithSuffix(".findercache"))
 	z.Must(err)
 	defer configor.Close()
 

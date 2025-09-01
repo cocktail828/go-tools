@@ -1,10 +1,8 @@
-package z_test
+package z
 
 import (
 	"slices"
 	"testing"
-
-	"github.com/cocktail828/go-tools/z"
 )
 
 func TestZ(t *testing.T) {
@@ -20,6 +18,6 @@ func TestZ(t *testing.T) {
 	a()
 }
 
-func c() { z.DumpStack(5) }
+func c() { DumpStack(5) }
 func b() { c() }
 func a() { b() }

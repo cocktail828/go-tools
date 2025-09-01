@@ -1,4 +1,4 @@
-package retry_test
+package retry
 
 import (
 	"context"
@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cocktail828/go-tools/pkg/retry"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -19,7 +18,7 @@ func TestDelay(t *testing.T) {
 			"fixed",
 			func(t *testing.T) {
 				for i := 0; i < 100; i++ {
-					assert.Equal(t, time.Second, retry.FixedDelay(time.Second)(uint(i)))
+					assert.Equal(t, time.Second, FixedDelay(time.Second)(uint(i)))
 				}
 			},
 		},
@@ -27,7 +26,7 @@ func TestDelay(t *testing.T) {
 			"random",
 			func(t *testing.T) {
 				for i := 0; i < 10; i++ {
-					assert.Greater(t, time.Second, retry.RandomDelay(time.Second)(uint(i)))
+					assert.Greater(t, time.Second, RandomDelay(time.Second)(uint(i)))
 				}
 			},
 		},
@@ -36,7 +35,7 @@ func TestDelay(t *testing.T) {
 			func(t *testing.T) {
 				arr := []time.Duration{time.Second, time.Second << 1, time.Second << 2, time.Second << 3, time.Second << 3, time.Second << 3}
 				for i := 0; i < len(arr); i++ {
-					assert.Equal(t, arr[i], retry.BackOffDelay(time.Second, 3)(uint(i)))
+					assert.Equal(t, arr[i], BackOffDelay(time.Second, 3)(uint(i)))
 				}
 			},
 		},
@@ -56,7 +55,7 @@ func TestRetry(t *testing.T) {
 			"retry_default_3",
 			func(t *testing.T) {
 				i := 0
-				retry.Do(func() error { i++; return err })
+				Do(func() error { i++; return err })
 				assert.Equal(t, 3, i)
 			},
 		},
@@ -64,7 +63,7 @@ func TestRetry(t *testing.T) {
 			"retry_attempt_5",
 			func(t *testing.T) {
 				i := 0
-				retry.Do(func() error { i++; return err }, retry.Attempts(5))
+				Do(func() error { i++; return err }, Attempts(5))
 				assert.Equal(t, 5, i)
 			},
 		},
@@ -73,13 +72,13 @@ func TestRetry(t *testing.T) {
 			func(t *testing.T) {
 				i := 0
 				ctx, cancel := context.WithCancel(context.Background())
-				retry.Do(func() error {
+				Do(func() error {
 					i++
 					if i > 2 {
 						cancel()
 					}
 					return err
-				}, retry.Context(ctx))
+				}, Context(ctx))
 				assert.Equal(t, 3, i)
 			},
 		},
@@ -87,10 +86,10 @@ func TestRetry(t *testing.T) {
 			"retry_if",
 			func(t *testing.T) {
 				i := 0
-				retry.Do(func() error {
+				Do(func() error {
 					i++
 					return err
-				}, retry.Attempts(0), retry.RetryIf(func(attempt uint, err error) bool { return attempt < 3 }))
+				}, Attempts(0), RetryIf(func(attempt uint, err error) bool { return attempt < 3 }))
 				assert.Equal(t, 3, i)
 			},
 		},

@@ -1,11 +1,10 @@
-package environ_test
+package environ
 
 import (
 	"log"
 	"os"
 	"testing"
 
-	"github.com/cocktail828/go-tools/z/environ"
 	"github.com/go-playground/validator/v10"
 	"github.com/stretchr/testify/assert"
 )
@@ -33,7 +32,7 @@ func TestBindEnv(t *testing.T) {
 	os.Setenv("APP_PORT", "port_value")
 
 	var cfg Config
-	if err := environ.BindEnv(&cfg); err != nil {
+	if err := BindEnv(&cfg); err != nil {
 		log.Fatalf("Error binding env: %v\n", err)
 	}
 

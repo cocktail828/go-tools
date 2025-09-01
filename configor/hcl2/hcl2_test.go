@@ -1,10 +1,8 @@
-package hcl2_test
+package hcl2
 
 import (
 	"fmt"
 	"testing"
-
-	"github.com/cocktail828/go-tools/configor/hcl2"
 )
 
 // 子结构体
@@ -71,7 +69,7 @@ func TestHCL2(t *testing.T) {
 	var config Config
 
 	// 使用 Unmarshal 解析 HCL 数据
-	err := hcl2.Unmarshal(hclData, &config)
+	err := Unmarshal(hclData, &config)
 	if err != nil {
 		fmt.Println("Error unmarshalling HCL:", err)
 		return

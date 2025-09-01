@@ -1,10 +1,9 @@
-package jsonx_test
+package jsonx
 
 import (
 	"encoding/json"
 	"testing"
 
-	"github.com/cocktail828/go-tools/pkg/jsonx"
 	"github.com/cocktail828/go-tools/z"
 	"github.com/stretchr/testify/assert"
 )
@@ -51,7 +50,7 @@ type MyStruct struct {
 
 func TestUnmarshal(t *testing.T) {
 	var result MyStruct
-	z.Must(jsonx.Unmarshal([]byte(jsonData), &result))
+	z.Must(Unmarshal([]byte(jsonData), &result))
 	assert.Equal(t, "xxx", *result.AppID)
 	assert.Equal(t, "yyy", *result.UserID)
 	assert.Equal(t, 30, *result.Age)
@@ -70,7 +69,7 @@ func BenchmarkJsonx(b *testing.B) {
 	b.RunParallel(func(p *testing.PB) {
 		for p.Next() {
 			var result MyStruct
-			z.Must(jsonx.Unmarshal([]byte(jsonData), &result))
+			z.Must(Unmarshal([]byte(jsonData), &result))
 		}
 	})
 	b.ReportAllocs()

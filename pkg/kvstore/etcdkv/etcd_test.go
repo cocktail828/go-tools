@@ -1,4 +1,4 @@
-package etcdkv_test
+package etcdkv
 
 import (
 	"context"
@@ -7,7 +7,6 @@ import (
 
 	"github.com/cocktail828/go-tools/pkg/kvstore"
 	"github.com/cocktail828/go-tools/pkg/kvstore/common"
-	"github.com/cocktail828/go-tools/pkg/kvstore/etcdkv"
 	"github.com/cocktail828/go-tools/z"
 	"github.com/stretchr/testify/assert"
 	clientv3 "go.etcd.io/etcd/client/v3"
@@ -20,7 +19,7 @@ var (
 
 func TestMain(b *testing.M) {
 	var err error
-	src, err = etcdkv.New(clientv3.Config{
+	src, err = New(clientv3.Config{
 		Endpoints:   []string{endpoint},
 		DialTimeout: time.Second,
 	}, "aaa/bbb")
@@ -61,7 +60,7 @@ func TestEtcdCount(t *testing.T) {
 	assert.NoError(t, src.Set(context.TODO(), c.Key, []byte(c.Key)))
 	kv, err := src.Get(context.TODO(), c.Key, kvstore.Count(), kvstore.MatchPrefix())
 	assert.NoError(t, err)
-	assert.EqualValues(t, etcdkv.CountResult{Num: 1}, kv)
+	assert.EqualValues(t, CountResult{Num: 1}, kv)
 }
 
 func TestEtcdTTL(t *testing.T) {

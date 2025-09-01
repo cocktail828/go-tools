@@ -1,19 +1,18 @@
-package kvstore_test
+package kvstore
 
 import (
 	"testing"
 
-	"github.com/cocktail828/go-tools/pkg/kvstore"
 	"github.com/cocktail828/go-tools/z/variadic"
 )
 
 func TestOption(t *testing.T) {
-	v := kvstore.Variadic([]variadic.Option{
-		kvstore.TTL(500),
-		kvstore.MatchPrefix(),
-		kvstore.IgnoreLease(),
-		kvstore.Limit(100),
-		kvstore.Count(),
+	v := Variadic([]variadic.Option{
+		TTL(500),
+		MatchPrefix(),
+		IgnoreLease(),
+		Limit(100),
+		Count(),
 	}...)
 
 	t.Log("TTL:", v.TTL())                 // 输出: TTL: 500

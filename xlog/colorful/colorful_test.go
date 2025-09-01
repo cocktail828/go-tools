@@ -1,14 +1,12 @@
-package colorful_test
+package colorful
 
 import (
 	"fmt"
 	"log"
 	"testing"
-
-	"github.com/cocktail828/go-tools/xlog/colorful"
 )
 
-func dump(prefix string, l *colorful.Logger) {
+func dump(prefix string, l *Logger) {
 	l.Debug(prefix+".Debug", "key1", "val1", "key2", "val2")
 	l.Debugln(prefix+".Debugln", "key1", "val1", "key2", "val2")
 	l.Debugf(prefix+".Debugf xxxx %v", "123")
@@ -30,12 +28,12 @@ func TestColorful(t *testing.T) {
 	func() {
 		fmt.Println("=============== default ==============")
 		log.SetFlags(log.Flags() | log.Llongfile)
-		dump("default", colorful.Default())
+		dump("default", Default())
 	}()
 
 	func() {
 		fmt.Println("=============== new ==============")
 		log.SetFlags(log.Flags() | log.Llongfile)
-		dump("new", colorful.NewColorfulLog(log.Default()))
+		dump("new", NewColorfulLog(log.Default()))
 	}()
 }

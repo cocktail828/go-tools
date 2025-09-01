@@ -1,21 +1,20 @@
-package eviction_test
+package eviction
 
 import (
 	"testing"
 	"time"
 
-	"github.com/cocktail828/go-tools/algo/eviction"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestCacheExpiration(t *testing.T) {
 	tests := []struct {
 		name      string
-		cacheInit func(size uint) eviction.Eviction
+		cacheInit func(size uint) Eviction
 	}{
-		{"LFU", func(size uint) eviction.Eviction { return eviction.NewLFU(size) }},
-		{"LRU", func(size uint) eviction.Eviction { return eviction.NewLRU(size) }},
-		{"WindowLFU", func(size uint) eviction.Eviction { return eviction.NewWindowLFU(size, size*2, 100) }},
+		{"LFU", func(size uint) Eviction { return NewLFU(size) }},
+		{"LRU", func(size uint) Eviction { return NewLRU(size) }},
+		{"WindowLFU", func(size uint) Eviction { return NewWindowLFU(size, size*2, 100) }},
 	}
 
 	for _, tt := range tests {
@@ -46,11 +45,11 @@ func TestCacheExpiration(t *testing.T) {
 func TestCacheEviction(t *testing.T) {
 	tests := []struct {
 		name      string
-		cacheInit func(size uint) eviction.Eviction
+		cacheInit func(size uint) Eviction
 	}{
-		{"LFU", func(size uint) eviction.Eviction { return eviction.NewLFU(size) }},
-		{"LRU", func(size uint) eviction.Eviction { return eviction.NewLRU(size) }},
-		{"WindowLFU", func(size uint) eviction.Eviction { return eviction.NewWindowLFU(size, size*2, 100) }},
+		{"LFU", func(size uint) Eviction { return NewLFU(size) }},
+		{"LRU", func(size uint) Eviction { return NewLRU(size) }},
+		{"WindowLFU", func(size uint) Eviction { return NewWindowLFU(size, size*2, 100) }},
 	}
 
 	for _, tt := range tests {
@@ -79,11 +78,11 @@ func TestCacheEviction(t *testing.T) {
 func TestCacheInterfaces(t *testing.T) {
 	tests := []struct {
 		name      string
-		cacheInit func(size uint) eviction.Eviction
+		cacheInit func(size uint) Eviction
 	}{
-		{"LFU", func(size uint) eviction.Eviction { return eviction.NewLFU(size) }},
-		{"LRU", func(size uint) eviction.Eviction { return eviction.NewLRU(size) }},
-		{"WindowLFU", func(size uint) eviction.Eviction { return eviction.NewWindowLFU(size, size*2, 100) }},
+		{"LFU", func(size uint) Eviction { return NewLFU(size) }},
+		{"LRU", func(size uint) Eviction { return NewLRU(size) }},
+		{"WindowLFU", func(size uint) Eviction { return NewWindowLFU(size, size*2, 100) }},
 	}
 
 	for _, tt := range tests {
@@ -112,11 +111,11 @@ func TestCacheInterfaces(t *testing.T) {
 func TestCachePurge(t *testing.T) {
 	tests := []struct {
 		name      string
-		cacheInit func(size uint) eviction.Eviction
+		cacheInit func(size uint) Eviction
 	}{
-		{"LFU", func(size uint) eviction.Eviction { return eviction.NewLFU(size) }},
-		{"LRU", func(size uint) eviction.Eviction { return eviction.NewLRU(size) }},
-		{"WindowLFU", func(size uint) eviction.Eviction { return eviction.NewWindowLFU(size, size*2, 100) }},
+		{"LFU", func(size uint) Eviction { return NewLFU(size) }},
+		{"LRU", func(size uint) Eviction { return NewLRU(size) }},
+		{"WindowLFU", func(size uint) Eviction { return NewWindowLFU(size, size*2, 100) }},
 	}
 
 	for _, tt := range tests {

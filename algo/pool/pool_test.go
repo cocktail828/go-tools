@@ -1,4 +1,4 @@
-package pool_test
+package pool
 
 import (
 	"context"
@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cocktail828/go-tools/algo/pool"
 	"github.com/cocktail828/go-tools/algo/pool/driver"
 	"github.com/cocktail828/go-tools/z"
 	"github.com/pkg/errors"
@@ -51,11 +50,11 @@ func (d *FakeDriver) Open(ctx context.Context, name string) (driver.Conn, error)
 }
 
 func init() {
-	pool.Register("fake", &FakeDriver{})
+	Register("fake", &FakeDriver{})
 }
 
 func TestPool(t *testing.T) {
-	db, err := pool.Open("fake", "10.1.87.70:1337")
+	db, err := Open("fake", "10.1.87.70:1337")
 	z.Must(err)
 	defer db.Close()
 	z.Must(db.Ping())
@@ -70,7 +69,7 @@ func TestPool(t *testing.T) {
 }
 
 func TestPoolDeadline(t *testing.T) {
-	db, err := pool.Open("fake", "10.1.87.70:1337")
+	db, err := Open("fake", "10.1.87.70:1337")
 	z.Must(err)
 	db.CloseOnDeadline()
 	defer db.Close()
@@ -92,7 +91,7 @@ func TestPoolDeadline(t *testing.T) {
 }
 
 func TestPoolMaxConn(t *testing.T) {
-	db, err := pool.Open("fake", "10.1.87.70:1337")
+	db, err := Open("fake", "10.1.87.70:1337")
 	z.Must(err)
 	defer db.Close()
 
@@ -124,7 +123,7 @@ func TestPoolMaxConn(t *testing.T) {
 }
 
 func BenchmarkPool(b *testing.B) {
-	db, err := pool.Open("fake", "10.1.87.70:1337")
+	db, err := Open("fake", "10.1.87.70:1337")
 	z.Must(err)
 	defer db.Close()
 

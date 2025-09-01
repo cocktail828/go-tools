@@ -1,18 +1,17 @@
-package workpool_test
+package workpool
 
 import (
 	"io"
 	"testing"
 	"time"
 
-	"github.com/cocktail828/go-tools/z/workpool"
 	"github.com/stretchr/testify/assert"
 )
 
 func noop() { time.Sleep(100 * time.Millisecond) }
 
 func TestPool(t *testing.T) {
-	pool, _ := workpool.NewHybridPool(3, 5)
+	pool, _ := NewHybridPool(3, 5)
 	defer pool.Close()
 
 	for i := 0; i < 10; i++ {

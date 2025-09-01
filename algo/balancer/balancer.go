@@ -5,6 +5,10 @@ type Node interface {
 	Value() any
 }
 
+type Healthy interface {
+	Healthy() bool // 节点是否健康
+}
+
 type Balancer interface {
 	Pick() Node
 }

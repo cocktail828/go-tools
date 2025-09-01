@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package semaphore_test
+package semaphore
 
 import (
 	"context"
@@ -12,13 +12,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cocktail828/go-tools/pkg/semaphore"
 	"golang.org/x/sync/errgroup"
 )
 
 const maxSleep = 1 * time.Millisecond
 
-func HammerWeighted(sem *semaphore.Weighted, n int64, loops int) {
+func HammerWeighted(sem *Weighted, n int64, loops int) {
 	for i := 0; i < loops; i++ {
 		sem.Acquire(context.Background(), n)
 		time.Sleep(time.Duration(rand.Int63n(int64(maxSleep/time.Nanosecond))) * time.Nanosecond)
@@ -31,7 +30,7 @@ func TestWeighted(t *testing.T) {
 
 	n := runtime.GOMAXPROCS(0)
 	loops := 10000 / n
-	sem := semaphore.NewWeighted(int64(n))
+	sem := NewWeighted(int64(n))
 	var wg sync.WaitGroup
 	wg.Add(n)
 	for i := 0; i < n; i++ {
@@ -52,7 +51,7 @@ func TestWeightedPanic(t *testing.T) {
 			t.Fatal("release of an unacquired weighted semaphore did not panic")
 		}
 	}()
-	w := semaphore.NewWeighted(1)
+	w := NewWeighted(1)
 	w.Release(1)
 }
 
@@ -60,7 +59,7 @@ func TestWeightedTryAcquire(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	sem := semaphore.NewWeighted(2)
+	sem := NewWeighted(2)
 	tries := []bool{}
 	sem.Acquire(ctx, 1)
 	tries = append(tries, sem.TryAcquire(1))
@@ -84,7 +83,7 @@ func TestWeightedAcquire(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	sem := semaphore.NewWeighted(2)
+	sem := NewWeighted(2)
 	tryAcquire := func(n int64) bool {
 		ctx, cancel := context.WithTimeout(ctx, 10*time.Millisecond)
 		defer cancel()
@@ -114,7 +113,7 @@ func TestWeightedDoesntBlockIfTooBig(t *testing.T) {
 	t.Parallel()
 
 	const n = 2
-	sem := semaphore.NewWeighted(n)
+	sem := NewWeighted(n)
 	{
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
@@ -133,7 +132,7 @@ func TestWeightedDoesntBlockIfTooBig(t *testing.T) {
 		})
 	}
 	if err := g.Wait(); err != nil {
-		t.Errorf("semaphore.NewWeighted(%v) failed to AcquireCtx(_, 1) with AcquireCtx(_, %v) pending", n, n+1)
+		t.Errorf("NewWeighted(%v) failed to AcquireCtx(_, 1) with AcquireCtx(_, %v) pending", n, n+1)
 	}
 }
 
@@ -144,7 +143,7 @@ func TestLargeAcquireDoesntStarve(t *testing.T) {
 
 	ctx := context.Background()
 	n := int64(runtime.GOMAXPROCS(0))
-	sem := semaphore.NewWeighted(n)
+	sem := NewWeighted(n)
 	running := true
 
 	var wg sync.WaitGroup
@@ -172,7 +171,7 @@ func TestLargeAcquireDoesntStarve(t *testing.T) {
 
 // translated from https://github.com/zhiqiangxu/util/blob/master/mutex/crwmutex_test.go#L43
 func TestAllocCancelDoesntStarve(t *testing.T) {
-	sem := semaphore.NewWeighted(10)
+	sem := NewWeighted(10)
 
 	// Block off a portion of the semaphore so that Acquire(_, 10) can eventually succeed.
 	sem.Acquire(context.Background(), 1)
@@ -203,7 +202,7 @@ func TestAllocCancelDoesntStarve(t *testing.T) {
 
 func TestWeightedAcquireCanceled(t *testing.T) {
 	// https://go.dev/issue/63615
-	sem := semaphore.NewWeighted(2)
+	sem := NewWeighted(2)
 	ctx, cancel := context.WithCancel(context.Background())
 	sem.Acquire(context.Background(), 1)
 	ch := make(chan struct{})

@@ -1,4 +1,4 @@
-package lumberjack_test
+package lumberjack
 
 import (
 	"os"
@@ -6,7 +6,6 @@ import (
 
 	"github.com/cocktail828/go-tools/configor"
 	"github.com/cocktail828/go-tools/xlog"
-	"github.com/cocktail828/go-tools/xlog/lumberjack"
 	"github.com/cocktail828/go-tools/z"
 )
 
@@ -20,7 +19,7 @@ async = true
 
 	os.RemoveAll("/log/server/xxx.log")
 	b.Run("no-cache", func(b *testing.B) {
-		l := lumberjack.NewWriter(cfg)
+		l := NewWriter(cfg)
 		b.ResetTimer()
 		b.RunParallel(func(p *testing.PB) {
 			for p.Next() {

@@ -1,10 +1,9 @@
-package reflectx_test
+package reflectx
 
 import (
 	"io"
 	"testing"
 
-	"github.com/cocktail828/go-tools/z/reflectx"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -17,5 +16,5 @@ func TestIsNil(t *testing.T) {
 		return nil
 	}()
 	assert.Equal(t, false, k == nil)
-	assert.Equal(t, true, reflectx.IsNil(k))
+	assert.Equal(t, true, IsNil(k))
 }
