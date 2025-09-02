@@ -49,3 +49,43 @@ func TestBind(t *testing.T) {
 	}, cfg)
 	assert.NoError(t, validator.New().Struct(cfg))
 }
+
+type TestStructWithPointer struct {
+	Name *string `env:"NAME" default:"default_name"`
+	Age  *int    `env:"AGE" default:"20"`
+	Flag *bool   `env:"FLAG" default:"true"`
+}
+
+func TestBindEnvWithPointerFields(t *testing.T) {
+	var nilPtrTest TestStructWithPointer
+	assert.Nil(t, nilPtrTest.Name)
+	assert.Nil(t, nilPtrTest.Age)
+	assert.Nil(t, nilPtrTest.Flag)
+
+	if err := BindEnv(&nilPtrTest, WithSkipEnv(true)); err != nil {
+		assert.FailNow(t, "failed to bind nil pointer fields", err.Error())
+	}
+	assert.Equal(t, "default_name", *nilPtrTest.Name)
+	assert.Equal(t, 20, *nilPtrTest.Age)
+	assert.True(t, *nilPtrTest.Flag)
+
+	envPtrTest := TestStructWithPointer{
+		Name: new(string),
+		Age:  new(int),
+		Flag: new(bool),
+	}
+	m := MMP{
+		"NAME": "env_name",
+		"AGE":  "30",
+		"FLAG": "true",
+	}
+	m.SetEnv()
+	defer m.ResetEnv()
+
+	if err := BindEnv(&envPtrTest); err != nil {
+		assert.FailNow(t, "failed to bind env to pointer fields", err.Error())
+	}
+	assert.Equal(t, "env_name", *envPtrTest.Name)
+	assert.Equal(t, 30, *envPtrTest.Age)
+	assert.True(t, *envPtrTest.Flag)
+}

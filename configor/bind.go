@@ -40,6 +40,9 @@ func BindEnv(in any, opts ...variadic.Option) error {
 			if field.IsNil() {
 				field.Set(reflect.New(field.Type().Elem()))
 			}
+			if field.Elem().Kind() == reflect.Ptr {
+				return errors.Errorf("unsupported nested pointer type: %s", field.Type())
+			}
 			field = field.Elem()
 		}
 
@@ -102,7 +105,7 @@ func BindEnv(in any, opts ...variadic.Option) error {
 			}
 			field.SetBool(boolValue)
 		default:
-			return errors.Errorf("unsupported field type: %s", field.Kind())
+			// return errors.Errorf("unsupported field type: %s", field.Kind())
 		}
 	}
 	return nil

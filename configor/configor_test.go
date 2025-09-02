@@ -88,15 +88,15 @@ func TestDifferentEnvPrefixes(t *testing.T) {
 }
 
 func TestLoadConfigurationWithLoadEnvFalse(t *testing.T) {
-	mmp := MMP{
+	m := MMP{
 		"CONFIGOR_APPNAME":     "env_overridden_app",
 		"CONFIGOR_DB_NAME":     "env_overridden_db",
 		"CONFIGOR_DB_USER":     "env_user",
 		"CONFIGOR_DB_PORT":     "6543",
 		"CONFIGOR_DB_PASSWORD": "env_password",
 	}
-	mmp.SetEnv()
-	defer mmp.ResetEnv()
+	m.SetEnv()
+	defer m.ResetEnv()
 
 	c := Configor{
 		LoadEnv:   false,
