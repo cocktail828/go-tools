@@ -1,14 +1,13 @@
 package environ
 
 import (
-	"os"
 	"reflect"
 	"strconv"
 
 	"github.com/pkg/errors"
 )
 
-func BindEnv(in interface{}) error {
+func BindEnv(in any) error {
 	v := reflect.ValueOf(in)
 	if v.Kind() != reflect.Ptr || v.Elem().Kind() != reflect.Struct {
 		return errors.Errorf("input must be a pointer to a struct")
@@ -40,7 +39,7 @@ func BindEnv(in interface{}) error {
 			continue
 		}
 
-		envValue := os.Getenv(envName)
+		envValue := String(envName, WithString(structField.Tag.Get("default")))
 		if envValue == "" {
 			continue
 		}
@@ -60,10 +59,16 @@ func BindEnv(in interface{}) error {
 				return errors.Errorf("error parsing %s as uint64: %v", envName, err)
 			}
 			field.SetUint(intValue)
-		case reflect.Float32, reflect.Float64:
+		case reflect.Float32:
 			floatValue, err := strconv.ParseFloat(envValue, 32)
 			if err != nil {
 				return errors.Errorf("error parsing %s as float32: %v", envName, err)
+			}
+			field.SetFloat(floatValue)
+		case reflect.Float64:
+			floatValue, err := strconv.ParseFloat(envValue, 64)
+			if err != nil {
+				return errors.Errorf("error parsing %s as float64: %v", envName, err)
 			}
 			field.SetFloat(floatValue)
 		case reflect.Bool:

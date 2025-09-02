@@ -6,33 +6,23 @@ import (
 	"time"
 )
 
-var errNoop = errors.New("noop error")
-
 type Graceful struct {
-	Start func() error
+	Start func(context.Context) error
 	Stop  func() error
 }
 
-func (g *Graceful) Launch(pctx context.Context) error {
-	ctx, cancel := context.WithCancelCause(pctx)
-	go func() {
-		if err := g.Start(); err == nil {
-			cancel(errNoop)
-		} else {
-			cancel(err)
-		}
-	}()
-
+func (g *Graceful) GoContext(ctx context.Context) error {
+	resultCh := make(chan error, 1)
 	if g.Stop == nil {
 		g.Stop = func() error { return nil }
 	}
 
-	<-ctx.Done()
-	err := context.Cause(ctx)
-	if errors.Is(err, errNoop) {
-		err = nil
-	}
-	return errors.Join(err, g.Stop())
+	go func() { resultCh <- g.Start(ctx) }()
+	return errors.Join(<-resultCh, g.Stop())
+}
+
+func (g *Graceful) Go() error {
+	return g.GoContext(context.Background())
 }
 
 func Timeout(d time.Duration, f func(context.Context) error) error {

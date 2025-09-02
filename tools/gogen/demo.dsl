@@ -22,7 +22,6 @@ struct Resp {
 
 service a b {
     group /api  x e{
-
         @handler handlelogin4
         post /usr (Login) return (Resp)
     }

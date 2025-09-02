@@ -6,6 +6,7 @@ import (
 	"io"
 	"log/slog"
 	"runtime"
+	"sync"
 	"time"
 )
 
@@ -48,6 +49,26 @@ func (wl *WrapperLogger) WithGroup(name string) Logger {
 	}
 }
 
+// reuse record to avoid alloc
+var recordPool = sync.Pool{
+	New: func() any {
+		return &slog.Record{}
+	},
+}
+
+func newRecord(t time.Time, level slog.Level, msg string, pc uintptr) *slog.Record {
+	r := recordPool.Get().(*slog.Record)
+	r.Time = t
+	r.Level = level
+	r.Message = msg
+	r.PC = pc
+	return r
+}
+
+func putRecord(r *slog.Record) {
+	recordPool.Put(r)
+}
+
 func (wl *WrapperLogger) log(level slog.Level, msg string, args ...any) {
 	if !wl.logger.Enabled(context.Background(), level) {
 		return
@@ -59,9 +80,10 @@ func (wl *WrapperLogger) log(level slog.Level, msg string, args ...any) {
 		runtime.Callers(3, pcs[:])
 		pc = pcs[0]
 	}
-	r := slog.NewRecord(time.Now(), level, msg, pc)
+	r := newRecord(time.Now(), level, msg, pc)
 	r.Add(args...)
-	_ = wl.logger.Handler().Handle(context.Background(), r)
+	wl.logger.Handler().Handle(context.Background(), *r)
+	putRecord(r)
 }
 
 func (wl *WrapperLogger) logf(level slog.Level, format string, args ...any) {
@@ -75,8 +97,11 @@ func (wl *WrapperLogger) logf(level slog.Level, format string, args ...any) {
 		runtime.Callers(3, pcs[:])
 		pc = pcs[0]
 	}
-	r := slog.NewRecord(time.Now(), level, fmt.Sprintf(format, args...), pc)
-	_ = wl.logger.Handler().Handle(context.Background(), r)
+
+	r := newRecord(time.Now(), level, fmt.Sprintf(format, args...), pc)
+	r.Add(args...)
+	wl.logger.Handler().Handle(context.Background(), *r)
+	putRecord(r)
 }
 
 func (wl *WrapperLogger) Debugln(msg string, args ...any) {

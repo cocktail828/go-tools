@@ -16,7 +16,7 @@ type Service struct {
 }
 
 type Config struct {
-	Companion string  `env:"POLARIS_COMPANION" validate:"required"`
+	Companion string  `env:"POLARIS_COMPANION" default:"companion_value" validate:"required"`
 	Project   int64   `env:"POLARIS_PROJECT" validate:"required"`
 	Group     float32 `env:"POLARIS_GROUP" validate:"required"`
 	Service   Service
@@ -24,7 +24,6 @@ type Config struct {
 
 func TestBindEnv(t *testing.T) {
 	// Set environment variables for testing
-	os.Setenv("POLARIS_COMPANION", "companion_value")
 	os.Setenv("POLARIS_PROJECT", "12345")
 	os.Setenv("POLARIS_GROUP", "3.14")
 	os.Setenv("POLARIS_VERSION", "version_value")

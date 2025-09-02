@@ -5,11 +5,11 @@ import "google/protobuf/any.proto";
 
 option go_package = "./protogen;protogen";
 
-service GDK {
+service Skadi {
   rpc Call(Request) returns (Response) {}
 }
 
-message kvpair {
+message KVPair {
   string key = 1;
   string value = 2;
 }
@@ -18,7 +18,7 @@ message Request {
   string op = 1;
   repeated string tags = 2;     // tags
   map<string, string> meta = 3; // meta data
-  repeated kvpair params = 4;   // params
+  repeated KVPair params = 4;   // params
   google.protobuf.Any data = 5; // request data
 }
 
@@ -26,6 +26,6 @@ message Response {
   int32 code = 1;               // error code
   string message = 2;           // error message
   map<string, string> meta = 3; // meta data
-  repeated kvpair params = 4;   // response params
+  repeated KVPair params = 4;   // response params
   google.protobuf.Any data = 5; // response data
 }
