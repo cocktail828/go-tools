@@ -19,10 +19,11 @@ func TestValidator(t *testing.T) {
 						Interceptors: []string{"auth"},
 						Routes: []RouteAST{
 							{
-								Method:   "POST",
-								Path:     "/user/login",
-								Request:  "LoginReq",
-								Response: "LoginResp",
+								HandlerName: "Login",
+								Method:      "POST",
+								Path:        "/user/login",
+								Request:     "LoginReq",
+								Response:    "LoginResp",
 							},
 						},
 					},

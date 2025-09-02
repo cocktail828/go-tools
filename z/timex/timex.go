@@ -5,7 +5,7 @@ import (
 )
 
 var (
-	UnixNano = func() int64 { return runtimeNano() } // for debug
+	nanotime = func() int64 { return runtimeNano() } // for debug
 )
 
 // runtimeNano returns the current value of the runtime clock in nanoseconds.
@@ -13,6 +13,8 @@ var (
 //go:linkname runtimeNano runtime.nanotime
 func runtimeNano() int64
 
-func ResetTime() { UnixNano = runtimeNano }
+func ResetTime() { nanotime = runtimeNano }
 
-func SetTime(f func() int64) { UnixNano = f }
+func SetTime(f func() int64) { nanotime = f }
+
+func UnixNano() int64 { return nanotime() }

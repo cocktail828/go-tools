@@ -84,12 +84,12 @@ func setValue(fieldValue reflect.Value, value any) error {
 			for k, v := range mp {
 				keyValue := reflect.New(keyType).Elem()
 				if err := setValue(keyValue, k); err != nil {
-					return errors.Wrapf(err, "failed to set map key: %s", k)
+					return errors.Wrapf(err, "fail to set map key: %s", k)
 				}
 
 				valueValue := reflect.New(valueType).Elem()
 				if err := setValue(valueValue, v); err != nil {
-					return errors.Wrapf(err, "failed to set map value for key: %s", k)
+					return errors.Wrapf(err, "fail to set map value for key: %s", k)
 				}
 
 				fieldValue.SetMapIndex(keyValue, valueValue)

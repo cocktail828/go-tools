@@ -3,6 +3,7 @@ package configor
 import (
 	"os"
 	"path"
+	"reflect"
 
 	"github.com/BurntSushi/toml"
 	"github.com/go-playground/validator/v10"
@@ -29,7 +30,6 @@ func (c *Configor) Load(dst any, data ...[]byte) error {
 	for _, d := range data {
 		pairs = append(pairs, pair{data: d, unmarshal: c.Unmarshal})
 	}
-
 	if err := c.internalLoad(dst, pairs...); err != nil {
 		return err
 	}
@@ -45,7 +45,7 @@ func (c *Configor) LoadFile(dst any, files ...string) error {
 	for _, fname := range files {
 		data, err := os.ReadFile(fname)
 		if err != nil {
-			return errors.Wrapf(err, "failed to read file %s", fname)
+			return errors.Wrapf(err, "fail to read file %s", fname)
 		}
 
 		ext := path.Ext(fname)
@@ -73,4 +73,27 @@ func Load(dst any, data ...[]byte) error {
 // LoadFile unmarshals configurations to struct from provided files using the default Configor.
 func LoadFile(dst any, files ...string) error {
 	return cfgor.LoadFile(dst, files...)
+}
+
+type pair struct {
+	data      []byte
+	unmarshal Unmarshal
+}
+
+func (c *Configor) internalLoad(dst any, pairs ...pair) error {
+	defaultValue := reflect.Indirect(reflect.ValueOf(dst))
+	if !defaultValue.CanAddr() {
+		return errors.Errorf("config %v must be addressable", dst)
+	}
+
+	if err := BindEnv(dst, WithPrefix(c.EnvPrefix), WithSkipEnv(!c.LoadEnv)); err != nil {
+		return errors.Wrap(err, "fail to process env or defaults")
+	}
+
+	for _, val := range pairs {
+		if err := val.unmarshal(val.data, dst); err != nil {
+			return errors.Wrap(err, "fail to unmarshal data")
+		}
+	}
+	return nil
 }

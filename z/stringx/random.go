@@ -15,9 +15,8 @@ type random struct {
 }
 
 var (
-	r        = &random{R: rand.New(rand.NewSource(time.Now().UnixNano()))}
-	lowChars = "0123456789abcdefghijklmnopqrstuvwxyz"
-	upChars  = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+	r       = &random{R: rand.New(rand.NewSource(time.Now().UnixNano()))}
+	upChars = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 )
 
 type inVariadic struct{ variadic.Assigned }
@@ -25,11 +24,6 @@ type widthKey struct{}
 
 func WithWidth(v int) variadic.Option { return variadic.SetValue(widthKey{}, v) }
 func (iv inVariadic) WithWidth() int  { return variadic.GetValue[int](iv, widthKey{}) }
-
-type caseKey struct{}
-
-func WithCase() variadic.Option      { return variadic.SetValue(caseKey{}, true) }
-func (iv inVariadic) WithCase() bool { return variadic.GetValue[bool](iv, caseKey{}) }
 
 type charsKey struct{}
 
@@ -45,11 +39,7 @@ func RandomName(opts ...variadic.Option) string {
 		width = w
 	}
 
-	chars := lowChars
-	if iv.WithCase() {
-		chars = upChars
-	}
-
+	chars := upChars
 	if s := iv.WithChars(); s != "" {
 		chars = s
 	}

@@ -42,6 +42,9 @@ func WithInt64(v int64) variadic.Option { return variadic.SetValue(int64Key{}, v
 func (iv inVariadic) WithInt64() int64  { return variadic.GetValue[int64](iv, int64Key{}) }
 
 func parseValue[T any](name string, parseFunc func(string) (T, error), defaultValue T) T {
+	if name == "" || name == "-" {
+		return defaultValue
+	}
 	val, ok := os.LookupEnv(name)
 	if !ok {
 		return defaultValue
@@ -77,13 +80,5 @@ func Int64(name string, opts ...variadic.Option) int64 {
 // load bool env loosely, accept "true", "false", "0", and non-zero digits
 func Bool(name string, opts ...variadic.Option) bool {
 	iv := inVariadic{variadic.Compose(opts...)}
-	return parseValue(name, func(s string) (bool, error) {
-		if v, err := strconv.ParseBool(s); err == nil {
-			return v, nil
-		}
-		if v, err := strconv.ParseInt(s, 0, 64); err == nil {
-			return v != 0, nil
-		}
-		return false, nil
-	}, iv.WithBool())
+	return parseValue(name, strconv.ParseBool, iv.WithBool())
 }

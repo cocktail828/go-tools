@@ -5,12 +5,10 @@ import (
 	"testing"
 )
 
-// 子结构体
 type NestedStruct struct {
 	NestedField string `hcl:"nested_field"`
 }
 
-// 主结构体
 type ExampleStruct struct {
 	Label   string            `hcl:"label,label"` // 使用 label 表示块的标签, 第一个 label
 	ID      string            `hcl:"label,label"` // 使用 label 表示块的标签, 第二个 label
@@ -26,7 +24,6 @@ type Config struct {
 }
 
 func TestHCL2(t *testing.T) {
-	// 示例 HCL 数据
 	hclData := []byte(`
         // 这里注释支持 #, //
         # label1 = person_example
@@ -65,16 +62,11 @@ func TestHCL2(t *testing.T) {
         }
     `)
 
-	// 初始化 Config 结构体
 	var config Config
-
-	// 使用 Unmarshal 解析 HCL 数据
 	err := Unmarshal(hclData, &config)
 	if err != nil {
 		fmt.Println("Error unmarshalling HCL:", err)
 		return
 	}
-
-	// 输出解析结果
 	fmt.Printf("Parsed config: %+v\n", config)
 }

@@ -80,10 +80,11 @@ func (wl *WrapperLogger) log(level slog.Level, msg string, args ...any) {
 		runtime.Callers(3, pcs[:])
 		pc = pcs[0]
 	}
+
 	r := newRecord(time.Now(), level, msg, pc)
+	defer putRecord(r)
 	r.Add(args...)
 	wl.logger.Handler().Handle(context.Background(), *r)
-	putRecord(r)
 }
 
 func (wl *WrapperLogger) logf(level slog.Level, format string, args ...any) {
@@ -99,9 +100,9 @@ func (wl *WrapperLogger) logf(level slog.Level, format string, args ...any) {
 	}
 
 	r := newRecord(time.Now(), level, fmt.Sprintf(format, args...), pc)
+	defer putRecord(r)
 	r.Add(args...)
 	wl.logger.Handler().Handle(context.Background(), *r)
-	putRecord(r)
 }
 
 func (wl *WrapperLogger) Debugln(msg string, args ...any) {

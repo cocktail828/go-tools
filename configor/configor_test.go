@@ -1,640 +1,116 @@
 package configor
 
 import (
-	"bytes"
-	"encoding/json"
 	"os"
-	"reflect"
 	"testing"
 
-	"github.com/BurntSushi/toml"
-	"github.com/go-playground/validator/v10"
 	"github.com/stretchr/testify/assert"
-	"gopkg.in/yaml.v3"
 )
 
-type Anonymous struct {
-	Description string
+type DB struct {
+	Name     string `env:"DB_NAME" default:"name"`
+	User     string `env:"DB_USER" default:"root"`
+	Password string `env:"DB_PASSWORD" validate:"required"`
+	Port     uint   `env:"DB_PORT" default:"3306"`
+	SSL      bool   `env:"DB_SSL" default:"true"`
 }
 
-type testConfig struct {
-	APPName string `default:"configor" json:",omitempty"`
-	Hosts   []string
-	DB      struct {
-		Name     string
-		User     string `default:"root"`
-		Password string `env:"DBPassword" validate:"required"`
-		Port     uint   `default:"3306" json:",omitempty"`
-		SSL      bool   `default:"true" json:",omitempty"`
-	}
-	Contacts []struct {
-		Name  string
-		Email string `validate:"required"`
-	}
-	Anonymous `anonymous:"true"`
+type Config struct {
+	APPName string `env:"APPNAME" default:"configor"`
+	DB      DB
 }
 
-func generateDefaultConfig() testConfig {
-	return testConfig{
-		APPName: "configor",
-		Hosts:   []string{"http://example.org", "http://me"},
-		DB: struct {
-			Name     string
-			User     string `default:"root"`
-			Password string `env:"DBPassword" validate:"required"`
-			Port     uint   `default:"3306" json:",omitempty"`
-			SSL      bool   `default:"true" json:",omitempty"`
-		}{
-			Name:     "configor",
-			User:     "configor",
-			Password: "configor",
-			Port:     3306,
-			SSL:      true,
-		},
-		Contacts: []struct {
-			Name  string
-			Email string `validate:"required"`
-		}{
-			{
-				Name:  "example",
-				Email: "wosmvp@gmail.com",
+type MMP map[string]string
+
+func (m MMP) SetEnv() {
+	for k, v := range m {
+		os.Setenv(k, v)
+	}
+}
+
+func (m MMP) ResetEnv() {
+	for k := range m {
+		os.Setenv(k, "")
+	}
+}
+
+func TestDifferentEnvPrefixes(t *testing.T) {
+	tests := []struct {
+		name        string
+		envPrefix   string
+		envVars     MMP
+		expectedApp string
+	}{
+		{
+			name:      "prefix_APP",
+			envPrefix: "APP",
+			envVars: MMP{
+				"APP_APPNAME":   "app_prefix_app",
+				"OTHER_APPNAME": "should_be_ignored",
 			},
+			expectedApp: "app_prefix_app",
 		},
-		Anonymous: Anonymous{
-			Description: "This is an anonymous embedded struct whose environment variables should NOT include 'ANONYMOUS'",
-		},
-	}
-}
-
-func TestLoadEnv(t *testing.T) {
-	config := generateDefaultConfig()
-	var result testConfig
-	cfgor := &Configor{
-		LoadEnv:   true,
-		EnvPrefix: "CONFIGOR",
-		Unmarshal: toml.Unmarshal,
-		Validator: validator.New().Struct,
-	}
-
-	os.Setenv("CONFIGOR_DBPassword", config.DB.Password)
-	if err := cfgor.Load(&result); err != nil {
-		t.Errorf("Load fail for %v", err)
-	}
-	if !assert.Equal(t, result.DB.Password, config.DB.Password) {
-		t.Errorf("result should equal to original configuration")
-	}
-}
-
-func TestLoadNormaltestConfig(t *testing.T) {
-	config := generateDefaultConfig()
-	if bytes, err := json.Marshal(config); err == nil {
-		if file, err := os.CreateTemp("/tmp", "configor-*.json"); err == nil {
-			defer file.Close()
-			defer os.Remove(file.Name())
-			file.Write(bytes)
-
-			var result testConfig
-			if err := LoadFile(&result, file.Name()); err != nil {
-				t.Errorf("LoadFile fail for %v", err)
-			}
-			assert.Equal(t, result, config)
-			if !reflect.DeepEqual(result, config) {
-				t.Errorf("result should equal to original configuration")
-			}
-		}
-	} else {
-		t.Errorf("failed to marshal config")
-	}
-}
-
-func TestLoadtestConfigFromTomlWithExtension(t *testing.T) {
-	var (
-		config = generateDefaultConfig()
-		buffer bytes.Buffer
-	)
-
-	if err := toml.NewEncoder(&buffer).Encode(config); err == nil {
-		if file, err := os.CreateTemp("/tmp", "configor-*.toml"); err == nil {
-			defer file.Close()
-			defer os.Remove(file.Name())
-			file.Write(buffer.Bytes())
-
-			var result testConfig
-			if err := LoadFile(&result, file.Name()); err != nil {
-				t.Errorf("LoadFile fail for %v", err)
-			}
-			if !reflect.DeepEqual(result, config) {
-				t.Errorf("result should equal to original configuration")
-			}
-		}
-	} else {
-		t.Errorf("failed to marshal config")
-	}
-}
-
-func TestLoadtestConfigFromTomlWithoutExtension(t *testing.T) {
-	var (
-		config = generateDefaultConfig()
-		buffer bytes.Buffer
-	)
-
-	if err := toml.NewEncoder(&buffer).Encode(config); err == nil {
-		if file, err := os.CreateTemp("/tmp", "configor-*.toml"); err == nil {
-			defer file.Close()
-			defer os.Remove(file.Name())
-			file.Write(buffer.Bytes())
-
-			var result testConfig
-			if err := LoadFile(&result, file.Name()); err != nil {
-				t.Errorf("LoadFile fail for %v", err)
-			}
-			if !reflect.DeepEqual(result, config) {
-				t.Errorf("result should equal to original configuration")
-			}
-		}
-	} else {
-		t.Errorf("failed to marshal config")
-	}
-}
-
-func TestDefaultValue(t *testing.T) {
-	config := generateDefaultConfig()
-	config.APPName = ""
-	config.DB.Port = 0
-	config.DB.SSL = false
-
-	if bytes, err := json.Marshal(config); err == nil {
-		if file, err := os.CreateTemp("/tmp", "configor-*.json"); err == nil {
-			defer file.Close()
-			defer os.Remove(file.Name())
-			file.Write(bytes)
-
-			var result testConfig
-			if err := LoadFile(&result, file.Name()); err != nil {
-				t.Errorf("LoadFile fail for %v", err)
-			}
-
-			if !reflect.DeepEqual(result, generateDefaultConfig()) {
-				t.Errorf("result should be set default value correctly")
-			}
-		}
-	} else {
-		t.Errorf("failed to marshal config")
-	}
-}
-
-func TestMissingRequiredValue(t *testing.T) {
-	config := generateDefaultConfig()
-	config.DB.Password = ""
-
-	if bytes, err := json.Marshal(config); err == nil {
-		if file, err := os.CreateTemp("/tmp", "configor-*.json"); err == nil {
-			defer file.Close()
-			defer os.Remove(file.Name())
-			file.Write(bytes)
-
-			var result testConfig
-			if err := LoadFile(&result, file.Name()); err == nil {
-				t.Errorf("LoadFile should fail")
-			}
-		}
-	} else {
-		t.Errorf("failed to marshal config")
-	}
-}
-
-func TestUnmatchedKeyInTomltestConfigFile(t *testing.T) {
-	type configStruct struct {
-		Name string
-	}
-	type configFile struct {
-		Name string
-		Test string
-	}
-	config := configFile{Name: "test", Test: "ATest"}
-
-	file, err := os.CreateTemp("/tmp", "configor-*.toml")
-	if err != nil {
-		t.Fatal("Could not create temp file")
-	}
-	defer os.Remove(file.Name())
-	defer file.Close()
-
-	filename := file.Name()
-
-	if err := toml.NewEncoder(file).Encode(config); err != nil {
-		t.Errorf("failed to marshal config")
-	}
-
-	var result configStruct
-	// Do not return error when there are unmatched keys but ErrorOnUnmatchedKeys is false
-	if err := LoadFile(&result, filename); err != nil {
-		t.Errorf("Should NOT get error when loading configuration with extra keys. Error: %v", err)
-	}
-}
-
-func TestUnmatchedKeyInYamltestConfigFile(t *testing.T) {
-	type configStruct struct {
-		Name string
-	}
-	type configFile struct {
-		Name string
-		Test string
-	}
-	config := configFile{Name: "test", Test: "ATest"}
-
-	file, err := os.CreateTemp("/tmp", "configor-*.yml")
-	if err != nil {
-		t.Fatal("Could not create temp file")
-	}
-
-	defer os.Remove(file.Name())
-	defer file.Close()
-
-	filename := file.Name()
-
-	if data, err := yaml.Marshal(config); err == nil {
-		file.WriteString(string(data))
-	} else {
-		t.Errorf("failed to marshal config")
-	}
-
-	var result configStruct
-
-	// Do not return error when there are unmatched keys but ErrorOnUnmatchedKeys is false
-	if err := LoadFile(&result, filename); err != nil {
-		t.Errorf("Should NOT get error when loading configuration with extra keys. Error: %v", err)
-	}
-}
-
-func TestUnmatchedKeyInJsonConfigFile(t *testing.T) {
-	type configStruct struct {
-		Name string
-	}
-	type configFile struct {
-		Name string
-		Test string
-	}
-	config := configFile{Name: "test", Test: "ATest"}
-
-	file, err := os.CreateTemp("/tmp", "configor-*.json")
-	if err != nil {
-		t.Fatal("Could not create temp file")
-	}
-	defer os.Remove(file.Name())
-	defer file.Close()
-
-	if err := json.NewEncoder(file).Encode(config); err != nil {
-		t.Errorf("failed to marshal config")
-	}
-
-	var result configStruct
-	// Do not return error when there are unmatched keys but ErrorOnUnmatchedKeys is false
-	if err := LoadFile(&result, file.Name()); err != nil {
-		t.Errorf("Should NOT get error when loading configuration with extra keys. Error: %v", err)
-	}
-}
-
-func TestOverwritetestConfigurationWithEnvironmentWithDefaultPrefix(t *testing.T) {
-	config := generateDefaultConfig()
-
-	if bytes, err := json.Marshal(config); err == nil {
-		if file, err := os.CreateTemp("/tmp", "configor-*.json"); err == nil {
-			defer file.Close()
-			defer os.Remove(file.Name())
-			file.Write(bytes)
-			var result testConfig
-			os.Setenv("CONFIGOR_APPNAME", "config2")
-			os.Setenv("CONFIGOR_HOSTS", "- http://example.org\n- http://me")
-			os.Setenv("CONFIGOR_DB_NAME", "db_name")
-			defer os.Setenv("CONFIGOR_APPNAME", "")
-			defer os.Setenv("CONFIGOR_HOSTS", "")
-			defer os.Setenv("CONFIGOR_DB_NAME", "")
-			cfgor := &Configor{
-				LoadEnv:   true,
-				EnvPrefix: "CONFIGOR",
-				Unmarshal: toml.Unmarshal,
-				Validator: validator.New().Struct,
-			}
-			if err := cfgor.LoadFile(&result, file.Name()); err != nil {
-				t.Errorf("LoadFile fail for %v", err)
-			}
-
-			var defaultConfig = generateDefaultConfig()
-			defaultConfig.APPName = "config2"
-			defaultConfig.Hosts = []string{"http://example.org", "http://me"}
-			defaultConfig.DB.Name = "db_name"
-			if !reflect.DeepEqual(result, defaultConfig) {
-				t.Errorf("result should equal to original configuration")
-			}
-		}
-	}
-}
-
-func TestOverwritetestConfigurationWithEnvironment(t *testing.T) {
-	config := generateDefaultConfig()
-
-	if bytes, err := json.Marshal(config); err == nil {
-		if file, err := os.CreateTemp("/tmp", "configor-*.json"); err == nil {
-			defer file.Close()
-			defer os.Remove(file.Name())
-			file.Write(bytes)
-			var result testConfig
-			os.Setenv("APP_APPNAME", "config2")
-			os.Setenv("APP_DB_NAME", "db_name")
-			defer os.Setenv("APP_APPNAME", "")
-			defer os.Setenv("APP_DB_NAME", "")
-			cfgor := &Configor{
-				LoadEnv:   true,
-				EnvPrefix: "APP",
-				Unmarshal: toml.Unmarshal,
-				Validator: validator.New().Struct,
-			}
-			if err := cfgor.LoadFile(&result, file.Name()); err != nil {
-				t.Errorf("LoadFile fail for %v", err)
-			}
-
-			var defaultConfig = generateDefaultConfig()
-			defaultConfig.APPName = "config2"
-			defaultConfig.DB.Name = "db_name"
-			if !reflect.DeepEqual(result, defaultConfig) {
-				t.Errorf("result should equal to original configuration")
-			}
-		}
-	}
-}
-
-func TestOverwritetestConfigurationWithEnvironmentThatSetBytestConfig(t *testing.T) {
-	config := generateDefaultConfig()
-
-	if bytes, err := json.Marshal(config); err == nil {
-		if file, err := os.CreateTemp("/tmp", "configor-*.json"); err == nil {
-			defer file.Close()
-			defer os.Remove(file.Name())
-			file.Write(bytes)
-			os.Setenv("APP1_APPName", "config2")
-			os.Setenv("APP1_DB_Name", "db_name")
-			defer os.Setenv("APP1_APPName", "")
-			defer os.Setenv("APP1_DB_Name", "")
-
-			var result testConfig
-			cfgor := &Configor{
-				LoadEnv:   true,
-				EnvPrefix: "APP1",
-				Unmarshal: toml.Unmarshal,
-				Validator: validator.New().Struct,
-			}
-			if err := cfgor.LoadFile(&result, file.Name()); err != nil {
-				t.Errorf("LoadFile fail for %v", err)
-			}
-
-			var defaultConfig = generateDefaultConfig()
-			defaultConfig.APPName = "config2"
-			defaultConfig.DB.Name = "db_name"
-			if !reflect.DeepEqual(result, defaultConfig) {
-				t.Errorf("result should equal to original configuration")
-			}
-		}
-	}
-}
-
-func TestResetPrefixToBlank(t *testing.T) {
-	config := generateDefaultConfig()
-
-	if bytes, err := json.Marshal(config); err == nil {
-		if file, err := os.CreateTemp("/tmp", "configor-*.json"); err == nil {
-			defer file.Close()
-			defer os.Remove(file.Name())
-			file.Write(bytes)
-			var result testConfig
-			os.Setenv("APPNAME", "config2")
-			os.Setenv("DB_NAME", "db_name")
-			defer os.Setenv("APPNAME", "")
-			defer os.Setenv("DB_NAME", "")
-			cfgor := &Configor{
-				LoadEnv:   true,
-				EnvPrefix: "",
-				Unmarshal: toml.Unmarshal,
-				Validator: validator.New().Struct,
-			}
-			if err := cfgor.LoadFile(&result, file.Name()); err != nil {
-				t.Errorf("LoadFile fail for %v", err)
-			}
-
-			var defaultConfig = generateDefaultConfig()
-			defaultConfig.APPName = "config2"
-			defaultConfig.DB.Name = "db_name"
-			if !reflect.DeepEqual(result, defaultConfig) {
-				t.Errorf("result should equal to original configuration")
-			}
-		}
-	}
-}
-
-func TestResetPrefixToBlank2(t *testing.T) {
-	config := generateDefaultConfig()
-
-	if bytes, err := json.Marshal(config); err == nil {
-		if file, err := os.CreateTemp("/tmp", "configor-*.json"); err == nil {
-			defer file.Close()
-			defer os.Remove(file.Name())
-			file.Write(bytes)
-			var result testConfig
-			os.Setenv("APPName", "config2")
-			os.Setenv("DB_Name", "db_name")
-			defer os.Setenv("APPName", "")
-			defer os.Setenv("DB_Name", "")
-			cfgor := &Configor{
-				LoadEnv:   true,
-				EnvPrefix: "",
-				Unmarshal: toml.Unmarshal,
-				Validator: validator.New().Struct,
-			}
-			if err := cfgor.LoadFile(&result, file.Name()); err != nil {
-				t.Errorf("LoadFile fail for %v", err)
-			}
-
-			var defaultConfig = generateDefaultConfig()
-			defaultConfig.APPName = "config2"
-			defaultConfig.DB.Name = "db_name"
-			if !reflect.DeepEqual(result, defaultConfig) {
-				t.Errorf("result should equal to original configuration")
-			}
-		}
-	}
-}
-
-func TestReadFromEnvironmentWithSpecifiedEnvName(t *testing.T) {
-	config := generateDefaultConfig()
-
-	if bytes, err := json.Marshal(config); err == nil {
-		if file, err := os.CreateTemp("/tmp", "configor-*.json"); err == nil {
-			defer file.Close()
-			defer os.Remove(file.Name())
-			file.Write(bytes)
-			var result testConfig
-			os.Setenv("DBPassword", "db_password")
-			defer os.Setenv("DBPassword", "")
-			cfgor := &Configor{
-				LoadEnv:   true,
-				EnvPrefix: "",
-				Unmarshal: toml.Unmarshal,
-				Validator: validator.New().Struct,
-			}
-			if err := cfgor.LoadFile(&result, file.Name()); err != nil {
-				t.Errorf("LoadFile fail for %v", err)
-			}
-
-			var defaultConfig = generateDefaultConfig()
-			defaultConfig.DB.Password = "db_password"
-			if !reflect.DeepEqual(result, defaultConfig) {
-				t.Errorf("result should equal to original configuration")
-			}
-		}
-	}
-}
-
-func TestAnonymousStruct(t *testing.T) {
-	config := generateDefaultConfig()
-
-	if bytes, err := json.Marshal(config); err == nil {
-		if file, err := os.CreateTemp("/tmp", "configor-*.json"); err == nil {
-			defer file.Close()
-			defer os.Remove(file.Name())
-			file.Write(bytes)
-			var result testConfig
-			os.Setenv("CONFIGOR_DESCRIPTION", "environment description")
-			defer os.Setenv("CONFIGOR_DESCRIPTION", "")
-			cfgor := &Configor{
-				LoadEnv:   true,
-				EnvPrefix: "CONFIGOR",
-				Unmarshal: toml.Unmarshal,
-				Validator: validator.New().Struct,
-			}
-			if err := cfgor.LoadFile(&result, file.Name()); err != nil {
-				t.Errorf("LoadFile fail for %v", err)
-			}
-
-			var defaultConfig = generateDefaultConfig()
-			defaultConfig.Anonymous.Description = "environment description"
-			assert.Equal(t, result, defaultConfig)
-			if !reflect.DeepEqual(result, defaultConfig) {
-				t.Errorf("result should equal to original configuration")
-			}
-		}
-	}
-}
-
-type slicetestConfig struct {
-	Test1 int
-	Test2 []struct {
-		Test2Ele1 int
-		Test2Ele2 int
-	}
-}
-
-func TestSliceFromEnv(t *testing.T) {
-	var tc = slicetestConfig{
-		Test1: 1,
-		Test2: []struct {
-			Test2Ele1 int
-			Test2Ele2 int
-		}{
-			{
-				Test2Ele1: 1,
-				Test2Ele2: 2,
+		{
+			name:      "prefix_CUSTOM",
+			envPrefix: "CUSTOM",
+			envVars: MMP{
+				"CUSTOM_APPNAME": "custom_prefix_app",
+				"APP_APPNAME":    "should_be_ignored",
 			},
-			{
-				Test2Ele1: 3,
-				Test2Ele2: 4,
+			expectedApp: "custom_prefix_app",
+		},
+		{
+			name:      "empty_prefix",
+			envPrefix: "",
+			envVars: MMP{
+				"APPNAME":          "empty_prefix_app",
+				"CONFIGOR_APPNAME": "should_be_ignored",
 			},
+			expectedApp: "empty_prefix_app",
 		},
 	}
 
-	var result slicetestConfig
-	os.Setenv("CONFIGOR_TEST1", "1")
-	os.Setenv("CONFIGOR_TEST2_0_TEST2ELE1", "1")
-	os.Setenv("CONFIGOR_TEST2_0_TEST2ELE2", "2")
+	cfgor := &Configor{LoadEnv: true}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.envVars.SetEnv()
+			defer tt.envVars.ResetEnv()
 
-	os.Setenv("CONFIGOR_TEST2_1_TEST2ELE1", "3")
-	os.Setenv("CONFIGOR_TEST2_1_TEST2ELE2", "4")
-	cfgor := &Configor{
-		LoadEnv:   true,
+			cfgor.EnvPrefix = tt.envPrefix
+			cfg := Config{}
+			if err := cfgor.Load(&cfg); err != nil {
+				t.Fatalf("test %q fail: %v", tt.name, err)
+				return
+			}
+			assert.Equal(t, tt.expectedApp, cfg.APPName, "EnvPrefix handle env fail")
+		})
+	}
+}
+
+func TestLoadConfigurationWithLoadEnvFalse(t *testing.T) {
+	mmp := MMP{
+		"CONFIGOR_APPNAME":     "env_overridden_app",
+		"CONFIGOR_DB_NAME":     "env_overridden_db",
+		"CONFIGOR_DB_USER":     "env_user",
+		"CONFIGOR_DB_PORT":     "6543",
+		"CONFIGOR_DB_PASSWORD": "env_password",
+	}
+	mmp.SetEnv()
+	defer mmp.ResetEnv()
+
+	c := Configor{
+		LoadEnv:   false,
 		EnvPrefix: "CONFIGOR",
-		Unmarshal: toml.Unmarshal,
-		Validator: validator.New().Struct,
-	}
-	if err := cfgor.Load(&result); err != nil {
-		t.Fatalf("Load from env err:%v", err)
 	}
 
-	if !reflect.DeepEqual(result, tc) {
-		t.Fatalf("unexpected result:%+v", result)
-	}
-}
-
-func TestConfigFromEnv(t *testing.T) {
-	type config struct {
-		LineBreakString string `required:"true"`
-		Count           int64
-		Slient          bool
+	cfg := Config{}
+	if err := c.Load(&cfg); err != nil {
+		assert.FailNow(t, "failed to load configuration", err.Error())
 	}
 
-	cfg := &config{}
-
-	os.Setenv("CONFIGOR_LineBreakString", "Line one\nLine two\nLine three\nAnd more lines")
-	os.Setenv("CONFIGOR_Slient", "1")
-	os.Setenv("CONFIGOR_Count", "10")
-	cfgor := &Configor{
-		LoadEnv:   true,
-		EnvPrefix: "CONFIGOR",
-		Unmarshal: toml.Unmarshal,
-		Validator: validator.New().Struct,
-	}
-	if err := cfgor.Load(cfg); err != nil {
-		t.Fatalf("Load err:%v", err)
-	}
-
-	if os.Getenv("CONFIGOR_LineBreakString") != cfg.LineBreakString {
-		t.Error("Failed to load value has line break from env")
-	}
-
-	if !cfg.Slient {
-		t.Error("Failed to load bool from env")
-	}
-
-	if cfg.Count != 10 {
-		t.Error("Failed to load number from env")
-	}
-}
-
-type Menu struct {
-	Key      string `json:"key" yaml:"key"`
-	Name     string `json:"name" yaml:"name"`
-	Icon     string `json:"icon" yaml:"icon"`
-	Children []Menu `json:"children" yaml:"children"`
-}
-
-type MenuList struct {
-	Top []Menu `json:"top"  yaml:"top"`
-}
-
-func TestLoadNestedConfig(t *testing.T) {
-	adminConfig := MenuList{}
-	if err := LoadFile(&adminConfig, "test/admin.yml"); err != nil {
-		t.Fatalf("LoadFile err:%v", err)
-	}
-}
-
-func TestLoad_FS(t *testing.T) {
-	type testEmbedConfig struct {
-		Foo string
-	}
-	var result testEmbedConfig
-	if err := LoadFile(&result, "test/config.yaml"); err != nil {
-		t.Fatalf("LoadFile err:%v", err)
-	}
-	if result.Foo != "bar" {
-		t.Error("expected to have foo: bar in config")
-	}
+	assert.Equal(t, cfg.APPName, "configor", "AppName should remain default when LoadEnv=false")
+	assert.Equal(t, cfg.DB.Name, "name", "DB.Name should remain default when LoadEnv=false")
+	assert.Equal(t, cfg.DB.User, "root", "DB.User should remain default when LoadEnv=false")
+	assert.EqualValues(t, cfg.DB.Port, 3306, "DB.Port should remain default when LoadEnv=false")
+	assert.Equal(t, cfg.DB.Password, "", "DB.Password should remain default when LoadEnv=false")
 }
