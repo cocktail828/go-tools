@@ -7,29 +7,27 @@ import (
 	"github.com/cocktail828/go-tools/z/variadic"
 )
 
-type inVariadic struct{ variadic.Assigned }
-
 type bodyKey struct{}
 
 // populate request body
-func Body(val []byte) variadic.Option { return variadic.SetValue(bodyKey{}, val) }
-func (iv inVariadic) Body() []byte    { return variadic.GetValue[[]byte](iv, bodyKey{}) }
+func Body(val []byte) variadic.Option     { return variadic.Set(bodyKey{}, val) }
+func getBody(c variadic.Container) []byte { return variadic.Value[[]byte](c, bodyKey{}) }
 
 type headerKey struct{}
 
 // populate HTTP headers
-func Headers(val map[string]string) variadic.Option { return variadic.SetValue(headerKey{}, val) }
-func (iv inVariadic) Headers() map[string]string {
-	return variadic.GetValue[map[string]string](iv, headerKey{})
+func Headers(val map[string]string) variadic.Option { return variadic.Set(headerKey{}, val) }
+func getHeaders(c variadic.Container) map[string]string {
+	return variadic.Value[map[string]string](c, headerKey{})
 }
 
 type CallbackFunc func(*http.Request)
 type callbackKey struct{}
 
 // user defined
-func Callback(val CallbackFunc) variadic.Option { return variadic.SetValue(callbackKey{}, val) }
-func (iv inVariadic) Callback() CallbackFunc {
-	return variadic.GetValue[CallbackFunc](iv, callbackKey{})
+func Callback(val CallbackFunc) variadic.Option { return variadic.Set(callbackKey{}, val) }
+func getCallback(c variadic.Container) CallbackFunc {
+	return variadic.Value[CallbackFunc](c, callbackKey{})
 }
 
 type RestClient struct {
@@ -37,18 +35,18 @@ type RestClient struct {
 }
 
 func (rc RestClient) Do(method string, url string, opts ...variadic.Option) (*http.Response, error) {
-	iv := inVariadic{variadic.Compose(opts...)}
-	req, err := http.NewRequest(method, url, bytes.NewReader(iv.Body()))
+	iv := variadic.Compose(opts...)
+	req, err := http.NewRequest(method, url, bytes.NewReader(getBody(iv)))
 	if err != nil {
 		return nil, err
 	}
 
 	req.Header.Set("Content-Type", "application/json")
-	for k, v := range iv.Headers() {
+	for k, v := range getHeaders(iv) {
 		req.Header.Set(k, v)
 	}
 
-	if f := iv.Callback(); f != nil {
+	if f := getCallback(iv); f != nil {
 		f(req)
 	}
 

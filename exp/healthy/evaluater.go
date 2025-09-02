@@ -38,7 +38,7 @@ func (e *counterEvaluater) Check(err error) {
 }
 
 func (e *counterEvaluater) Alive() bool {
-	posi, nega, _ := e.DualCount(39) // 获取过期 128ms*39=4.992s 的计数器信息
+	posi, nega, _ := e.DualCount(24) // 获取过期 128ms*24=3.072s 的计数器信息
 	if nega > int64(e.MaxFailure) {
 		e.healthy = false
 		return e.healthy
@@ -81,7 +81,7 @@ func (e *percentageEvaluater) Check(err error) {
 }
 
 func (e *percentageEvaluater) Alive() bool {
-	posi, nega, _ := e.DualCount(39)
+	posi, nega, _ := e.DualCount(24)
 	var pct float32
 	if sum := posi + nega; sum > 0 {
 		pct = float32(posi) / float32(sum)

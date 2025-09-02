@@ -43,16 +43,16 @@ func (e *etcdKV) String() string {
 
 func (e *etcdKV) Set(ctx context.Context, key string, val []byte, opts ...variadic.Option) (err error) {
 	options := []clientv3.OpOption{}
-	v := kvstore.Variadic(opts...)
+	c := variadic.Compose(opts...)
 
 	var lease *clientv3.LeaseGrantResponse
-	if val := v.TTL(); val > 0 {
+	if val := kvstore.GetTTL(c); val > 0 {
 		if lease, err = e.client.Grant(ctx, int64(val)); err != nil {
 			return err
 		}
 	}
 
-	if f := v.KeepAlive(); f != nil {
+	if f := kvstore.GetKeepAlive(c); f != nil {
 		if lease == nil {
 			ttl := environ.Int64("ETCDKV_KEEPALIVE_TTL", environ.WithInt64(5))
 			if lease, err = e.client.Grant(ctx, ttl); err != nil {
@@ -99,26 +99,26 @@ func (e *etcdKV) Set(ctx context.Context, key string, val []byte, opts ...variad
 
 func (e *etcdKV) Get(ctx context.Context, key string, opts ...variadic.Option) (kvstore.Result, error) {
 	options := []clientv3.OpOption{}
-	v := kvstore.Variadic(opts...)
-	if v.MatchPrefix() {
+	c := variadic.Compose(opts...)
+	if kvstore.GetMatchPrefix(c) {
 		options = append(options, clientv3.WithPrefix())
 	}
 
-	if v.IgnoreLease() {
+	if kvstore.GetIgnoreLease(c) {
 		options = append(options, clientv3.WithIgnoreLease())
 	}
 
 	isCount := false
-	if v.Count() || v.KeyOnly() {
+	if kvstore.GetCount(c) || kvstore.GetKeyOnly(c) {
 		isCount = true
 		options = append(options, clientv3.WithKeysOnly())
 	}
 
-	if val := v.Limit(); val > 0 {
+	if val := kvstore.GetLimit(c); val > 0 {
 		options = append(options, clientv3.WithLimit(int64(val)))
 	}
 
-	if v.FromKey() {
+	if kvstore.GetFromKey(c) {
 		options = append(options, clientv3.WithFromKey())
 	}
 
@@ -145,8 +145,8 @@ func (e *etcdKV) normlizeKey(key []byte) string {
 
 func (e *etcdKV) Del(ctx context.Context, key string, opts ...variadic.Option) error {
 	options := []clientv3.OpOption{}
-	v := kvstore.Variadic(opts...)
-	if v.MatchPrefix() {
+	c := variadic.Compose(opts...)
+	if kvstore.GetMatchPrefix(c) {
 		options = append(options, clientv3.WithPrefix())
 	}
 
@@ -156,8 +156,8 @@ func (e *etcdKV) Del(ctx context.Context, key string, opts ...variadic.Option) e
 
 func (e *etcdKV) Watch(ctx context.Context, opts ...variadic.Option) kvstore.Watcher {
 	options := []clientv3.OpOption{}
-	v := kvstore.Variadic(opts...)
-	if v.MatchPrefix() {
+	c := variadic.Compose(opts...)
+	if kvstore.GetMatchPrefix(c) {
 		options = append(options, clientv3.WithPrefix())
 	}
 

@@ -1,58 +1,43 @@
 package variadic
 
-import "reflect"
+import (
+	"context"
+)
 
-type Option func(Assigned) Assigned
-type Assigned interface {
-	Value(key any) any
+type Container interface {
+	context.Context
 }
 
-// A valueParam carries a key-value pair. It implements Value for that key and
-// delegates all other calls to the embedded Assigned.
-type valueParam struct {
-	Assigned
-	key, val any
-}
+type Option func(c Container) Container
 
-func (c valueParam) Value(key any) any {
-	if c.key == key {
-		return c.val
-	}
-	return c.Assigned.Value(key)
-}
-
-// implements...
-// It is the common base of nopParam.
-type nopParam struct{}
-
-func (nopParam) Value(key any) any {
-	return nil
-}
-
-func Compose(opts ...Option) Assigned {
-	var p Assigned = nopParam{}
-	for _, o := range opts {
-		p = o(p)
-	}
-	return p
-}
-
-func SetValue(key, val any) Option {
-	return func(parent Assigned) Assigned {
-		if key == nil {
-			panic("nil key")
-		}
-		if !reflect.TypeOf(key).Comparable() {
-			panic("key is not comparable")
-		}
-		return valueParam{parent, key, val}
+func Set(key any, value any) Option {
+	return func(c Container) Container {
+		return context.WithValue(c, key, value)
 	}
 }
 
-func GetValue[T any](p Assigned, key any) T {
-	if val, ok := p.Value(key).(T); ok {
-		return val
+func Get[T any](c Container, key any) (T, bool) {
+	v, ok := c.Value(key).(T)
+	if !ok {
+		var zero T
+		return zero, false
 	}
-	var zero T
-	return zero
+	return v, true
+}
+
+func Value[T any](c Container, key any) T {
+	v, ok := c.Value(key).(T)
+	if !ok {
+		var zero T
+		return zero
+	}
+	return v
+}
+
+func Compose(opts ...Option) Container {
+	c := context.Background()
+	for _, opt := range opts {
+		c = opt(c)
+	}
+	return c
 }

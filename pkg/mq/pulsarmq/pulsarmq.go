@@ -67,13 +67,12 @@ func (c consumerImpl) Close() error {
 }
 
 func (mq pulsarMQ) Subscribe(subname, topic string, opts ...variadic.Option) (mq.Consumer, error) {
-	v := inVariadic{variadic.Compose(opts...)}
-
+	c := variadic.Compose(opts...)
 	consumer, err := mq.Client.Subscribe(pulsar.ConsumerOptions{
 		Topic:            topic,
 		SubscriptionName: subname,
-		Type:             v.SubscriptionType(),
-		DLQ:              v.DLQPolicy(),
+		Type:             getSubscriptionType(c),
+		DLQ:              getDLQPolicy(c),
 	})
 	if err != nil {
 		return nil, err
@@ -98,14 +97,13 @@ func (p producerImpl) Close() error {
 }
 
 func (mq pulsarMQ) NewProducer(topic string, opts ...variadic.Option) (mq.Producer, error) {
-	v := inVariadic{variadic.Compose(opts...)}
-
+	c := variadic.Compose(opts...)
 	p, err := mq.CreateProducer(pulsar.ProducerOptions{
 		Topic:                   topic,
-		DisableBatching:         v.DisableBatch(),
+		DisableBatching:         getDisableBatch(c),
 		DisableBlockIfQueueFull: true, // throw error instead of blocking
-		CompressionType:         v.CompressType(),
-		CompressionLevel:        v.CompressLevel(),
+		CompressionType:         getCompressType(c),
+		CompressionLevel:        getCompressLevel(c),
 	})
 	if err != nil {
 		return nil, err

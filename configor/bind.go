@@ -9,21 +9,20 @@ import (
 	"github.com/pkg/errors"
 )
 
-type inVariadic struct{ variadic.Assigned }
 type prefixKey struct{}
 
-func WithPrefix(v string) variadic.Option { return variadic.SetValue(prefixKey{}, v) }
-func (iv inVariadic) WithPrefix() string  { return variadic.GetValue[string](iv, prefixKey{}) }
+func WithPrefix(v string) variadic.Option   { return variadic.Set(prefixKey{}, v) }
+func getPrefix(c variadic.Container) string { return variadic.Value[string](c, prefixKey{}) }
 
 type skipenvKey struct{}
 
-func WithSkipEnv(v bool) variadic.Option { return variadic.SetValue(skipenvKey{}, v) }
-func (iv inVariadic) WithSkipEnv() bool  { return variadic.GetValue[bool](iv, skipenvKey{}) }
+func WithSkipEnv(v bool) variadic.Option   { return variadic.Set(skipenvKey{}, v) }
+func getSkipEnv(c variadic.Container) bool { return variadic.Value[bool](c, skipenvKey{}) }
 
 func BindEnv(in any, opts ...variadic.Option) error {
-	biv := inVariadic{variadic.Compose(opts...)}
-	prefix := biv.WithPrefix()
-	skipEnv := biv.WithSkipEnv()
+	biv := variadic.Compose(opts...)
+	prefix := getPrefix(biv)
+	skipEnv := getSkipEnv(biv)
 
 	v := reflect.ValueOf(in)
 	if v.Kind() != reflect.Ptr || v.Elem().Kind() != reflect.Struct {

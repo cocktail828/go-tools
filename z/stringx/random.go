@@ -19,28 +19,27 @@ var (
 	upChars = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 )
 
-type inVariadic struct{ variadic.Assigned }
 type widthKey struct{}
 
-func WithWidth(v int) variadic.Option { return variadic.SetValue(widthKey{}, v) }
-func (iv inVariadic) WithWidth() int  { return variadic.GetValue[int](iv, widthKey{}) }
+func WithWidth(v int) variadic.Option           { return variadic.Set(widthKey{}, v) }
+func getWidth(c variadic.Container) (int, bool) { return variadic.Get[int](c, widthKey{}) }
 
 type charsKey struct{}
 
-func WithChars(chars string) variadic.Option { return variadic.SetValue(charsKey{}, chars) }
-func (iv inVariadic) WithChars() string      { return variadic.GetValue[string](iv, charsKey{}) }
+func WithChars(chars string) variadic.Option       { return variadic.Set(charsKey{}, chars) }
+func getChars(c variadic.Container) (string, bool) { return variadic.Get[string](c, charsKey{}) }
 
-// 默认长度 8, 无大写字符
+// 默认长度 8
 func RandomName(opts ...variadic.Option) string {
-	iv := inVariadic{variadic.Compose(opts...)}
-	width := 8
+	iv := variadic.Compose(opts...)
 
-	if w := iv.WithWidth(); w > 0 {
+	width := 8
+	if w, ok := getWidth(iv); ok && w > 0 {
 		width = w
 	}
 
 	chars := upChars
-	if s := iv.WithChars(); s != "" {
+	if s, ok := getChars(iv); ok && s != "" {
 		chars = s
 	}
 
