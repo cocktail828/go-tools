@@ -7,7 +7,6 @@ import (
 	"sync/atomic"
 
 	"github.com/cocktail828/go-tools/algo/rolling"
-	"github.com/cocktail828/go-tools/pkg/semaphore"
 	"github.com/cocktail828/go-tools/z/timex"
 )
 
@@ -43,10 +42,10 @@ func (r *keepAlive) Reset() {
 
 type circuitBreaker struct {
 	Config
-	lastTestAt  atomic.Int64        // last single test timestamp in nanoseconds
-	isOpen      atomic.Bool         // circuit state
-	isForceOpen bool                // manually turn on/off the circuit
-	tickets     *semaphore.Weighted // for concurrency control
+	lastTestAt  atomic.Int64 // last single test timestamp in nanoseconds
+	isOpen      atomic.Bool  // circuit state
+	isForceOpen bool         // manually turn on/off the circuit
+	assigner    *Assigner    // for concurrency control
 	statistic   *rolling.Rolling
 	recovery    keepAlive
 }
@@ -55,7 +54,7 @@ func NewCircuitBreaker(cfg Config) *circuitBreaker {
 	cfg.Normalize()
 	return &circuitBreaker{
 		Config:    cfg,
-		tickets:   semaphore.NewWeighted(int64(cfg.MaxConcurrency)),
+		assigner:  &Assigner{maxCount: cfg.MaxConcurrency},
 		statistic: rolling.NewRolling(128),
 		recovery: keepAlive{
 			array: make([]bool, cfg.KeepAliveProbes),
@@ -65,7 +64,7 @@ func NewCircuitBreaker(cfg Config) *circuitBreaker {
 
 func (cb *circuitBreaker) Update(cfg Config) {
 	cb.Config.Update(cfg)
-	cb.tickets.Resize(int64(cb.MaxConcurrency))
+	cb.assigner.Resize(cb.MaxConcurrency)
 }
 
 type Metric struct {
@@ -76,7 +75,7 @@ type Metric struct {
 
 func (cb *circuitBreaker) Metric() Metric {
 	return Metric{
-		Concurrency: int(cb.tickets.Assign()),
+		Concurrency: cb.assigner.Allocated(),
 		FailRate:    cb.failRate(timex.UnixNano()),
 		QPS:         cb.qps(timex.UnixNano()),
 	}
@@ -186,7 +185,7 @@ type singleTestMeta struct{}
 func (cb *circuitBreaker) GoC(ctx context.Context, runable func(context.Context) error) chan error {
 	nanosec := timex.UnixNano()
 	errchan := make(chan error, 1)
-	if !cb.tickets.TryAcquire(1) {
+	if !cb.assigner.TryAcquire() {
 		cb.feedback(snapshot{ErrMaxConcurrency, false, nanosec, nanosec})
 		errchan <- ErrMaxConcurrency
 		return errchan
@@ -209,7 +208,7 @@ func (cb *circuitBreaker) GoC(ctx context.Context, runable func(context.Context)
 	go func() {
 		tmoCtx, cancel := context.WithTimeout(context.Background(), cb.Timeout)
 		defer cancel()
-		defer cb.tickets.Release(1)
+		defer cb.assigner.Release()
 
 		select {
 		case rc := <-resultChan:

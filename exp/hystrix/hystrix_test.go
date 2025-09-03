@@ -62,8 +62,7 @@ func TestFailOnTimeout(t *testing.T) {
 
 func TestFailOnNoTicket(t *testing.T) {
 	GetCircuit(t.Name()).MaxConcurrency = 1
-	GetCircuit(t.Name()).tickets.Resize(1)
-	GetCircuit(t.Name()).tickets.Acquire(context.TODO(), 1)
+	GetCircuit(t.Name()).assigner.Resize(0)
 
 	assert.Equal(t, ErrMaxConcurrency, DoC(
 		context.Background(),
@@ -106,7 +105,7 @@ func TestReturnTicket(t *testing.T) {
 			select {}
 		}),
 	)
-	assert.EqualValues(t, 0, GetCircuit(t.Name()).tickets.Assign())
+	assert.EqualValues(t, 0, GetCircuit(t.Name()).assigner.Allocated())
 }
 
 func TestOpenOnTooManyFail(t *testing.T) {

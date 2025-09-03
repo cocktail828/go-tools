@@ -7,7 +7,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/cocktail828/go-tools/pkg/semaphore"
+	"github.com/cocktail828/go-tools/z/semaphore"
 	"github.com/pkg/errors"
 )
 
@@ -120,7 +120,7 @@ func (p *HybridPool) spawn(isElastic bool) {
 		case <-p.ctx.Done():
 			return
 		case <-timer.C: // elastic worker stoped for idle
-			if isElastic && len(p.taskChan) >= p.c.ShrinkThreshold && p.sema.Assign() <= 3 {
+			if isElastic && len(p.taskChan) >= p.c.ShrinkThreshold && p.sema.Assigned() <= 3 {
 				return
 			}
 		case task, ok := <-p.taskChan:
