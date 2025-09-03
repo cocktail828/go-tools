@@ -1,7 +1,7 @@
 package httpx
 
 import (
-	"fmt"
+	"context"
 	"net/http"
 	"testing"
 
@@ -9,25 +9,19 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-var (
-	rc RestClient
-)
-
 func TestHTTPX(t *testing.T) {
-	_, err := rc.Get("https://baidu.com",
-		Body([]byte("xxx")),
+	_, err := Get(context.Background(), "https://baidu.com",
 		Headers(map[string]string{"k": "v"}),
-		Callback(func(r *http.Request) { fmt.Println("xxx", r.Header) }),
+		Callback(func(r *http.Request) { assert.Equal(t, "v", r.Header.Get("k")) }),
 	)
 	z.Must(err)
 }
 
 func TestInsure(t *testing.T) {
 	url := "https://aiportal.h3c.com:40212/snappyservice/profile/upload/ZJSZTB/virtualHuman.png"
-	InsecureSSL(false)
-	_, err := http.DefaultClient.Get(url)
-	assert.Nil(t, err)
-	InsecureSSL(true)
-	_, err = http.DefaultClient.Get(url)
-	assert.Nil(t, err)
+	for _, b := range []bool{true, false} {
+		InsecureSSL(b)
+		_, err := http.DefaultClient.Get(url)
+		assert.Nil(t, err)
+	}
 }

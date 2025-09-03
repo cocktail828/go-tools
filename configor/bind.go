@@ -58,7 +58,7 @@ func BindEnv(in any, opts ...variadic.Option) error {
 		}
 
 		envVal := ""
-		if !skipEnv {
+		if !skipEnv && envName != "" && envName != "-" {
 			envVal = os.Getenv(envName)
 		}
 

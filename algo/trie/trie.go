@@ -171,26 +171,23 @@ func (n *node) compress() {
 	}
 }
 
-type Trie struct {
-	root *node
-}
+type Trie struct{ node }
 
 // Instanciate a Trie.
-// routes: path->anchor
 func New(routes map[string]any) (*Trie, error) {
-	trie := &Trie{&node{}}
+	trie := &Trie{}
 	for path, anchor := range routes {
 		if path == "" || path[0] != '/' {
 			return nil, errors.New("path must begin with '/' in path '" + path + "'")
 		}
 
-		if err := trie.root.add(path, anchor); err != nil {
+		if err := trie.add(path, anchor); err != nil {
 			return nil, err
 		}
 	}
 
 	// Reduce the size of the tree, must be done after the last add.
-	trie.root.compress()
+	trie.compress()
 
 	return trie, nil
 }
@@ -200,5 +197,5 @@ func (trie *Trie) Find(path string) []Match {
 	if len(path) > 1 && path[len(path)-1] == '/' {
 		path = path[:len(path)-1]
 	}
-	return trie.root.find(path, Params{})
+	return trie.find(path, Params{})
 }

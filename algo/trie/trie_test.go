@@ -14,19 +14,19 @@ func TestPathInsert(t *testing.T) {
 		t.Error()
 	}
 
-	if trie.root == nil {
+	if trie == nil {
 		t.Error()
 	}
 
-	if trie.root.Children["/"] == nil {
+	if trie.Children["/"] == nil {
 		t.Error()
 	}
 
-	if trie.root.Children["/"].Children["r"] == nil {
+	if trie.Children["/"].Children["r"] == nil {
 		t.Error()
 	}
 
-	if trie.root.Children["/"].Children["r"].Children["/"] == nil {
+	if trie.Children["/"].Children["r"].Children["/"] == nil {
 		t.Error()
 	}
 }
@@ -41,11 +41,11 @@ func TestTrieCompression(t *testing.T) {
 	}
 
 	// after compression
-	if trie.root.Children["/abc"] == nil {
-		t.Errorf("%+v", trie.root)
+	if trie.Children["/abc"] == nil {
+		t.Errorf("%+v", trie)
 	}
-	if trie.root.Children["/adc"] == nil {
-		t.Errorf("%+v", trie.root)
+	if trie.Children["/adc"] == nil {
+		t.Errorf("%+v", trie)
 	}
 }
 
@@ -58,23 +58,23 @@ func TestParamInsert(t *testing.T) {
 		t.Error()
 	}
 
-	if trie.root.Children["/"].ParamChild.Children["/"] == nil {
+	if trie.Children["/"].ParamChild.Children["/"] == nil {
 		t.Error()
 	}
-	if trie.root.Children["/"].ParamName != "id" {
+	if trie.Children["/"].ParamName != "id" {
 		t.Error()
 	}
 
-	if trie.root.Children["/"].ParamChild.Children["/"].ParamChild.Children["."].ParamChild == nil {
+	if trie.Children["/"].ParamChild.Children["/"].ParamChild.Children["."].ParamChild == nil {
 		t.Error()
 	}
-	if trie.root.Children["/"].ParamName != "id" {
+	if trie.Children["/"].ParamName != "id" {
 		t.Error()
 	}
-	if trie.root.Children["/"].ParamChild.Children["/"].ParamName != "property" {
+	if trie.Children["/"].ParamChild.Children["/"].ParamName != "property" {
 		t.Error()
 	}
-	if trie.root.Children["/"].ParamChild.Children["/"].ParamChild.Children["."].ParamName != "format" {
+	if trie.Children["/"].ParamChild.Children["/"].ParamChild.Children["."].ParamName != "format" {
 		t.Error()
 	}
 }
@@ -85,7 +85,7 @@ func TestSplatInsert(t *testing.T) {
 		t.Error()
 	}
 
-	if trie.root.Children["/"].SplatChild == nil {
+	if trie.Children["/"].SplatChild == nil {
 		t.Error()
 	}
 }

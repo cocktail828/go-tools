@@ -1,8 +1,9 @@
 package hcl2
 
 import (
-	"fmt"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 type NestedStruct struct {
@@ -22,6 +23,8 @@ type ExampleStruct struct {
 type Config struct {
 	Example []ExampleStruct `hcl:"example,block"` // 支持多实例的块
 }
+
+func boolPtr(b bool) *bool { return &b }
 
 func TestHCL2(t *testing.T) {
 	hclData := []byte(`
@@ -62,11 +65,38 @@ func TestHCL2(t *testing.T) {
         }
     `)
 
-	var config Config
-	err := Unmarshal(hclData, &config)
+	var c Config
+	err := Unmarshal(hclData, &c)
 	if err != nil {
-		fmt.Println("Error unmarshalling HCL:", err)
-		return
+		t.Errorf("Error unmarshalling HCL: %v", err)
 	}
-	fmt.Printf("Parsed config: %+v\n", config)
+	assert.EqualValues(t, Config{
+		Example: []ExampleStruct{
+			{
+				Label:   "person_example",
+				ID:      "123",
+				Name:    "Alice",
+				Age:     30,
+				Active:  boolPtr(true),
+				Details: &NestedStruct{NestedField: "Some details about Alice"},
+				Tags: map[string]string{
+					"role":    "admin",
+					"team":    "engineering",
+					"project": "terraform",
+				},
+			}, {
+				Label:   "person_example",
+				ID:      "234",
+				Name:    "Alice",
+				Age:     30,
+				Active:  boolPtr(true),
+				Details: &NestedStruct{NestedField: "Some details about Alice"},
+				Tags: map[string]string{
+					"role":    "admin",
+					"team":    "engineering",
+					"project": "terraform",
+				},
+			},
+		},
+	}, c)
 }
