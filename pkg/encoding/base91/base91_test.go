@@ -42,11 +42,10 @@ var pairs = []pair{
 func TestEncode(t *testing.T) {
 	for i, p := range pairs {
 		t.Run(fmt.Sprintf("case_%d", i), func(t *testing.T) {
-			dst := make([]byte, StdEncoding.EncodedLen(len(p.decoded)))
-
-			n := StdEncoding.Encode(dst, []byte(p.decoded))
-			got := dst[:n]
-			if !bytes.Equal(got, []byte(p.encoded)) {
+			got, err := StdEncoding.Encode([]byte(p.decoded))
+			if err != nil {
+				t.Errorf("Got encoding error: %v", err)
+			} else {
 				assert.Equal(t, []byte(p.encoded), got)
 			}
 		})
@@ -56,15 +55,12 @@ func TestEncode(t *testing.T) {
 func TestDecode(t *testing.T) {
 	for i, p := range pairs {
 		t.Run(fmt.Sprintf("case_%d", i), func(t *testing.T) {
-			dst := make([]byte, StdEncoding.DecodedLen(len(p.encoded)))
-
-			n, err := StdEncoding.Decode(dst, []byte(p.encoded))
+			got, err := StdEncoding.Decode([]byte(p.encoded))
 			if err != nil {
 				t.Errorf("Got decoding error: %v", err)
 			} else {
-				got := dst[:n]
-				if !bytes.Equal(got, []byte(p.decoded)) {
-					assert.Equal(t, []byte(p.decoded), got)
+				if !bytes.EqualFold(got, []byte(p.decoded)) {
+					t.Errorf("Decoded bytes do not match. Expected: %v, Got: %v", []byte(p.decoded), got)
 				}
 			}
 		})
@@ -79,10 +75,8 @@ func TestError(t *testing.T) {
 
 	for i, test := range tests {
 		t.Run(fmt.Sprintf("case_%d", i), func(t *testing.T) {
-			dst := make([]byte, StdEncoding.DecodedLen(len(test)))
-
-			_, err := StdEncoding.Decode(dst, []byte(test))
-			assert.Equal(t, invalidCharacterError(), err)
+			_, err := StdEncoding.Decode([]byte(test))
+			assert.ErrorIs(t, err, ErrInvalidCharacter)
 		})
 	}
 }

@@ -2,34 +2,36 @@
 package base62
 
 import (
-	"fmt"
 	"math"
-	"strconv"
+
+	"github.com/pkg/errors"
+)
+
+var (
+	ErrIllegalInput    = errors.New("base62: illegal base62 data")
+	ErrInvalidAlphabet = errors.New("base62: the alphabet length must be 62")
+)
+
+var (
+	stdAlphabet    = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+	StdEncoding, _ = NewEncoding(stdAlphabet)
 )
 
 // An Encoding is a radix 62 encoding/decoding scheme, defined by a 62-character alphabet.
 type Encoding struct {
-	encode    [62]byte
+	alphabet  [62]byte
 	decodeMap [256]byte
-	Error     error
 }
 
-var InvalidAlphabetError = func() error {
-	return fmt.Errorf("base62: invalid alphabet, the alphabet length must be 62")
-}
-
-var StdAlphabet = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
-
-// NewEncoding returns a new padded Encoding defined by the given alphabet,
+// NewCodec returns a new padded Encoding defined by the given alphabet,
 // which must be a 62-byte string that does not contain the padding character
 // or CR / LF ('\r', '\n').
-func NewEncoding(alphabet string) *Encoding {
+func NewEncoding(alphabet string) (*Encoding, error) {
 	e := new(Encoding)
 	if len(alphabet) != 62 {
-		e.Error = InvalidAlphabetError()
-		return e
+		return nil, ErrInvalidAlphabet
 	}
-	copy(e.encode[:], alphabet)
+	copy(e.alphabet[:], alphabet)
 
 	for i := 0; i < len(e.decodeMap); i++ {
 		e.decodeMap[i] = 0xFF
@@ -37,22 +39,19 @@ func NewEncoding(alphabet string) *Encoding {
 	for i := 0; i < len(alphabet); i++ {
 		e.decodeMap[alphabet[i]] = byte(i)
 	}
-	return e
+	return e, nil
 }
 
-// StdEncoding is the standard base62 encoding.
-var StdEncoding = NewEncoding(StdAlphabet)
-
 // Encode encodes src using the encoding enc.
-func (enc *Encoding) Encode(src []byte) []byte {
+func (enc *Encoding) Encode(src []byte) ([]byte, error) {
 	if len(src) == 0 {
-		return nil
+		return nil, nil
 	}
 
-	// enc is a pointer receiver, so the use of enc.encode within the hot
+	// enc is a pointer receiver, so the use of enc.alphabet within the hot
 	// loop below means a nil check at every operation. Lift that nil check
 	// outside the loop to speed up the encoder.
-	_ = enc.encode
+	_ = enc.alphabet
 
 	rs := 0
 	cs := int(math.Ceil(math.Log(256) / math.Log(62) * float64(len(src))))
@@ -69,12 +68,12 @@ func (enc *Encoding) Encode(src []byte) []byte {
 		rs = c
 	}
 	for i := range dst {
-		dst[i] = enc.encode[dst[i]]
+		dst[i] = enc.alphabet[dst[i]]
 	}
 	if cs > rs {
-		return dst[cs-rs:]
+		return dst[cs-rs:], nil
 	}
-	return dst
+	return dst, nil
 }
 
 // Decode decodes src using the encoding enc.
@@ -101,7 +100,7 @@ func (enc *Encoding) Decode(src []byte) ([]byte, error) {
 		c := 0
 		v := int(enc.decodeMap[src[i]])
 		if v == 255 {
-			return nil, CorruptInputError(src[i])
+			return nil, errors.Wrapf(ErrIllegalInput, "at input byte %d", i)
 		}
 		for j := cs - 1; j >= 0 && (v != 0 || c < rs); j-- {
 			v += 62 * int(dst[j])
@@ -115,10 +114,4 @@ func (enc *Encoding) Decode(src []byte) ([]byte, error) {
 		return dst[cs-rs:], nil
 	}
 	return dst, nil
-}
-
-type CorruptInputError int64
-
-func (e CorruptInputError) Error() string {
-	return "illegal base62 data at input byte " + strconv.FormatInt(int64(e), 10)
 }

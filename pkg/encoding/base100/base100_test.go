@@ -3,20 +3,12 @@ package base100
 import "testing"
 
 func TestInvalidInput(t *testing.T) {
-	if _, err := Decode([]byte("aaaa")); err != invalidDataError {
+	if _, err := NewEncoding().Decode([]byte("aaaa")); err != ErrInvalidData {
 		t.Errorf("Expected ErrInvalidData but got %v", err)
 	}
 
-	if _, err := Decode([]byte("aaa")); err != invalidLengthError {
+	if _, err := NewEncoding().Decode([]byte("aaa")); err != ErrInvalidLength {
 		t.Errorf("Expected ErrInvalidLength but got %v", err)
-	}
-}
-
-func TestCoverError(t *testing.T) {
-	const message = "are you happy now, code coverage?"
-	err := invalidInputError{message}
-	if err.Error() != message {
-		t.Errorf("(InvalidInputError).Error(): Expected %v, got %v", message, err.Error())
 	}
 }
 
@@ -44,7 +36,7 @@ var tests = []struct {
 
 func TestDecode(t *testing.T) {
 	for _, test := range tests {
-		res, err := Decode([]byte(test.emoji))
+		res, err := NewEncoding().Decode([]byte(test.emoji))
 		if err != nil {
 			t.Errorf("%v: Unexpected error: %v", test.name, err)
 		}
@@ -57,7 +49,10 @@ func TestDecode(t *testing.T) {
 
 func TestEncode(t *testing.T) {
 	for _, test := range tests {
-		res := Encode([]byte(test.text))
+		res, err := NewEncoding().Encode([]byte(test.text))
+		if err != nil {
+			t.Errorf("%v: Unexpected error: %v", test.name, err)
+		}
 
 		if string(res) != test.emoji {
 			t.Errorf("%v: Expected to get '%v', got '%v'", test.name, test.emoji, res)
@@ -68,7 +63,12 @@ func TestEncode(t *testing.T) {
 func TestFlow(t *testing.T) {
 	text := []byte("the quick brown fox 😂😂👌👌👌 over the lazy dog привет")
 
-	res, err := Decode(Encode(text))
+	encoded, err := NewEncoding().Encode(text)
+	if err != nil {
+		t.Errorf("Unexpected error: %v", err)
+	}
+
+	res, err := NewEncoding().Decode(encoded)
 
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)

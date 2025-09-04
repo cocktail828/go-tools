@@ -1,4 +1,4 @@
-package jsonx
+package flatten
 
 import (
 	"encoding/json"
@@ -35,17 +35,17 @@ var (
 )
 
 type MyStruct struct {
-	AppID    *string           `jsonx:"common.app_id"`
-	UserID   *string           `jsonx:"common.user_id"`
-	Age      *int              `jsonx:"common.age"`
-	Height   *float64          `jsonx:"common.height"`
-	Width    *float32          `jsonx:"common.width"`
-	IsActive *bool             `jsonx:"common.is_active"`
-	ResIDs   []string          `jsonx:"business.res_ids"`
-	Scores   []int             `jsonx:"business.scores"`
-	Flags    []*bool           `jsonx:"business.flags"`
-	ByPass0  map[string]string `jsonx:"business.bypass0"`
-	ByPass1  map[string]int    `jsonx:"business.bypass1"`
+	AppID    *string           `flatten:"common.app_id"`
+	UserID   *string           `flatten:"common.user_id"`
+	Age      *int              `flatten:"common.age"`
+	Height   *float64          `flatten:"common.height"`
+	Width    *float32          `flatten:"common.width"`
+	IsActive *bool             `flatten:"common.is_active"`
+	ResIDs   []string          `flatten:"business.res_ids"`
+	Scores   []int             `flatten:"business.scores"`
+	Flags    []*bool           `flatten:"business.flags"`
+	ByPass0  map[string]string `flatten:"business.bypass0"`
+	ByPass1  map[string]int    `flatten:"business.bypass1"`
 }
 
 func TestUnmarshal(t *testing.T) {

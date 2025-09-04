@@ -2,8 +2,29 @@
 package base91
 
 import (
-	"fmt"
 	"math"
+
+	"github.com/pkg/errors"
+)
+
+// A invalidCharacterError is returned if invalid base91 data is encountered during decoding.
+
+var (
+	ErrInvalidCharacter = errors.New("base91: the character is not in the encoding alphabet")
+)
+
+var (
+	// encodeStd is the standard base91 encoding alphabet (that is, the one specified
+	// at http://base91.sourceforge.net). Of the 95 printable ASCII characters, the
+	// following four are omitted: space (0x20), apostrophe (0x27), hyphen (0x2d),
+	// and backslash (0x5c).
+	encodeStd = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!#$%&()*+,./:;<=>?@[]^_`{|}~\""
+
+	// StdEncoding is the standard base91 encoding (that is, the one specified
+	// at http://base91.sourceforge.net). Of the 95 printable ASCII characters,
+	// the following four are omitted: space (0x20), apostrophe (0x27),
+	// hyphen (0x2d), and backslash (0x5c).
+	StdEncoding = NewEncoding(encodeStd)
 )
 
 // An Encoding is a base 91 encoding/decoding scheme defined by a 91-character alphabet.
@@ -12,15 +33,9 @@ type Encoding struct {
 	decodeMap [256]byte
 }
 
-// encodeStd is the standard base91 encoding alphabet (that is, the one specified
-// at http://base91.sourceforge.net). Of the 95 printable ASCII characters, the
-// following four are omitted: space (0x20), apostrophe (0x27), hyphen (0x2d),
-// and backslash (0x5c).
-const encodeStd = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!#$%&()*+,./:;<=>?@[]^_`{|}~\""
-
 // newEncoding returns a new Encoding defined by the given alphabet, which must
 // be a 91-byte string that does not contain CR or LF ('\r', '\n').
-func newEncoding(encoder string) *Encoding {
+func NewEncoding(encoder string) *Encoding {
 	e := new(Encoding)
 	copy(e.encode[:], encoder)
 
@@ -34,18 +49,18 @@ func newEncoding(encoder string) *Encoding {
 	return e
 }
 
-// StdEncoding is the standard base91 encoding (that is, the one specified
-// at http://base91.sourceforge.net). Of the 95 printable ASCII characters,
-// the following four are omitted: space (0x20), apostrophe (0x27),
-// hyphen (0x2d), and backslash (0x5c).
-var StdEncoding = newEncoding(encodeStd)
-
 // Encode encodes src using the encoding enc, writing bytes to dst.
 // It returns the number of bytes written, because the exact output size cannot
 // be known before encoding takes place. EncodedLen(len(src)) may be used to
 // determine an upper bound on the output size when allocating a dst slice.
-func (enc *Encoding) Encode(dst, src []byte) int {
+func (enc *Encoding) Encode(src []byte) ([]byte, error) {
 	var queue, numBits uint
+
+	// At worst, base91 encodes 13 bits into 16 bits. Even though 14 bits can
+	// sometimes be encoded into 16 bits, assume the worst case to get the upper
+	// bound on encoded length.
+	maxdstLen := int(math.Ceil(float64(len(src)) * 16.0 / 13.0))
+	dst := make([]byte, maxdstLen)
 
 	n := 0
 	for i := 0; i < len(src); i++ {
@@ -80,36 +95,26 @@ func (enc *Encoding) Encode(dst, src []byte) int {
 		}
 	}
 
-	return n
-}
-
-// EncodedLen returns an upper bound on the length in bytes of the base91 encoding
-// of an input buffer of length n. The true encoded length may be shorter.
-func (enc *Encoding) EncodedLen(n int) int {
-	// At worst, base91 encodes 13 bits into 16 bits. Even though 14 bits can
-	// sometimes be encoded into 16 bits, assume the worst case to get the upper
-	// bound on encoded length.
-	return int(math.Ceil(float64(n) * 16.0 / 13.0))
-}
-
-// A invalidCharacterError is returned if invalid base91 data is encountered during decoding.
-
-var invalidCharacterError = func() error {
-	return fmt.Errorf("base91: invalid character, the he character is not in the encoding alphabet")
+	return dst[:n], nil
 }
 
 // Decode decodes src using the encoding enc. It writes at most DecodedLen(len(src))
 // bytes to dst and returns the number of bytes written. If src contains invalid base91
 // data, it will return the number of bytes successfully written and CorruptInputError.
-func (enc *Encoding) Decode(dst, src []byte) (int, error) {
+func (enc *Encoding) Decode(src []byte) ([]byte, error) {
 	var queue, numBits uint
 	var v = -1
+
+	// At best, base91 encodes 14 bits into 16 bits, so assume that the input is
+	// optimally encoded to get the upper bound on decoded length.
+	maxdstLen := int(math.Ceil(float64(len(src)) * 14.0 / 16.0))
+	dst := make([]byte, maxdstLen)
 
 	n := 0
 	for i := 0; i < len(src); i++ {
 		if enc.decodeMap[src[i]] == 0xff {
 			// The character is not in the encoding alphabet.
-			return n, invalidCharacterError()
+			return nil, errors.Wrapf(ErrInvalidCharacter, "at position: %d", i)
 		}
 
 		if v == -1 {
@@ -143,13 +148,5 @@ func (enc *Encoding) Decode(dst, src []byte) (int, error) {
 		n++
 	}
 
-	return n, nil
-}
-
-// DecodedLen returns the maximum length in bytes of the decoded data
-// corresponding to n bytes of base91-encoded data.
-func (enc *Encoding) DecodedLen(n int) int {
-	// At best, base91 encodes 14 bits into 16 bits, so assume that the input is
-	// optimally encoded to get the upper bound on decoded length.
-	return int(math.Ceil(float64(n) * 14.0 / 16.0))
+	return dst[:n], nil
 }

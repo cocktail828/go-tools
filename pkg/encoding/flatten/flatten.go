@@ -1,4 +1,4 @@
-package jsonx
+package flatten
 
 import (
 	"encoding/json"
@@ -138,7 +138,7 @@ func Unmarshal(data []byte, v any) error {
 
 	for i := 0; i < rv.NumField(); i++ {
 		field := rv.Type().Field(i)
-		tag := field.Tag.Get("jsonx")
+		tag := field.Tag.Get("flatten")
 		if tag == "" || tag == "-" {
 			continue
 		}
@@ -179,6 +179,5 @@ func (dec *Decoder) Decode(v any) error {
 	if err != nil {
 		return err
 	}
-
 	return Unmarshal(data, v)
 }
