@@ -10,7 +10,7 @@ import (
 )
 
 var (
-	ErrTypeConvert = errors.New("implicit type conversion is not allowed")
+	ErrTypeConvert = errors.New("flatten: implicit type conversion is not allowed")
 )
 
 func flatten(prefix []string, mmp, result map[string]any) {

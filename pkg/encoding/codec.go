@@ -24,10 +24,8 @@ func NewMD5Encoder() Encoder {
 	return &md5Encoder{}
 }
 
-func (e *md5Encoder) Encode(bs []byte) ([]byte, error) {
-	h := md5.New()
-	h.Write(bs)
-	return h.Sum(nil), nil
+func (e *md5Encoder) Encode(s []byte) ([]byte, error) {
+	return md5.New().Sum(s), nil
 }
 
 type sha256Encoder struct{}
@@ -36,8 +34,6 @@ func NewSHA256Encoder() Encoder {
 	return &sha256Encoder{}
 }
 
-func (e *sha256Encoder) Encode(bs []byte) ([]byte, error) {
-	h := sha256.New()
-	h.Write(bs)
-	return h.Sum(nil), nil
+func (e *sha256Encoder) Encode(s []byte) ([]byte, error) {
+	return sha256.New().Sum(s), nil
 }
