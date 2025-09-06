@@ -6,8 +6,7 @@ import (
 	"path"
 	"strings"
 
-	"github.com/cocktail828/go-tools/pkg/kvstore"
-	"github.com/cocktail828/go-tools/pkg/kvstore/common"
+	"github.com/cocktail828/go-tools/pkg/kv"
 	clientv3 "go.etcd.io/etcd/client/v3"
 )
 
@@ -17,7 +16,7 @@ type etcdKV struct {
 	client *clientv3.Client
 }
 
-func New(cfg clientv3.Config, root string) (kvstore.KV, error) {
+func New(cfg clientv3.Config, root string) (kv.KV, error) {
 	client, err := clientv3.New(cfg)
 	if err != nil {
 		return nil, err
@@ -39,7 +38,7 @@ func (e *etcdKV) String() string {
 	return u.String()
 }
 
-func (e *etcdKV) Set(ctx context.Context, key string, val []byte, opts ...kvstore.SetOption) error {
+func (e *etcdKV) Set(ctx context.Context, key string, val []byte, opts ...kv.SetOption) error {
 	setopt := newEtcdSetOption(opts...)
 	options := []clientv3.OpOption{}
 	var lease *clientv3.LeaseGrantResponse
@@ -65,7 +64,7 @@ func (e *etcdKV) Set(ctx context.Context, key string, val []byte, opts ...kvstor
 	return nil
 }
 
-func (e *etcdKV) Get(ctx context.Context, key string, opts ...kvstore.GetOption) (kvstore.Result, error) {
+func (e *etcdKV) Get(ctx context.Context, key string, opts ...kv.GetOption) (kv.Result, error) {
 	getopt := newEtcdGetOption(opts...)
 	options := []clientv3.OpOption{}
 
@@ -96,26 +95,26 @@ func (e *etcdKV) Get(ctx context.Context, key string, opts ...kvstore.GetOption)
 		return nil, err
 	}
 
-	result := common.Result{}
+	pairs := etcdKvPairs{}
 	for _, kv := range ev.Kvs {
-		result.Append(e.normlizeKey(kv.Key), kv.Value)
+		pairs.Append(e.normlizeKey(kv.Key), kv.Value)
 	}
 
 	if isCount {
-		return CountResult{Num: result.Len()}, nil
+		return CountResult{Num: pairs.Len()}, nil
 	}
 
-	return result, nil
+	return pairs, nil
 }
 
 func (e *etcdKV) normlizeKey(key []byte) string {
 	return strings.TrimPrefix(string(key), e.root+"/")
 }
 
-func (e *etcdKV) Del(ctx context.Context, key string, opts ...kvstore.DelOption) error {
+func (e *etcdKV) Del(ctx context.Context, key string, opts ...kv.DelOption) error {
 	options := []clientv3.OpOption{}
 	delopt := newEtcdDelOption(opts...)
-	if delopt.prefix != "" {
+	if delopt.matchprefix {
 		options = append(options, clientv3.WithPrefix())
 	}
 
@@ -123,10 +122,10 @@ func (e *etcdKV) Del(ctx context.Context, key string, opts ...kvstore.DelOption)
 	return err
 }
 
-func (e *etcdKV) Watch(ctx context.Context, opts ...kvstore.WatchOption) kvstore.Watcher {
+func (e *etcdKV) Watch(ctx context.Context, opts ...kv.WatchOption) kv.Watcher {
 	options := []clientv3.OpOption{}
 	watchopt := newEtcdWatchOption(opts...)
-	if watchopt.prefix != "" {
+	if watchopt.matchprefix {
 		options = append(options, clientv3.WithPrefix())
 	}
 
@@ -151,29 +150,28 @@ type etcdWatcher struct {
 	watchChan     clientv3.WatchChan
 }
 
-func (w *etcdWatcher) Next(ctx context.Context) (kvstore.Event, error) {
+func (w *etcdWatcher) Next(ctx context.Context) (kv.Event, error) {
 	select {
-	case etcdEvent, ok := <-w.watchChan:
+	case event, ok := <-w.watchChan:
 		if !ok {
-			return nil, kvstore.ErrWatcherStopped
+			return nil, kv.ErrWatcherStopped
 		}
 
-		event := common.Event{}
-		for _, ev := range etcdEvent.Events {
-			tp := kvstore.NONE
-			switch ev.Type {
+		ev := &etcdEvent{}
+		for _, e := range event.Events {
+			tp := kv.NONE
+			switch e.Type {
 			case clientv3.EventTypePut:
-				tp = kvstore.PUT
+				tp = kv.PUT
 			case clientv3.EventTypeDelete:
-				tp = kvstore.DELETE
+				tp = kv.DELETE
 			}
-
-			event.Append(tp, w.kv.normlizeKey(ev.Kv.Key), ev.Kv.Value)
+			ev.Append(tp, w.kv.normlizeKey(e.Kv.Key), e.Kv.Value)
 		}
-		return event, nil
+		return ev, nil
 
 	case <-w.runningCtx.Done():
-		return nil, kvstore.ErrWatcherStopped
+		return nil, kv.ErrWatcherStopped
 
 	case <-ctx.Done():
 		return nil, context.DeadlineExceeded

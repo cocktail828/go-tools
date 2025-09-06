@@ -1,4 +1,4 @@
-package kvstore
+package kv
 
 import (
 	"context"
@@ -31,10 +31,10 @@ type Event interface {
 	Type(i int) Type // PUT, DELETE
 }
 
-type SetOption interface{}
-type GetOption interface{}
-type DelOption interface{}
-type WatchOption interface{}
+type SetOption func(any)
+type GetOption func(any)
+type DelOption func(any)
+type WatchOption func(any)
 
 // KV is the source from which config is loaded.
 type KV interface {

@@ -5,8 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cocktail828/go-tools/pkg/kvstore"
-	"github.com/cocktail828/go-tools/pkg/kvstore/common"
+	"github.com/cocktail828/go-tools/pkg/kv"
 	"github.com/cocktail828/go-tools/z"
 	"github.com/stretchr/testify/assert"
 	clientv3 "go.etcd.io/etcd/client/v3"
@@ -14,7 +13,7 @@ import (
 
 var (
 	endpoint = "172.29.231.108:12379"
-	src      kvstore.KV
+	src      kv.KV
 )
 
 func TestMain(b *testing.M) {
@@ -33,12 +32,12 @@ type Case struct {
 	Key   string
 }
 
-func (c Case) Event() kvstore.Event {
-	ev := common.Event{}
+func (c Case) Event() kv.Event {
+	ev := &etcdEvent{}
 	if c.IsPut {
-		ev.Append(kvstore.PUT, c.Key, []byte(c.Key))
+		ev.Append(kv.PUT, c.Key, []byte(c.Key))
 	} else {
-		ev.Append(kvstore.DELETE, c.Key, nil)
+		ev.Append(kv.DELETE, c.Key, nil)
 	}
 
 	return ev
@@ -46,8 +45,8 @@ func (c Case) Event() kvstore.Event {
 
 type Cases []Case
 
-func (cs Cases) Convert() kvstore.Result {
-	impl := common.Result{}
+func (cs Cases) Convert() kv.Result {
+	impl := &etcdKvPairs{}
 	for _, c := range cs {
 		impl.Append(c.Key, []byte(c.Key))
 	}
@@ -69,13 +68,13 @@ func TestEtcdTTL(t *testing.T) {
 	assert.NoError(t, src.Set(context.TODO(), c.Key, []byte(c.Key), WithTTL(1)))
 	kv, err := src.Get(context.TODO(), c.Key)
 	assert.NoError(t, err)
-	assert.EqualValues(t, common.Result{Keys: []string{c.Key}, Values: [][]byte{[]byte(c.Key)}}, kv)
+	assert.EqualValues(t, &etcdKvPairs{Keys: []string{c.Key}, Values: [][]byte{[]byte(c.Key)}}, kv)
 
 	// make sure key is expired
 	time.Sleep(time.Millisecond * 3000)
 	kv, err = src.Get(context.TODO(), c.Key)
 	assert.NoError(t, err)
-	assert.EqualValues(t, common.Result{}, kv)
+	assert.EqualValues(t, &etcdKvPairs{}, kv)
 }
 
 func TestEtcdKV(t *testing.T) {
@@ -89,14 +88,14 @@ func TestEtcdKV(t *testing.T) {
 			assert.NoError(t, src.Set(context.TODO(), c.Key, []byte(c.Key)))
 			kv, err := src.Get(context.TODO(), c.Key)
 			assert.NoError(t, err)
-			assert.EqualValues(t, common.Result{Keys: []string{c.Key}, Values: [][]byte{[]byte(c.Key)}}, kv)
+			assert.EqualValues(t, &etcdKvPairs{Keys: []string{c.Key}, Values: [][]byte{[]byte(c.Key)}}, kv)
 		})
 	}
 
 	kv, err := src.Get(context.TODO(), "a", WithMatchPrefix())
 	assert.NoError(t, err)
 	assert.EqualValues(t, cases.Convert(), kv)
-	assert.NoError(t, src.Del(context.TODO(), "a", WithMatchPrefix()))
+	assert.NoError(t, src.Del(context.TODO(), "a", DelWithPrefix()))
 }
 
 func TestEtcdWatchPrefix(t *testing.T) {
@@ -109,7 +108,7 @@ func TestEtcdWatchPrefix(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	w := src.Watch(ctx, WithMatchPrefix())
+	w := src.Watch(ctx, WatchWithPrefix())
 	for _, c := range cases {
 		if c.IsPut {
 			assert.NoError(t, src.Set(context.TODO(), c.Key, []byte(c.Key)))
