@@ -1,7 +1,10 @@
-package naming
+package nacs
 
-import "context"
+import (
+	"context"
+)
 
+// Service 定义服务
 type Service struct {
 	Cluster string
 	Group   string
@@ -36,4 +39,9 @@ type Registry interface {
 	Watch(svc Service, callback func([]Instance, error)) (context.CancelFunc, error)
 
 	Close() error
+}
+
+type Endpoint struct {
+	IP   string
+	Port uint16
 }

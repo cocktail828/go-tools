@@ -18,7 +18,7 @@ func NewRR(array []Node) Balancer {
 
 func (b *rrBalancer) Pick() (n Node) {
 	var array []Node
-	z.WithRLock(&b.mu, func() { array = b.array })
+	z.WithLock(b.mu.RLocker(), func() { array = b.array })
 
 	if len(array) == 0 {
 		return nil

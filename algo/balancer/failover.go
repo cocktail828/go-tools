@@ -19,7 +19,7 @@ func NewFailover(array []Node) Balancer {
 
 func (b *failoverBalancer) Pick() (n Node) {
 	var array []Node
-	z.WithRLock(&b.mu, func() { array = b.array })
+	z.WithLock(b.mu.RLocker(), func() { array = b.array })
 
 	for i := b.pos.Load(); i < uint32(len(array)); i++ {
 		n := array[i]

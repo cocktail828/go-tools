@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/cocktail828/go-tools/z"
-	"github.com/cocktail828/go-tools/z/variadic"
 )
 
 type random struct {
@@ -19,34 +18,30 @@ var (
 	upChars = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 )
 
-type widthKey struct{}
+type option struct {
+	width int
+	chars string
+}
 
-func WithWidth(v int) variadic.Option           { return variadic.Set(widthKey{}, v) }
-func getWidth(c variadic.Container) (int, bool) { return variadic.Get[int](c, widthKey{}) }
+type Option func(o *option)
 
-type charsKey struct{}
+func WithWidth(v int) Option        { return func(o *option) { o.width = v } }
+func WithChars(chars string) Option { return func(o *option) { o.chars = chars } }
 
-func WithChars(chars string) variadic.Option       { return variadic.Set(charsKey{}, chars) }
-func getChars(c variadic.Container) (string, bool) { return variadic.Get[string](c, charsKey{}) }
-
-// 默认长度 8
-func RandomName(opts ...variadic.Option) string {
-	iv := variadic.Compose(opts...)
-
-	width := 8
-	if w, ok := getWidth(iv); ok && w > 0 {
-		width = w
+func RandomName(opts ...Option) string {
+	o := option{
+		width: 8,
+		chars: upChars,
 	}
 
-	chars := upChars
-	if s, ok := getChars(iv); ok && s != "" {
-		chars = s
+	for _, opt := range opts {
+		opt(&o)
 	}
 
-	bytes := make([]byte, width)
+	bytes := make([]byte, o.width)
 	z.WithLock(r, func() {
 		for i := range bytes {
-			bytes[i] = chars[r.R.Intn(len(chars))]
+			bytes[i] = o.chars[r.R.Intn(len(o.chars))]
 		}
 	})
 	return string(bytes)

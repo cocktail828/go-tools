@@ -6,8 +6,7 @@ import (
 	"net"
 	"strconv"
 
-	"github.com/cocktail828/go-tools/pkg/nacs/configuration"
-	"github.com/cocktail828/go-tools/pkg/nacs/naming"
+	"github.com/cocktail828/go-tools/pkg/nacs"
 	"github.com/nacos-group/nacos-sdk-go/v2/clients"
 	"github.com/nacos-group/nacos-sdk-go/v2/clients/config_client"
 	"github.com/nacos-group/nacos-sdk-go/v2/clients/naming_client"
@@ -17,15 +16,15 @@ import (
 	"github.com/pkg/errors"
 )
 
-var _ naming.Registry = &nacosClient{}
-var _ configuration.Configor = &nacosClient{}
+var _ nacs.Registry = &nacosClient{}
+var _ nacs.Configor = &nacosClient{}
 
 type nacosClient struct {
 	namingClient naming_client.INamingClient
 	configClient config_client.IConfigClient
 }
 
-func NewNacosClient(namespaceID string, addrs []naming.Endpoint) (*nacosClient, error) {
+func NewNacosClient(namespaceID string, addrs []nacs.Endpoint) (*nacosClient, error) {
 	sc := make([]constant.ServerConfig, 0, len(addrs))
 	for _, ep := range addrs {
 		sc = append(sc, constant.ServerConfig{
@@ -84,7 +83,7 @@ func splitHostPort(addr string) (string, int, error) {
 	return host, _p, nil
 }
 
-func (r *nacosClient) Register(inst naming.Instance) error {
+func (r *nacosClient) Register(inst nacs.Instance) error {
 	host, port, err := splitHostPort(inst.Address)
 	if err != nil {
 		return err
@@ -113,7 +112,7 @@ func (r *nacosClient) Register(inst naming.Instance) error {
 	return nil
 }
 
-func (r *nacosClient) DeRegister(inst naming.Instance) error {
+func (r *nacosClient) DeRegister(inst nacs.Instance) error {
 	host, port, err := splitHostPort(inst.Address)
 	if err != nil {
 		return err
@@ -138,8 +137,8 @@ func (r *nacosClient) DeRegister(inst naming.Instance) error {
 	return nil
 }
 
-func toInstance(inst model.Instance) naming.Instance {
-	return naming.Instance{
+func toInstance(inst model.Instance) nacs.Instance {
+	return nacs.Instance{
 		Enable:   inst.Enable,
 		Cluster:  inst.ClusterName,
 		Healthy:  inst.Healthy,
@@ -149,7 +148,7 @@ func toInstance(inst model.Instance) naming.Instance {
 	}
 }
 
-func (r *nacosClient) Discover(svc naming.Service) ([]naming.Instance, error) {
+func (r *nacosClient) Discover(svc nacs.Service) ([]nacs.Instance, error) {
 	param := vo.SelectInstancesParam{
 		ServiceName: svc.Name,
 		GroupName:   svc.Group,
@@ -165,7 +164,7 @@ func (r *nacosClient) Discover(svc naming.Service) ([]naming.Instance, error) {
 		return nil, err
 	}
 
-	result := make([]naming.Instance, 0, len(instances))
+	result := make([]nacs.Instance, 0, len(instances))
 	for _, inst := range instances {
 		result = append(result, toInstance(inst))
 	}
@@ -173,7 +172,7 @@ func (r *nacosClient) Discover(svc naming.Service) ([]naming.Instance, error) {
 	return result, nil
 }
 
-func (r *nacosClient) Watch(svc naming.Service, callback func([]naming.Instance, error)) (context.CancelFunc, error) {
+func (r *nacosClient) Watch(svc nacs.Service, callback func([]nacs.Instance, error)) (context.CancelFunc, error) {
 	param := vo.SubscribeParam{
 		ServiceName: svc.Name,
 		GroupName:   svc.Group,
@@ -183,7 +182,7 @@ func (r *nacosClient) Watch(svc naming.Service, callback func([]naming.Instance,
 				return
 			}
 
-			result := make([]naming.Instance, 0, len(instances))
+			result := make([]nacs.Instance, 0, len(instances))
 			for _, inst := range instances {
 				result = append(result, toInstance(inst))
 			}
@@ -201,17 +200,32 @@ func (r *nacosClient) Watch(svc naming.Service, callback func([]naming.Instance,
 	}, r.namingClient.Subscribe(&param)
 }
 
-func normalize(cfg *configuration.Config) {
-	if cfg.Group == "" {
-		cfg.Group = "DEFAULT_GROUP" // 默认分组
+type GetOpt struct {
+	ID    string
+	Group string
+}
+
+func (o *GetOpt) Apply() {
+	if o.Group == "" {
+		o.Group = "DEFAULT_GROUP" // 默认分组
 	}
 }
 
-func (r *nacosClient) Get(cfg configuration.Config) ([]byte, error) {
-	normalize(&cfg)
+func (r *nacosClient) Get(opts ...nacs.GetOpt) ([]byte, error) {
+	var gopt *GetOpt
+	for _, o := range opts {
+		if o == nil {
+			continue
+		}
+		if ic, ok := o.(*GetOpt); ok {
+			gopt = ic
+		}
+	}
+	gopt.Apply()
+
 	content, err := r.configClient.GetConfig(vo.ConfigParam{
-		DataId: cfg.ID,
-		Group:  cfg.Group,
+		DataId: gopt.ID,
+		Group:  gopt.Group,
 	})
 	if err != nil {
 		return nil, err
@@ -220,45 +234,41 @@ func (r *nacosClient) Get(cfg configuration.Config) ([]byte, error) {
 	return []byte(content), nil
 }
 
-func (r *nacosClient) Set(cfg configuration.Config, payload []byte) error {
-	normalize(&cfg)
-	_, err := r.configClient.PublishConfig(vo.ConfigParam{
-		DataId:  cfg.ID,
-		Group:   cfg.Group,
-		Content: string(payload),
-	})
-	return err
+type MonitorOpt struct {
+	ID    string
+	Group string
 }
 
-func (r *nacosClient) Delete(cfg configuration.Config) error {
-	normalize(&cfg)
-	_, err := r.configClient.DeleteConfig(vo.ConfigParam{
-		DataId: cfg.ID,
-		Group:  cfg.Group,
-	})
-	return err
+func (o *MonitorOpt) Apply() {
+	if o.Group == "" {
+		o.Group = "DEFAULT_GROUP" // 默认分组
+	}
 }
 
-func (r *nacosClient) Monitor(cfg configuration.Config, listener configuration.Listener) (context.CancelFunc, error) {
-	normalize(&cfg)
-	err := r.configClient.ListenConfig(vo.ConfigParam{
-		DataId: cfg.ID,
-		Group:  cfg.Group,
-		OnChange: func(namespace, group, dataId, data string) {
-			listener(configuration.Config{
-				ID:    dataId,
-				Group: group,
-			}, []byte(data), nil)
-		},
-	})
-	if err != nil {
+func (r *nacosClient) Monitor(cb nacs.OnChange, opts ...nacs.MonitorOpt) (context.CancelFunc, error) {
+	var mopt *MonitorOpt
+	for _, o := range opts {
+		if o == nil {
+			continue
+		}
+		if ic, ok := o.(*MonitorOpt); ok {
+			mopt = ic
+		}
+	}
+	mopt.Apply()
+
+	if err := r.configClient.ListenConfig(vo.ConfigParam{
+		DataId:   mopt.ID,
+		Group:    mopt.Group,
+		OnChange: func(namespace, group, dataId, data string) { cb(nil) },
+	}); err != nil {
 		return nil, err
 	}
 
 	return func() {
 		r.configClient.CancelListenConfig(vo.ConfigParam{
-			DataId: cfg.ID,
-			Group:  cfg.Group,
+			DataId: mopt.ID,
+			Group:  mopt.Group,
 		})
 	}, nil
 }
