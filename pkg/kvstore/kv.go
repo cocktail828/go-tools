@@ -3,8 +3,6 @@ package kvstore
 import (
 	"context"
 	"errors"
-
-	"github.com/cocktail828/go-tools/z/variadic"
 )
 
 var (
@@ -33,17 +31,21 @@ type Event interface {
 	Type(i int) Type // PUT, DELETE
 }
 
+type SetOption interface{}
+type GetOption interface{}
+type DelOption interface{}
+type WatchOption interface{}
+
 // KV is the source from which config is loaded.
 type KV interface {
-	Set(ctx context.Context, key string, val []byte, opts ...variadic.Option) error
-	Get(ctx context.Context, key string, opts ...variadic.Option) (Result, error)
-	Del(ctx context.Context, key string, opts ...variadic.Option) error
-	Watch(ctx context.Context, opts ...variadic.Option) Watcher
+	Set(ctx context.Context, key string, val []byte, opts ...SetOption) error
+	Get(ctx context.Context, key string, opts ...GetOption) (Result, error)
+	Del(ctx context.Context, key string, opts ...DelOption) error
+	Watch(ctx context.Context, opts ...WatchOption) Watcher
 	Close() error
 	String() string
 }
 
-// Watcher watches a source for changes.
 type Watcher interface {
 	Next(ctx context.Context) (Event, error)
 	Stop() error

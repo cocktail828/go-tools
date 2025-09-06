@@ -58,7 +58,7 @@ func TestEtcdCount(t *testing.T) {
 	c := Case{Key: "a"}
 
 	assert.NoError(t, src.Set(context.TODO(), c.Key, []byte(c.Key)))
-	kv, err := src.Get(context.TODO(), c.Key, kvstore.Count(), kvstore.MatchPrefix())
+	kv, err := src.Get(context.TODO(), c.Key, WithCount(), WithMatchPrefix())
 	assert.NoError(t, err)
 	assert.EqualValues(t, CountResult{Num: 1}, kv)
 }
@@ -66,7 +66,7 @@ func TestEtcdCount(t *testing.T) {
 func TestEtcdTTL(t *testing.T) {
 	c := Case{Key: "a"}
 
-	assert.NoError(t, src.Set(context.TODO(), c.Key, []byte(c.Key), kvstore.TTL(1)))
+	assert.NoError(t, src.Set(context.TODO(), c.Key, []byte(c.Key), WithTTL(1)))
 	kv, err := src.Get(context.TODO(), c.Key)
 	assert.NoError(t, err)
 	assert.EqualValues(t, common.Result{Keys: []string{c.Key}, Values: [][]byte{[]byte(c.Key)}}, kv)
@@ -93,10 +93,10 @@ func TestEtcdKV(t *testing.T) {
 		})
 	}
 
-	kv, err := src.Get(context.TODO(), "a", kvstore.MatchPrefix())
+	kv, err := src.Get(context.TODO(), "a", WithMatchPrefix())
 	assert.NoError(t, err)
 	assert.EqualValues(t, cases.Convert(), kv)
-	assert.NoError(t, src.Del(context.TODO(), "a", kvstore.MatchPrefix()))
+	assert.NoError(t, src.Del(context.TODO(), "a", WithMatchPrefix()))
 }
 
 func TestEtcdWatchPrefix(t *testing.T) {
@@ -109,7 +109,7 @@ func TestEtcdWatchPrefix(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	w := src.Watch(ctx, kvstore.MatchPrefix())
+	w := src.Watch(ctx, WithMatchPrefix())
 	for _, c := range cases {
 		if c.IsPut {
 			assert.NoError(t, src.Set(context.TODO(), c.Key, []byte(c.Key)))

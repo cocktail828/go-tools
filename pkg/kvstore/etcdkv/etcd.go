@@ -8,8 +8,6 @@ import (
 
 	"github.com/cocktail828/go-tools/pkg/kvstore"
 	"github.com/cocktail828/go-tools/pkg/kvstore/common"
-	"github.com/cocktail828/go-tools/z/environ"
-	"github.com/cocktail828/go-tools/z/variadic"
 	clientv3 "go.etcd.io/etcd/client/v3"
 )
 
@@ -41,84 +39,55 @@ func (e *etcdKV) String() string {
 	return u.String()
 }
 
-func (e *etcdKV) Set(ctx context.Context, key string, val []byte, opts ...variadic.Option) (err error) {
+func (e *etcdKV) Set(ctx context.Context, key string, val []byte, opts ...kvstore.SetOption) error {
+	setopt := newEtcdSetOption(opts...)
 	options := []clientv3.OpOption{}
-	c := variadic.Compose(opts...)
-
 	var lease *clientv3.LeaseGrantResponse
-	if val := kvstore.GetTTL(c); val > 0 {
-		if lease, err = e.client.Grant(ctx, int64(val)); err != nil {
-			return err
-		}
-	}
+	var err error
 
-	if f := kvstore.GetKeepAlive(c); f != nil {
-		if lease == nil {
-			ttl := environ.Int64("ETCDKV_KEEPALIVE_TTL", environ.WithInt64(5))
-			if lease, err = e.client.Grant(ctx, ttl); err != nil {
-				return err
-			}
-		}
-
-		kaCtx, kaCancel := context.WithCancel(context.TODO())
-		keepAliveCh, err := e.client.KeepAlive(kaCtx, lease.ID)
+	if setopt.ttl > 0 {
+		lease, err = e.client.Grant(ctx, int64(setopt.ttl))
 		if err != nil {
-			kaCancel()
 			return err
 		}
-
-		go func() {
-			defer kaCancel()
-			if f == nil {
-				f = func(id, ttl int64, cancel func()) {}
-			}
-
-			for {
-				select {
-				case resp := <-keepAliveCh:
-					if resp == nil {
-						f(int64(lease.ID), 0, kaCancel)
-						return
-					}
-					f(int64(lease.ID), lease.TTL, kaCancel)
-				case <-kaCtx.Done():
-					f(int64(lease.ID), 0, kaCancel)
-					return
-				}
-			}
-		}()
-	}
-
-	if lease != nil {
 		options = append(options, clientv3.WithLease(lease.ID))
 	}
 
 	_, err = e.client.Put(ctx, path.Join(e.root, key), string(val), options...)
-	return err
+	if err != nil {
+		return err
+	}
+
+	if setopt.keepalive && lease != nil {
+		e.client.KeepAlive(ctx, lease.ID)
+	}
+
+	return nil
 }
 
-func (e *etcdKV) Get(ctx context.Context, key string, opts ...variadic.Option) (kvstore.Result, error) {
+func (e *etcdKV) Get(ctx context.Context, key string, opts ...kvstore.GetOption) (kvstore.Result, error) {
+	getopt := newEtcdGetOption(opts...)
 	options := []clientv3.OpOption{}
-	c := variadic.Compose(opts...)
-	if kvstore.GetMatchPrefix(c) {
+
+	if getopt.matchprefix {
 		options = append(options, clientv3.WithPrefix())
 	}
 
-	if kvstore.GetIgnoreLease(c) {
+	if getopt.ignorelease {
 		options = append(options, clientv3.WithIgnoreLease())
 	}
 
 	isCount := false
-	if kvstore.GetCount(c) || kvstore.GetKeyOnly(c) {
+	if getopt.count || getopt.keyonly {
 		isCount = true
 		options = append(options, clientv3.WithKeysOnly())
 	}
 
-	if val := kvstore.GetLimit(c); val > 0 {
-		options = append(options, clientv3.WithLimit(int64(val)))
+	if getopt.limit > 0 {
+		options = append(options, clientv3.WithLimit(int64(getopt.limit)))
 	}
 
-	if kvstore.GetFromKey(c) {
+	if getopt.fromKey {
 		options = append(options, clientv3.WithFromKey())
 	}
 
@@ -143,10 +112,10 @@ func (e *etcdKV) normlizeKey(key []byte) string {
 	return strings.TrimPrefix(string(key), e.root+"/")
 }
 
-func (e *etcdKV) Del(ctx context.Context, key string, opts ...variadic.Option) error {
+func (e *etcdKV) Del(ctx context.Context, key string, opts ...kvstore.DelOption) error {
 	options := []clientv3.OpOption{}
-	c := variadic.Compose(opts...)
-	if kvstore.GetMatchPrefix(c) {
+	delopt := newEtcdDelOption(opts...)
+	if delopt.prefix != "" {
 		options = append(options, clientv3.WithPrefix())
 	}
 
@@ -154,10 +123,10 @@ func (e *etcdKV) Del(ctx context.Context, key string, opts ...variadic.Option) e
 	return err
 }
 
-func (e *etcdKV) Watch(ctx context.Context, opts ...variadic.Option) kvstore.Watcher {
+func (e *etcdKV) Watch(ctx context.Context, opts ...kvstore.WatchOption) kvstore.Watcher {
 	options := []clientv3.OpOption{}
-	c := variadic.Compose(opts...)
-	if kvstore.GetMatchPrefix(c) {
+	watchopt := newEtcdWatchOption(opts...)
+	if watchopt.prefix != "" {
 		options = append(options, clientv3.WithPrefix())
 	}
 
