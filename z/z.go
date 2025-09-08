@@ -4,10 +4,19 @@ import (
 	"fmt"
 	"os"
 	"runtime"
+	"strconv"
 	"strings"
 
 	"github.com/cocktail828/go-tools/z/reflectx"
 )
+
+func GoroutineID() uint64 {
+	var buf [64]byte
+	n := runtime.Stack(buf[:], false)
+	idField := strings.Fields(strings.TrimPrefix(string(buf[:n]), "goroutine "))[0]
+	id, _ := strconv.ParseUint(idField, 10, 64)
+	return id
+}
 
 // Abort: main.main
 //   - Location:/root/github/go-tools/xlog/example/log.go:34 +0x48e649
