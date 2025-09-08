@@ -1,22 +1,13 @@
 package z
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"runtime"
 	"strings"
-	"sync"
 
 	"github.com/cocktail828/go-tools/z/reflectx"
 )
-
-func WithLock(locker sync.Locker, f func()) {
-	errors.Join()
-	locker.Lock()
-	defer locker.Unlock()
-	f()
-}
 
 // Abort: main.main
 //   - Location:/root/github/go-tools/xlog/example/log.go:34 +0x48e649

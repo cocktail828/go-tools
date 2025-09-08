@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/cocktail828/go-tools/algo/pool/driver"
-	"github.com/cocktail828/go-tools/z"
 	"github.com/pkg/errors"
 )
 
@@ -156,12 +155,12 @@ func (dc *driverConn) closeDBLocked() func() error {
 	}
 
 	closer := func() error { return nil }
-	z.WithLock(dc, func() {
-		if !dc.closed {
-			closer = dc.db.removeConnLocked(dc)
-		}
-		dc.closed = true
-	})
+	dc.Lock()
+	if !dc.closed {
+		closer = dc.db.removeConnLocked(dc)
+	}
+	dc.closed = true
+	dc.Unlock()
 	return closer
 }
 
@@ -239,9 +238,9 @@ func Open(driverName, dataSourceName string) (*DB, error) {
 func (db *DB) pingDC(ctx context.Context, dc *driverConn, release func(error)) error {
 	var err error
 	if pinger, ok := dc.ci.(driver.Pinger); ok {
-		z.WithLock(dc, func() {
-			err = pinger.Ping(ctx)
-		})
+		dc.Lock()
+		err = pinger.Ping(ctx)
+		dc.Unlock()
 	}
 	release(err)
 	return err
@@ -276,9 +275,9 @@ func (db *DB) Ping() error {
 
 func (db *DB) removeConnLocked(dc *driverConn) func() error {
 	return func() error {
-		z.WithLock(&db.mu, func() {
-			dc.db.numOpen--
-		})
+		db.mu.Lock()
+		dc.db.numOpen--
+		db.mu.Unlock()
 		return dc.ci.Close()
 	}
 }
@@ -946,15 +945,15 @@ func (db *DB) DoContext(ctx context.Context, f Handler) error {
 // The connection gets released by the releaseConn function.
 func (db *DB) doDC(ctx context.Context, dc *driverConn, releaseConn func(error), f Handler) error {
 	var err error
-	z.WithLock(dc, func() {
-		errchan := make(chan error, 1)
-		go func() { errchan <- f(dc.ci) }()
-		select {
-		case <-ctx.Done():
-			err = context.DeadlineExceeded
-		case err = <-errchan:
-		}
-	})
+	dc.Lock()
+	errchan := make(chan error, 1)
+	go func() { errchan <- f(dc.ci) }()
+	select {
+	case <-ctx.Done():
+		err = context.DeadlineExceeded
+	case err = <-errchan:
+	}
+	dc.Unlock()
 	releaseConn(err)
 	return err
 }

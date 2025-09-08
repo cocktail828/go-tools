@@ -4,8 +4,6 @@ import (
 	"math/rand"
 	"sync"
 	"time"
-
-	"github.com/cocktail828/go-tools/z"
 )
 
 func init() {
@@ -22,8 +20,9 @@ func NewRandom(array []Node) Balancer {
 }
 
 func (b *randomBalancer) Pick() (n Node) {
-	var array []Node
-	z.WithLock(b.mu.RLocker(), func() { array = b.array })
+	b.mu.RLock()
+	array := b.array
+	b.mu.RUnlock()
 
 	if len(array) == 0 {
 		return nil

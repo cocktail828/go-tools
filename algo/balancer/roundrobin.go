@@ -2,8 +2,6 @@ package balancer
 
 import (
 	"sync"
-
-	"github.com/cocktail828/go-tools/z"
 )
 
 type rrBalancer struct {
@@ -17,8 +15,9 @@ func NewRR(array []Node) Balancer {
 }
 
 func (b *rrBalancer) Pick() (n Node) {
-	var array []Node
-	z.WithLock(b.mu.RLocker(), func() { array = b.array })
+	b.mu.RLock()
+	array := b.array
+	b.mu.RUnlock()
 
 	if len(array) == 0 {
 		return nil

@@ -2,10 +2,9 @@ package stringx
 
 import (
 	"math/rand"
+	"strings"
 	"sync"
 	"time"
-
-	"github.com/cocktail828/go-tools/z"
 )
 
 type random struct {
@@ -38,11 +37,11 @@ func RandomName(opts ...Option) string {
 		opt(&o)
 	}
 
-	bytes := make([]byte, o.width)
-	z.WithLock(r, func() {
-		for i := range bytes {
-			bytes[i] = o.chars[r.R.Intn(len(o.chars))]
-		}
-	})
-	return string(bytes)
+	sb := strings.Builder{}
+	r.Lock()
+	defer r.Unlock()
+	for range o.width {
+		sb.WriteByte(o.chars[r.R.Intn(len(o.chars))])
+	}
+	return sb.String()
 }

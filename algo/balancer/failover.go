@@ -3,8 +3,6 @@ package balancer
 import (
 	"sync"
 	"sync/atomic"
-
-	"github.com/cocktail828/go-tools/z"
 )
 
 type failoverBalancer struct {
@@ -18,8 +16,9 @@ func NewFailover(array []Node) Balancer {
 }
 
 func (b *failoverBalancer) Pick() (n Node) {
-	var array []Node
-	z.WithLock(b.mu.RLocker(), func() { array = b.array })
+	b.mu.RLock()
+	array := b.array
+	b.mu.RUnlock()
 
 	for i := b.pos.Load(); i < uint32(len(array)); i++ {
 		n := array[i]
