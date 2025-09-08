@@ -1,6 +1,7 @@
 package z
 
 import (
+	"fmt"
 	"slices"
 	"testing"
 )
@@ -18,6 +19,6 @@ func TestZ(t *testing.T) {
 	a()
 }
 
-func c() { DumpStack(5) }
+func c() { fmt.Println(Stack(5)) }
 func b() { c() }
 func a() { b() }

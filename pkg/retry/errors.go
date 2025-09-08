@@ -31,7 +31,7 @@ func (e Error) Is(target error) bool {
 	return false
 }
 
-func (e Error) As(target interface{}) bool {
+func (e Error) As(target any) bool {
 	for _, v := range e {
 		if errors.As(v, target) {
 			return true

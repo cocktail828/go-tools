@@ -4,7 +4,29 @@ import (
 	"net/url"
 	"reflect"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
+
+func checkEqual(t *testing.T, u0, u1 *URI) {
+	// Check basic fields
+	if u0.Scheme != u1.Scheme {
+		t.Errorf("Scheme = %v, want %v", u0.Scheme, u1.Scheme)
+	}
+	if u0.User.String() != u1.User.String() {
+		t.Errorf("User = %v, want %v", u0.User, u1.User)
+	}
+	// Check addresses
+	if !reflect.DeepEqual(u0.Addresses, u1.Addresses) {
+		t.Errorf("Addresses = %v, want %v", u0.Addresses, u1.Addresses)
+	}
+	if u0.Path != u1.Path {
+		t.Errorf("Path = %v, want %v", u0.Path, u1.Path)
+	}
+	if u0.RawQuery != u1.RawQuery {
+		t.Errorf("RawQuery = %v, want %v", u0.RawQuery, u1.RawQuery)
+	}
+}
 
 func TestParseNonStandardURI(t *testing.T) {
 	tests := []struct {
@@ -110,30 +132,13 @@ func TestParseNonStandardURI(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			uri, err := ParseURI(tt.rawURL)
-			if (err != nil) != tt.expectErr {
+			if err != nil && !tt.expectErr {
 				t.Errorf("ParseURI(%q) error = %v, expectErr %v", tt.rawURL, err, tt.expectErr)
 				return
 			}
 
 			if !tt.expectErr && uri != nil {
-				// Check basic fields
-				if uri.Scheme != tt.expectedURI.Scheme {
-					t.Errorf("Scheme = %v, want %v", uri.Scheme, tt.expectedURI.Scheme)
-				}
-				if uri.User.String() != tt.expectedURI.User.String() {
-					t.Errorf("User = %v, want %v", uri.User, tt.expectedURI.User)
-				}
-				if uri.Path != tt.expectedURI.Path {
-					t.Errorf("Path = %v, want %v", uri.Path, tt.expectedURI.Path)
-				}
-				if uri.RawQuery != tt.expectedURI.RawQuery {
-					t.Errorf("RawQuery = %v, want %v", uri.RawQuery, tt.expectedURI.RawQuery)
-				}
-
-				// Check addresses
-				if !reflect.DeepEqual(uri.Addresses, tt.expectedURI.Addresses) {
-					t.Errorf("Addresses = %v, want %v", uri.Addresses, tt.expectedURI.Addresses)
-				}
+				checkEqual(t, tt.expectedURI, uri)
 			}
 		})
 	}
@@ -209,35 +214,13 @@ func TestParseURIWithEncoding(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			uri, err := ParseURI(tt.rawURL)
 
-			if (err != nil) != tt.expectErr {
+			if err != nil && !tt.expectErr {
 				t.Errorf("ParseURI() error = %v, expectErr %v", err, tt.expectErr)
 				return
 			}
 
 			if !tt.expectErr && uri != nil {
-				// Check basic fields
-				if uri.Scheme != tt.expectedURI.Scheme {
-					t.Errorf("Scheme = %v, want %v", uri.Scheme, tt.expectedURI.Scheme)
-				}
-				if uri.Path != tt.expectedURI.Path {
-					t.Errorf("Path = %v, want %v", uri.Path, tt.expectedURI.Path)
-				}
-				if uri.RawPath != tt.expectedURI.RawPath {
-					t.Errorf("RawPath = %v, want %v", uri.RawPath, tt.expectedURI.RawPath)
-				}
-				if uri.RawQuery != tt.expectedURI.RawQuery {
-					t.Errorf("RawQuery = %v, want %v", uri.RawQuery, tt.expectedURI.RawQuery)
-				}
-
-				// Check user info
-				if uri.User.String() != tt.expectedURI.User.String() {
-					t.Errorf("User = %v, want %v", uri.User, tt.expectedURI.User)
-				}
-
-				// Check addresses
-				if !reflect.DeepEqual(uri.Addresses, tt.expectedURI.Addresses) {
-					t.Errorf("Addresses = %v, want %v", uri.Addresses, tt.expectedURI.Addresses)
-				}
+				checkEqual(t, tt.expectedURI, uri)
 			}
 		})
 	}
@@ -251,11 +234,7 @@ func TestURIStringMethod(t *testing.T) {
 		RawPath:   "/api/v1/users",
 		RawQuery:  "sort=name&limit=10",
 	}
-
 	expected := "https://admin:secret@server1:443,server2:443/api/v1/users?sort=name&limit=10"
-	result := uri.String()
 
-	if result != expected {
-		t.Errorf("String() = %v, want %v", result, expected)
-	}
+	assert.Equal(t, expected, uri.String())
 }

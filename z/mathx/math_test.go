@@ -2,7 +2,6 @@ package mathx
 
 import (
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -38,29 +37,25 @@ func TestNumOfOnes(t *testing.T) {
 	}
 }
 
-func TestBase62(t *testing.T) {
-	n := time.Now().UnixNano()
-	assert.Equal(t, n, FromBase62(ToBase62(n)))
-}
-
 func TestCeilOf(t *testing.T) {
 	tests := []struct {
-		num, base, expt int64
+		num, base, floor, ceil int64
 	}{
-		{100, 10, 100},
-		{101, 10, 100},
-		{102, 10, 100},
-		{103, 10, 100},
-		{104, 10, 100},
-		{105, 10, 100},
-		{106, 10, 100},
-		{107, 10, 100},
-		{108, 10, 100},
-		{109, 10, 100},
-		{110, 10, 110},
+		{100, 10, 100, 100},
+		{101, 10, 100, 110},
+		{102, 10, 100, 110},
+		{103, 10, 100, 110},
+		{104, 10, 100, 110},
+		{105, 10, 100, 110},
+		{106, 10, 100, 110},
+		{107, 10, 100, 110},
+		{108, 10, 100, 110},
+		{109, 10, 100, 110},
+		{110, 10, 110, 110},
 	}
 
 	for _, tt := range tests {
-		assert.Equal(t, tt.expt, CeilOf(tt.num, tt.base))
+		assert.Equal(t, tt.floor, Floor(tt.num, tt.base), "num=%v, base=%v", tt.num, tt.base)
+		assert.Equal(t, tt.ceil, Ceil(tt.num, tt.base), "num=%v, base=%v", tt.num, tt.base)
 	}
 }

@@ -166,16 +166,16 @@ func Unmarshal(data []byte, v any) error {
 	return nil
 }
 
-type Decoder struct {
+type xCodec struct {
 	r io.Reader
 }
 
-func NewDecoder(r io.Reader) *Decoder {
-	return &Decoder{r: r}
+func NewDecoder(r io.Reader) *xCodec {
+	return &xCodec{r: r}
 }
 
-func (dec *Decoder) Decode(v any) error {
-	data, err := io.ReadAll(dec.r)
+func (c *xCodec) Decode(v any) error {
+	data, err := io.ReadAll(c.r)
 	if err != nil {
 		return err
 	}

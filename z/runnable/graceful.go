@@ -17,7 +17,12 @@ func (g *Graceful) GoContext(ctx context.Context) error {
 		g.Stop = func() error { return nil }
 	}
 
-	go func() { resultCh <- g.Start(ctx) }()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+		go func() { resultCh <- g.Start(ctx) }()
+	}
 	return errors.Join(<-resultCh, g.Stop())
 }
 

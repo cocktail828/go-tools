@@ -41,7 +41,7 @@ func NewWriter(cfg xlog.Config) io.Writer {
 
 	if cfg.Async {
 		bufsize := MinBufSize
-		if val := int(environ.Int64("XLOG_BUF_SIZE")); val > MinBufSize {
+		if val := int(environ.Int("XLOG_BUF_SIZE")); val > MinBufSize {
 			bufsize = val
 		}
 		w = &bufferWriter{

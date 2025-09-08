@@ -24,7 +24,7 @@ type option struct {
 	intVal   int64
 }
 
-func apply(opts ...Option) *option {
+func compose(opts ...Option) *option {
 	o := &option{}
 	for _, opt := range opts {
 		opt(o)
@@ -34,10 +34,10 @@ func apply(opts ...Option) *option {
 
 type Option func(o *option)
 
-func WithBool(v bool) Option       { return func(o *option) { o.boolVal = v } }
-func WithString(v string) Option   { return func(o *option) { o.strVal = v } }
-func WithFloat64(v float64) Option { return func(o *option) { o.floatVal = v } }
-func WithInt64(v int64) Option     { return func(o *option) { o.intVal = v } }
+func WithBool(v bool) Option     { return func(o *option) { o.boolVal = v } }
+func WithString(v string) Option { return func(o *option) { o.strVal = v } }
+func WithFloat(v float64) Option { return func(o *option) { o.floatVal = v } }
+func WithInt(v int64) Option     { return func(o *option) { o.intVal = v } }
 
 func parseValue[T any](name string, parseFunc func(string) (T, error), defaultValue T) T {
 	if name == "" || name == "-" {
@@ -56,23 +56,23 @@ func parseValue[T any](name string, parseFunc func(string) (T, error), defaultVa
 func String(name string, opts ...Option) string {
 	return parseValue(name, func(s string) (string, error) {
 		return s, nil
-	}, apply(opts...).strVal)
+	}, compose(opts...).strVal)
 }
 
-func Float64(name string, opts ...Option) float64 {
+func Float(name string, opts ...Option) float64 {
 	return parseValue(name, func(s string) (float64, error) {
 		v, err := strconv.ParseFloat(s, 64)
 		return v, err
-	}, apply(opts...).floatVal)
+	}, compose(opts...).floatVal)
 }
 
-func Int64(name string, opts ...Option) int64 {
+func Int(name string, opts ...Option) int64 {
 	return parseValue(name, func(s string) (int64, error) {
 		return strconv.ParseInt(s, 0, 64)
-	}, apply(opts...).intVal)
+	}, compose(opts...).intVal)
 }
 
 // load bool env loosely, accept "true", "false", "0", and non-zero digits
 func Bool(name string, opts ...Option) bool {
-	return parseValue(name, strconv.ParseBool, apply(opts...).boolVal)
+	return parseValue(name, strconv.ParseBool, compose(opts...).boolVal)
 }

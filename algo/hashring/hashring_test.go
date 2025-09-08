@@ -80,7 +80,6 @@ func TestHashRing_Func(t *testing.T) {
 	f := func(name string, fn HashFunc) {
 		t.Run(name, func(t *testing.T) {
 			hring := New(WithHash(fn))
-			// 添加节点实例
 			hring.AddMany(map[string]int{
 				"xspark13b6k1": 1,
 				"xspark13b6k2": 1,
@@ -107,9 +106,7 @@ func TestHashRing_Func(t *testing.T) {
 }
 
 func TestHashRingX(t *testing.T) {
-	// 新建 hash 实例
 	hring := New(WithHash(Sha256), WithVirtualSpots(100))
-	// 添加节点实例
 	hring.AddMany(map[string]int{
 		"xspark13b6k1": 1,
 		"xspark13b6k2": 1,
@@ -117,7 +114,7 @@ func TestHashRingX(t *testing.T) {
 	})
 
 	v := hring.Get(patchids[0])
-	for i := 0; i < 10000; i++ {
+	for range 10000 {
 		if v != hring.Get(patchids[0]) {
 			panic("not equal")
 		}

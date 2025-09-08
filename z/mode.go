@@ -14,7 +14,7 @@ const (
 
 var (
 	// indicates environment name for work mode
-	mode = Mode(environ.String("MODE", environ.WithString(string(Release))))
+	mode = Mode(environ.String("XMODE", environ.WithString(string(Release))))
 )
 
 func SetMode(m Mode) { mode = m }

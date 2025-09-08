@@ -5,7 +5,7 @@ import (
 	"unsafe"
 )
 
-func IsNil(obj interface{}) bool {
+func IsNil(obj any) bool {
 	if obj == nil {
 		return true
 	}

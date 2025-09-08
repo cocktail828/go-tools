@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	//DefaultVirualSpots default virual spots
+	// DefaultVirualSpots default virual spots
 	DefaultVirualSpots = 300
 )
 

@@ -75,10 +75,14 @@ func Mustf(err error, format string, args ...any) {
 	os.Exit(1)
 }
 
-func DumpStack(depth int) {
+func Stack(depth int) string {
 	pc := make([]uintptr, depth)
 	n := runtime.Callers(2, pc)
 	pc = pc[:n]
+
+	if n == 0 {
+		return ""
+	}
 
 	sb := strings.Builder{}
 	frames := runtime.CallersFrames(pc)
@@ -89,5 +93,5 @@ func DumpStack(depth int) {
 			break
 		}
 	}
-	fmt.Print(sb.String())
+	return sb.String()
 }

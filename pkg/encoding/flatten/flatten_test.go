@@ -35,17 +35,17 @@ var (
 )
 
 type MyStruct struct {
-	AppID    *string           `flatten:"common.app_id"`
-	UserID   *string           `flatten:"common.user_id"`
-	Age      *int              `flatten:"common.age"`
-	Height   *float64          `flatten:"common.height"`
-	Width    *float32          `flatten:"common.width"`
-	IsActive *bool             `flatten:"common.is_active"`
-	ResIDs   []string          `flatten:"business.res_ids"`
-	Scores   []int             `flatten:"business.scores"`
-	Flags    []*bool           `flatten:"business.flags"`
-	ByPass0  map[string]string `flatten:"business.bypass0"`
-	ByPass1  map[string]int    `flatten:"business.bypass1"`
+	AppID    *string           `flatten:"common.app_id" json:"common.app_id"`
+	UserID   *string           `flatten:"common.user_id" json:"common.user_id"`
+	Age      *int              `flatten:"common.age" json:"common.age"`
+	Height   *float64          `flatten:"common.height" json:"common.height"`
+	Width    *float32          `flatten:"common.width" json:"common.width"`
+	IsActive *bool             `flatten:"common.is_active" json:"common.is_active"`
+	ResIDs   []string          `flatten:"business.res_ids" json:"business.res_ids"`
+	Scores   []int             `flatten:"business.scores" json:"business.scores"`
+	Flags    []*bool           `flatten:"business.flags" json:"business.flags"`
+	ByPass0  map[string]string `flatten:"business.bypass0" json:"business.bypass0"`
+	ByPass1  map[string]int    `flatten:"business.bypass1" json:"business.bypass1"`
 }
 
 func TestUnmarshal(t *testing.T) {
@@ -65,7 +65,7 @@ func TestUnmarshal(t *testing.T) {
 	assert.EqualValues(t, map[string]int{"a0": 1, "a1": 1}, result.ByPass1)
 }
 
-func BenchmarkJsonx(b *testing.B) {
+func BenchmarkFlatten(b *testing.B) {
 	b.RunParallel(func(p *testing.PB) {
 		for p.Next() {
 			var result MyStruct
