@@ -19,15 +19,20 @@ type locker struct {
 }
 
 func (l *locker) Lock() {
-	l.holders.Store(l.id, time.Now())
+	if l.OnRelease != nil {
+		l.holders.Store(l.id, time.Now())
+	}
+
 	l.Locker.Lock()
 }
 
 func (l *locker) Unlock() {
 	l.Locker.Unlock()
-	start, ok := l.holders.LoadAndDelete(l.id)
-	if ok && l.OnRelease != nil {
-		l.OnRelease(l.id, time.Since(start.(time.Time)))
+
+	if l.OnRelease != nil {
+		if start, ok := l.holders.LoadAndDelete(l.id); ok {
+			l.OnRelease(l.id, time.Since(start.(time.Time)))
+		}
 	}
 }
 
