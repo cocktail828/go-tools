@@ -37,7 +37,7 @@ func TestErrorify(t *testing.T) {
 	assert.True(t, errors.Is(err, io.ErrClosedPipe))
 	assert.False(t, errors.Is(err, net.ErrClosed))
 
-	var e *Error
+	var e *wrapError
 	if assert.True(t, errors.As(err, &e)) {
 		assert.EqualValues(t, io.ErrClosedPipe, e.Cause())
 		assert.EqualValues(t, GeneralXrr7.Code(), e.Code())

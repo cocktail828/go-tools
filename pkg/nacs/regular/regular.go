@@ -2,11 +2,11 @@ package regular
 
 import (
 	"context"
+	stderr "errors"
 	"os"
 	"sync"
 
 	"github.com/cocktail828/go-tools/pkg/nacs"
-	"github.com/cocktail828/go-tools/z"
 	"github.com/pkg/errors"
 	"gopkg.in/fsnotify.v1"
 )
@@ -81,7 +81,7 @@ func (f *fileConfigor) Monitor(cb nacs.OnChange, opts ...nacs.MonitorOpt) (conte
 		}
 		return true
 	})
-	if err := z.Join(errs...); err != nil {
+	if err := stderr.Join(errs...); err != nil {
 		return nil, errors.Errorf("failed to watch file: %v", err)
 	}
 

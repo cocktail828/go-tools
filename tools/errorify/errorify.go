@@ -575,53 +575,53 @@ const stringFuncs = `func (i %[1]s) Code() uint32 {
 }
 
 func (i %[1]s) With(err error) error {
-	return &Error{i, err}
+	return &wrapError{i, err}
 }
 
 func (i %[1]s) Wrap(err error, message string) error {
-	return &Error{i, errors.Wrap(err, message)}
+	return &wrapError{i, errors.Wrap(err, message)}
 }
 
 func (i %[1]s) Wrapf(err error, format string, args ...any) error {
-	return &Error{i, errors.Wrapf(err, format, args...)}
+	return &wrapError{i, errors.Wrapf(err, format, args...)}
 }
 
 func (i %[1]s) WithMessage(message string) error {
-	return &Error{i, errors.New(message)}
+	return &wrapError{i, errors.New(message)}
 }
 
 func (i %[1]s) WithMessagef(format string, args ...any) error {
-	return &Error{i, errors.Errorf(format, args...)}
+	return &wrapError{i, errors.Errorf(format, args...)}
 }
 
-type Error struct {
+type wrapError struct {
 	ec %[1]s
 	cause error
 }
 
-func (e *Error) Error() string {
+func (e *wrapError) Error() string {
 	if e.cause == nil || e.Code() == 0 {
 		return "" // success
 	}
 	return fmt.Sprintf("%[2]s", e.Code(), e.Desc(), e.cause)
 }
 
-func (e *Error) Code() uint32 {
+func (e *wrapError) Code() uint32 {
 	return e.ec.Code()
 }
 
-func (e *Error) Desc() string {
+func (e *wrapError) Desc() string {
 	return e.ec.Desc()
 }
 
-func (e *Error) Cause() error {
+func (e *wrapError) Cause() error {
 	return errors.Cause(e.cause)
 }
 
 // Unwrap provides compatibility for Go 1.13 error chains.
-func (e *Error) Unwrap() error { return e.cause }
+func (e *wrapError) Unwrap() error { return e.cause }
 
-func (e *Error) Format(s fmt.State, verb rune) {
+func (e *wrapError) Format(s fmt.State, verb rune) {
 	switch verb {
 	case 'v':
 		if s.Flag('+') {
