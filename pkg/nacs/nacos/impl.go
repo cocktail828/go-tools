@@ -200,32 +200,36 @@ func (r *nacosClient) Watch(svc nacs.Service, callback func([]nacs.Instance, err
 	}, r.namingClient.Subscribe(&param)
 }
 
-type GetOpt struct {
+type nacosLoadOpt struct {
 	ID    string
 	Group string
 }
 
-func (o *GetOpt) Apply() {
-	if o.Group == "" {
-		o.Group = "DEFAULT_GROUP" // 默认分组
+func WithLoadID(id string) nacs.LoadOpt {
+	return func(o any) {
+		if f, ok := o.(*nacosLoadOpt); ok {
+			f.ID = id
+		}
 	}
 }
 
-func (r *nacosClient) Get(opts ...nacs.GetOpt) ([]byte, error) {
-	var gopt *GetOpt
-	for _, o := range opts {
-		if o == nil {
-			continue
-		}
-		if ic, ok := o.(*GetOpt); ok {
-			gopt = ic
+func WithLoadGroup(group string) nacs.LoadOpt {
+	return func(o any) {
+		if f, ok := o.(*nacosLoadOpt); ok {
+			f.Group = group
 		}
 	}
-	gopt.Apply()
+}
+
+func (r *nacosClient) Load(opts ...nacs.LoadOpt) ([]byte, error) {
+	nlo := nacosLoadOpt{Group: "DEFAULT_GROUP"}
+	for _, o := range opts {
+		o(&nlo)
+	}
 
 	content, err := r.configClient.GetConfig(vo.ConfigParam{
-		DataId: gopt.ID,
-		Group:  gopt.Group,
+		DataId: nlo.ID,
+		Group:  nlo.Group,
 	})
 	if err != nil {
 		return nil, err
@@ -234,32 +238,36 @@ func (r *nacosClient) Get(opts ...nacs.GetOpt) ([]byte, error) {
 	return []byte(content), nil
 }
 
-type MonitorOpt struct {
+type nacosMonitorOpt struct {
 	ID    string
 	Group string
 }
 
-func (o *MonitorOpt) Apply() {
-	if o.Group == "" {
-		o.Group = "DEFAULT_GROUP" // 默认分组
+func WithMonitorID(id string) nacs.MonitorOpt {
+	return func(o any) {
+		if f, ok := o.(*nacosMonitorOpt); ok {
+			f.ID = id
+		}
+	}
+}
+
+func WithMonitorGroup(group string) nacs.MonitorOpt {
+	return func(o any) {
+		if f, ok := o.(*nacosMonitorOpt); ok {
+			f.Group = group
+		}
 	}
 }
 
 func (r *nacosClient) Monitor(cb nacs.OnChange, opts ...nacs.MonitorOpt) (context.CancelFunc, error) {
-	var mopt *MonitorOpt
+	nmo := nacosMonitorOpt{Group: "DEFAULT_GROUP"}
 	for _, o := range opts {
-		if o == nil {
-			continue
-		}
-		if ic, ok := o.(*MonitorOpt); ok {
-			mopt = ic
-		}
+		o(&nmo)
 	}
-	mopt.Apply()
 
 	if err := r.configClient.ListenConfig(vo.ConfigParam{
-		DataId:   mopt.ID,
-		Group:    mopt.Group,
+		DataId:   nmo.ID,
+		Group:    nmo.Group,
 		OnChange: func(namespace, group, dataId, data string) { cb(nil) },
 	}); err != nil {
 		return nil, err
@@ -267,8 +275,8 @@ func (r *nacosClient) Monitor(cb nacs.OnChange, opts ...nacs.MonitorOpt) (contex
 
 	return func() {
 		r.configClient.CancelListenConfig(vo.ConfigParam{
-			DataId: mopt.ID,
-			Group:  mopt.Group,
+			DataId: nmo.ID,
+			Group:  nmo.Group,
 		})
 	}, nil
 }

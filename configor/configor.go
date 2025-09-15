@@ -141,4 +141,3 @@ func (c *Configor) LoadWithUnmarshaller(v any, pairs ...Pair) error {
 	}
 	return nil
 }
-

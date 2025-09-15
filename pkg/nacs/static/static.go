@@ -16,7 +16,7 @@ func NewStaticConfigor(payload []byte) nacs.Configor {
 	}
 }
 
-func (s *staticConfigor) Get(opts ...nacs.GetOpt) ([]byte, error) {
+func (s *staticConfigor) Load(opts ...nacs.LoadOpt) ([]byte, error) {
 	return s.payload, nil
 }
 

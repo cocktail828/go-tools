@@ -42,26 +42,31 @@ func (f *fileConfigor) loadConfigLocked(fpath string) error {
 	return nil
 }
 
-type FileName string
+type regularLoadOpt struct {
+	fpath string
+}
 
-func (o FileName) Apply() {}
-
-func (f *fileConfigor) Get(opts ...nacs.GetOpt) ([]byte, error) {
-	var fpath FileName
-	for _, o := range opts {
-		o.Apply()
-		if f, ok := o.(FileName); ok {
-			fpath = f
+func FileName(v string) nacs.LoadOpt {
+	return func(o any) {
+		if f, ok := o.(*regularLoadOpt); ok {
+			f.fpath = v
 		}
 	}
+}
 
-	if fpath == "" {
+func (f *fileConfigor) Load(opts ...nacs.LoadOpt) ([]byte, error) {
+	var ro regularLoadOpt
+	for _, o := range opts {
+		o(&ro)
+	}
+
+	if ro.fpath == "" {
 		return nil, errors.New("invalid get opt")
 	}
 
-	value, ok := f.configs.Load(string(fpath))
+	value, ok := f.configs.Load(ro.fpath)
 	if !ok {
-		return nil, errors.Errorf("config %s not found", fpath)
+		return nil, errors.Errorf("config %s not found", ro.fpath)
 	}
 
 	return value.([]byte), nil

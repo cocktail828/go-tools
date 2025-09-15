@@ -2,12 +2,12 @@ package nacs
 
 import "context"
 
-type GetOpt interface{ Apply() }
-type MonitorOpt interface{ Apply() }
+type LoadOpt func(any)
+type MonitorOpt func(any)
 type OnChange func(error)
 
 type Configor interface {
-	Get(opts ...GetOpt) ([]byte, error)
+	Load(opts ...LoadOpt) ([]byte, error)
 	Monitor(cb OnChange, opts ...MonitorOpt) (context.CancelFunc, error)
 	Close() error
 }

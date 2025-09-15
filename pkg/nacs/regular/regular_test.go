@@ -20,9 +20,9 @@ func TestRegular(t *testing.T) {
 	z.Must(err)
 	defer configor.Close()
 
-	value, err := configor.Get(FileName(tempFilePath))
+	value, err := configor.Load(FileName(tempFilePath))
 	z.Must(err)
-	assert.Equal(t, string(data), string(value), "Read content should match initial content")
+	assert.Equal(t, string(data), string(value), "Load content should match initial content")
 
 	// monitor
 	data = []byte("updated_value")
@@ -30,9 +30,9 @@ func TestRegular(t *testing.T) {
 	_, err = configor.Monitor(func(err error) {
 		assert.NoError(t, err, "Monitor callback should not return error")
 
-		value, err := configor.Get(FileName(tempFilePath))
+		value, err := configor.Load(FileName(tempFilePath))
 		z.Must(err)
-		assert.Equal(t, string(data), string(value), "Read content should match initial content")
+		assert.Equal(t, string(data), string(value), "Load content should match initial content")
 		cancel()
 	})
 	z.Must(err)
