@@ -2,28 +2,42 @@ package runnable
 
 import (
 	"context"
-	"errors"
 	"time"
+
+	"github.com/pkg/errors"
 )
 
+var errNop = errors.New("nop")
+
 type Graceful struct {
-	Start func(context.Context) error
-	Stop  func() error
+	Start func(context.Context) error // cannot be nil
+	Stop  func()                      // stop should always success
 }
 
-func (g *Graceful) GoContext(ctx context.Context) error {
-	resultCh := make(chan error, 1)
+func (g *Graceful) GoContext(inCtx context.Context) error {
 	if g.Stop == nil {
-		g.Stop = func() error { return nil }
+		g.Stop = func() {}
 	}
 
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	default:
-		go func() { resultCh <- g.Start(ctx) }()
+	ctx, cancel := context.WithCancelCause(inCtx)
+	go func() {
+		if err := g.Start(ctx); err != nil {
+			cancel(err)
+		} else {
+			cancel(errNop)
+		}
+	}()
+
+	// the following will block until context canceled or g.Start return error
+	<-ctx.Done()
+
+	// explicitly call the Stop function to ensure g.Start returns when the context is canceled
+	g.Stop()
+
+	if err := context.Cause(ctx); err != errNop {
+		return err
 	}
-	return errors.Join(<-resultCh, g.Stop())
+	return nil
 }
 
 func (g *Graceful) Go() error {
