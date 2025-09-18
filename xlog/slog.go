@@ -6,7 +6,6 @@ import (
 	"io"
 	"log/slog"
 	"runtime"
-	"sync"
 	"time"
 )
 
@@ -49,26 +48,6 @@ func (wl *WrapperLogger) WithGroup(name string) Logger {
 	}
 }
 
-// reuse record to avoid alloc
-var recordPool = sync.Pool{
-	New: func() any {
-		return &slog.Record{}
-	},
-}
-
-func newRecord(t time.Time, level slog.Level, msg string, pc uintptr) *slog.Record {
-	r := recordPool.Get().(*slog.Record)
-	r.Time = t
-	r.Level = level
-	r.Message = msg
-	r.PC = pc
-	return r
-}
-
-func putRecord(r *slog.Record) {
-	recordPool.Put(r)
-}
-
 func (wl *WrapperLogger) log(level slog.Level, msg string, args ...any) {
 	if !wl.logger.Enabled(context.Background(), level) {
 		return
@@ -81,58 +60,39 @@ func (wl *WrapperLogger) log(level slog.Level, msg string, args ...any) {
 		pc = pcs[0]
 	}
 
-	r := newRecord(time.Now(), level, msg, pc)
-	defer putRecord(r)
+	r := slog.NewRecord(time.Now(), level, msg, pc)
 	r.Add(args...)
-	wl.logger.Handler().Handle(context.Background(), *r)
-}
-
-func (wl *WrapperLogger) logf(level slog.Level, format string, args ...any) {
-	if !wl.logger.Enabled(context.Background(), level) {
-		return
-	}
-	var pc uintptr
-	if wl.AddSource {
-		var pcs [1]uintptr
-		// skip [runtime.Callers, this function, this function's caller]
-		runtime.Callers(3, pcs[:])
-		pc = pcs[0]
-	}
-
-	r := newRecord(time.Now(), level, fmt.Sprintf(format, args...), pc)
-	defer putRecord(r)
-	r.Add(args...)
-	wl.logger.Handler().Handle(context.Background(), *r)
+	wl.logger.Handler().Handle(context.Background(), r)
 }
 
 func (wl *WrapperLogger) Debugln(msg string, args ...any) {
 	wl.log(slog.LevelDebug, msg, args...)
 }
 
-func (wl *WrapperLogger) Debugf(format string, args ...any) {
-	wl.logf(slog.LevelDebug, format, args...)
+func (wl *WrapperLogger) Debugf(msg string, format string, args ...any) {
+	wl.log(slog.LevelDebug, msg, "detail", fmt.Sprintf(format, args...))
 }
 
 func (wl *WrapperLogger) Infoln(msg string, args ...any) {
 	wl.log(slog.LevelInfo, msg, args...)
 }
 
-func (wl *WrapperLogger) Infof(format string, args ...any) {
-	wl.logf(slog.LevelInfo, format, args...)
+func (wl *WrapperLogger) Infof(msg string, format string, args ...any) {
+	wl.log(slog.LevelInfo, msg, "detail", fmt.Sprintf(format, args...))
 }
 
 func (wl *WrapperLogger) Warnln(msg string, args ...any) {
 	wl.log(slog.LevelWarn, msg, args...)
 }
 
-func (wl *WrapperLogger) Warnf(format string, args ...any) {
-	wl.logf(slog.LevelWarn, format, args...)
+func (wl *WrapperLogger) Warnf(msg string, format string, args ...any) {
+	wl.log(slog.LevelWarn, msg, "detail", fmt.Sprintf(format, args...))
 }
 
 func (wl *WrapperLogger) Errorln(msg string, args ...any) {
 	wl.log(slog.LevelError, msg, args...)
 }
 
-func (wl *WrapperLogger) Errorf(format string, args ...any) {
-	wl.logf(slog.LevelError, format, args...)
+func (wl *WrapperLogger) Errorf(msg string, format string, args ...any) {
+	wl.log(slog.LevelError, msg, "detail", fmt.Sprintf(format, args...))
 }

@@ -39,13 +39,13 @@ type Logger interface {
 	With(args ...any) Logger
 	WithGroup(name string) Logger
 
-	Debugf(format string, args ...any)
+	Debugf(msg string, format string, args ...any)
 	Debugln(msg string, args ...any)
-	Infof(format string, args ...any)
+	Infof(msg string, format string, args ...any)
 	Infoln(msg string, args ...any)
-	Warnf(format string, args ...any)
+	Warnf(msg string, format string, args ...any)
 	Warnln(msg string, args ...any)
-	Errorf(format string, args ...any)
+	Errorf(msg string, format string, args ...any)
 	Errorln(msg string, args ...any)
 }
 
