@@ -18,6 +18,16 @@ type Decoder interface {
 	Decode([]byte) ([]byte, error)
 }
 
+type NopCodec struct{}
+
+func (NopCodec) Encode(s []byte) ([]byte, error) {
+	return s, nil
+}
+
+func (NopCodec) Decode(s []byte) ([]byte, error) {
+	return s, nil
+}
+
 type md5Encoder struct{}
 
 func NewMD5Encoder() Encoder {
