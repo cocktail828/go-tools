@@ -16,8 +16,8 @@ type Configor struct {
 }
 
 type Pair struct {
-	data         []byte
-	unmarshaller func([]byte, any) error
+	Data         []byte
+	Unmarshaller func([]byte, any) error
 }
 
 func (c *Configor) bindEnv(in any) error {
@@ -117,7 +117,7 @@ func (c *Configor) Load(v any, data ...[]byte) error {
 
 func (c *Configor) LoadWithUnmarshaller(v any, pairs ...Pair) error {
 	for i, d := range pairs {
-		if d.unmarshaller == nil {
+		if d.Unmarshaller == nil {
 			return errors.Errorf("unmarshaller is nil at index %d", i)
 		}
 	}
@@ -131,7 +131,7 @@ func (c *Configor) LoadWithUnmarshaller(v any, pairs ...Pair) error {
 	}
 
 	for _, p := range pairs {
-		if err := p.unmarshaller(p.data, v); err != nil {
+		if err := p.Unmarshaller(p.Data, v); err != nil {
 			return err
 		}
 	}
