@@ -9,8 +9,8 @@ import (
 
     "github.com/gin-gonic/gin"
 	"github.com/cocktail828/go-tools/configor"
-	"github.com/cocktail828/go-tools/pkg/nacs/configuration"
-	"github.com/cocktail828/go-tools/pkg/nacs/impl/regular"
+	"github.com/cocktail828/go-tools/pkg/nacs"
+	"github.com/cocktail828/go-tools/pkg/nacs/regular"
 
 	"{{ .project}}/config"
     "{{ .project}}/handler"
@@ -20,14 +20,14 @@ import (
 func main() {
 	/* load config from file */
 	log.Printf("about to load config")
-	cfgor, err := regular.NewFileConfigor( /* the config dir */ "./", regular.WithSuffix(".toml"))
+	cfgor, err := regular.NewFileConfigor( /* the config dir */ "xxx.toml")
 	if err != nil {
 		log.Fatalf("load config fail: %v", err)
 	}
 
-	payload, err := cfgor.Get(configuration.Config{ID: "server.toml"})
+	payload, err := cfgor.Load(nacs.Config{ID: "server.toml"})
 	if err != nil {
-		log.Fatalf("regular.Get() config fail: %v", err)
+		log.Fatalf("regular.Load() config fail: %v", err)
 	}
 
 	cfg := config.Config{}
