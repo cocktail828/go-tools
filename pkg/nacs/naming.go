@@ -40,8 +40,3 @@ type Registry interface {
 
 	Close() error
 }
-
-type Endpoint struct {
-	IP   string
-	Port uint16
-}

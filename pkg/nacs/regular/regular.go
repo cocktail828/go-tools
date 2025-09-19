@@ -3,10 +3,12 @@ package regular
 import (
 	"context"
 	stderr "errors"
+	"net/url"
 	"os"
 	"sync"
 
 	"github.com/cocktail828/go-tools/pkg/nacs"
+	"github.com/cocktail828/go-tools/pkg/netx"
 	"github.com/pkg/errors"
 	"gopkg.in/fsnotify.v1"
 )
@@ -17,7 +19,26 @@ type fileConfigor struct {
 	configs sync.Map
 }
 
-func NewFileConfigor(fpaths ...string) (nacs.Configor, error) {
+// regular://localhost?file=path1&file=path2
+func NewFileConfigor(uris ...string) (nacs.Configor, error) {
+	if len(uris) == 0 {
+		return nil, errors.New("uris argument is empty")
+	}
+
+	fpaths := []string{}
+	for _, f := range uris {
+		u, err := netx.ParseRI(f)
+		if err != nil {
+			return nil, err
+		}
+
+		query, err := url.ParseQuery(u.Query)
+		if err != nil {
+			return nil, err
+		}
+		fpaths = append(fpaths, query["file"]...)
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 	fc := fileConfigor{
 		rctx:    ctx,

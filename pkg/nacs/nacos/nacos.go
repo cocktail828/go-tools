@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"net/url"
 	"strconv"
 
 	"github.com/cocktail828/go-tools/pkg/nacs"
@@ -24,23 +25,36 @@ type nacosClient struct {
 	configClient config_client.IConfigClient
 }
 
-func NewNacosClient(namespaceID string, addrs []nacs.Endpoint) (*nacosClient, error) {
-	sc := make([]constant.ServerConfig, 0, len(addrs))
-	for _, ep := range addrs {
-		sc = append(sc, constant.ServerConfig{
-			IpAddr: ep.IP,
-			Port:   uint64(ep.Port), // Nacos 默认端口
-		})
+// nacos://$user:$password@$host:$port/$namespace
+func NewNacosClient(uri string) (*nacosClient, error) {
+	u, err := url.ParseRequestURI(uri)
+	if err != nil {
+		return nil, err
+	}
+
+	namespaceID := u.Query().Get("namespace")
+	if namespaceID == "" {
+		namespaceID = constant.DEFAULT_NAMESPACE_ID
 	}
 
 	cc := constant.ClientConfig{
 		NamespaceId:         namespaceID, // 命名空间 ID
 		TimeoutMs:           5000,        // 请求超时时间
 		NotLoadCacheAtStart: true,        // 启动时不加载缓存
-		LogDir:              "/tmp/nacos/log",
-		CacheDir:            "/tmp/nacos/cache",
+		LogDir:              "./nacos/log",
+		CacheDir:            "./nacos/cache",
 		LogLevel:            "info",
 	}
+
+	port, err := strconv.Atoi(u.Port())
+	if err != nil {
+		return nil, err
+	}
+
+	sc := []constant.ServerConfig{{
+		IpAddr: u.Hostname(),
+		Port:   uint64(port),
+	}}
 
 	namingClient, err := clients.NewNamingClient(vo.NacosClientParam{
 		ClientConfig:  &cc,

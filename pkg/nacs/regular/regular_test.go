@@ -16,7 +16,7 @@ func TestRegular(t *testing.T) {
 
 	data := []byte("hello world")
 	z.Must(os.WriteFile(tempFilePath, data, os.ModePerm))
-	configor, err := NewFileConfigor(tempFilePath)
+	configor, err := NewFileConfigor("regular://localhost?file=" + tempFilePath)
 	z.Must(err)
 	defer configor.Close()
 
