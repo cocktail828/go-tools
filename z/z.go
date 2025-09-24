@@ -86,7 +86,7 @@ func Stack(depth int) string {
 
 	sb := strings.Builder{}
 	frames := runtime.CallersFrames(pc)
-	for i := 0; i < depth; i++ {
+	for i := range depth {
 		frame, more := frames.Next()
 		sb.WriteString(fmt.Sprintf("Frame %d: %s\n\t%s:%d\n", i+1, frame.Function, frame.File, frame.Line))
 		if !more {
