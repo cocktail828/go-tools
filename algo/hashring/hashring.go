@@ -4,6 +4,7 @@ import (
 	"crypto/md5"
 	"crypto/sha256"
 	"hash/crc32"
+	"maps"
 	"math"
 	"sort"
 	"strconv"
@@ -91,9 +92,7 @@ func New(opts ...Option) *HashRing {
 func (h *HashRing) AddMany(nodeWeight map[string]int) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	for key, w := range nodeWeight {
-		h.weights[key] = w
-	}
+	maps.Copy(h.weights, nodeWeight)
 	h.updateLocked()
 }
 

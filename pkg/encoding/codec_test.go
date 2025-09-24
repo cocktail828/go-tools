@@ -19,4 +19,16 @@ func TestCodec(t *testing.T) {
 		bs, _ := encoder.Encode([]byte("123"))
 		assert.Equal(t, "a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3", hex.EncodeToString(bs))
 	})
+
+	t.Run("crc32", func(t *testing.T) {
+		encoder := NewCRC32Encoder()
+		bs, _ := encoder.Encode([]byte("123"))
+		assert.Equal(t, "884863d2", hex.EncodeToString(bs))
+	})
+
+	t.Run("crc64", func(t *testing.T) {
+		encoder := NewCRC64Encoder()
+		bs, _ := encoder.Encode([]byte("123"))
+		assert.Equal(t, "30232844071cc561", hex.EncodeToString(bs))
+	})
 }
