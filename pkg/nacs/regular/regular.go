@@ -46,7 +46,7 @@ func NewFileConfigor(uris ...string) (nacs.Configor, error) {
 	}
 
 	for _, f := range fpaths {
-		if err := fc.loadConfigLocked(f); err != nil {
+		if _, err := fc.loadConfigLocked(f); err != nil {
 			return nil, err
 		}
 	}
@@ -54,13 +54,13 @@ func NewFileConfigor(uris ...string) (nacs.Configor, error) {
 	return &fc, nil
 }
 
-func (f *fileConfigor) loadConfigLocked(fpath string) error {
+func (f *fileConfigor) loadConfigLocked(fpath string) ([]byte, error) {
 	payload, err := os.ReadFile(fpath)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	f.configs.Store(fpath, payload)
-	return nil
+	return payload, nil
 }
 
 type regularLoadOpt struct {
@@ -111,6 +111,10 @@ func (f *fileConfigor) Monitor(cb nacs.OnChange, opts ...nacs.MonitorOpt) (conte
 		return nil, errors.Errorf("failed to watch file: %v", err)
 	}
 
+	if cb == nil {
+		cb = func(err error, a ...any) {}
+	}
+
 	ctx, cancel := context.WithCancel(f.rctx)
 	go func() {
 		defer watcher.Close()
@@ -124,9 +128,8 @@ func (f *fileConfigor) Monitor(cb nacs.OnChange, opts ...nacs.MonitorOpt) (conte
 				}
 
 				if event.Op&fsnotify.Write == fsnotify.Write {
-					if cb != nil {
-						cb(f.loadConfigLocked(event.Name))
-					}
+					payload, err := f.loadConfigLocked(event.Name)
+					cb(err, payload, event.Name)
 				}
 
 			case _, ok := <-watcher.Errors:

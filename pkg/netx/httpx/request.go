@@ -10,6 +10,7 @@ type option struct {
 	body     []byte
 	headers  map[string]string
 	callback func(*http.Request)
+	client   *http.Client
 }
 
 type Option func(*option)
@@ -38,6 +39,10 @@ func Callback(cb func(*http.Request)) Option {
 	return func(o *option) { o.callback = cb }
 }
 
+func Client(client *http.Client) Option {
+	return func(o *option) { o.client = client }
+}
+
 func Do(ctx context.Context, method string, url string, opts ...Option) (*Response, error) {
 	o := apply(opts...)
 	req, err := http.NewRequestWithContext(ctx, method, url, bytes.NewReader(o.body))
@@ -53,10 +58,16 @@ func Do(ctx context.Context, method string, url string, opts ...Option) (*Respon
 		f(req)
 	}
 
-	resp, err := http.DefaultClient.Do(req)
+	cli := http.DefaultClient
+	if o.client != nil {
+		cli = o.client
+	}
+
+	resp, err := cli.Do(req)
 	if err != nil {
 		return nil, err
 	}
+
 	return &Response{Response: resp}, nil
 }
 

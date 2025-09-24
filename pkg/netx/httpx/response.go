@@ -1,40 +1,53 @@
 package httpx
 
 import (
+	"bytes"
 	"encoding/json"
 	"encoding/xml"
 	"io"
 	"net/http"
 	"strings"
-	"sync/atomic"
+	"sync"
 
 	"github.com/pkg/errors"
 )
 
 type Response struct {
 	*http.Response
-	loaded  atomic.Bool
-	payload []byte
+	mu     sync.Mutex
+	buffer *[]byte
 }
 
-func (r *Response) prepare() error {
-	if r.loaded.CompareAndSwap(false, true) {
-		defer r.Response.Body.Close()
-		payload, err := io.ReadAll(r.Response.Body)
-		if err != nil {
-			return errors.Errorf("read response payload fail: %v", err)
-		}
-		r.payload = payload
+func (r *Response) shouldLoad() error {
+	if r.buffer != nil {
+		return nil
 	}
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.buffer != nil {
+		return nil
+	}
+
+	buf, err := io.ReadAll(r.Response.Body)
+	if err != nil {
+		nopBody := []byte{}
+		r.buffer = &nopBody
+		return errors.Errorf("read response payload fail: %v", err)
+	}
+	r.buffer = &buf
 	return nil
+}
+
+func (r *Response) Payload() io.ReadCloser {
+	if r.buffer == nil {
+		r.shouldLoad()
+	}
+	return io.NopCloser(bytes.NewReader(*r.buffer))
 }
 
 // Bind auto choose Content-Type and bind response body to v
 func (r *Response) Bind(v any) error {
-	if err := r.prepare(); err != nil {
-		return err
-	}
-
 	contentType := r.Header.Get("Content-Type")
 	if contentType == "" {
 		return errors.Errorf("Content-Type header is not set")
@@ -53,15 +66,15 @@ func (r *Response) Bind(v any) error {
 }
 
 func (r *Response) BindJSON(v any) error {
-	if err := r.prepare(); err != nil {
+	if err := r.shouldLoad(); err != nil {
 		return err
 	}
-	return json.Unmarshal(r.payload, v)
+	return json.Unmarshal(*r.buffer, v)
 }
 
 func (r *Response) BindXML(v any) error {
-	if err := r.prepare(); err != nil {
+	if err := r.shouldLoad(); err != nil {
 		return err
 	}
-	return xml.Unmarshal(r.payload, v)
+	return xml.Unmarshal(*r.buffer, v)
 }

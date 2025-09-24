@@ -46,7 +46,7 @@ func (c Case) Event() kv.Event {
 type Cases []Case
 
 func (cs Cases) Convert() kv.Result {
-	impl := &etcdKvPairs{}
+	impl := etcdKvPairs{}
 	for _, c := range cs {
 		impl.Append(c.Key, []byte(c.Key))
 	}
@@ -68,13 +68,13 @@ func TestEtcdTTL(t *testing.T) {
 	assert.NoError(t, src.Set(context.TODO(), c.Key, []byte(c.Key), WithTTL(1)))
 	kv, err := src.Get(context.TODO(), c.Key)
 	assert.NoError(t, err)
-	assert.EqualValues(t, &etcdKvPairs{Keys: []string{c.Key}, Values: [][]byte{[]byte(c.Key)}}, kv)
+	assert.EqualValues(t, etcdKvPairs{Keys: []string{c.Key}, Values: [][]byte{[]byte(c.Key)}}, kv)
 
 	// make sure key is expired
 	time.Sleep(time.Millisecond * 3000)
 	kv, err = src.Get(context.TODO(), c.Key)
 	assert.NoError(t, err)
-	assert.EqualValues(t, &etcdKvPairs{}, kv)
+	assert.EqualValues(t, etcdKvPairs{}, kv)
 }
 
 func TestEtcdKV(t *testing.T) {
@@ -88,7 +88,7 @@ func TestEtcdKV(t *testing.T) {
 			assert.NoError(t, src.Set(context.TODO(), c.Key, []byte(c.Key)))
 			kv, err := src.Get(context.TODO(), c.Key)
 			assert.NoError(t, err)
-			assert.EqualValues(t, &etcdKvPairs{Keys: []string{c.Key}, Values: [][]byte{[]byte(c.Key)}}, kv)
+			assert.EqualValues(t, etcdKvPairs{Keys: []string{c.Key}, Values: [][]byte{[]byte(c.Key)}}, kv)
 		})
 	}
 

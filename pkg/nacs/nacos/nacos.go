@@ -32,19 +32,22 @@ func NewNacosClient(uri string) (*nacosClient, error) {
 		return nil, err
 	}
 
-	namespaceID := u.Query().Get("namespace")
-	if namespaceID == "" {
-		namespaceID = constant.DEFAULT_NAMESPACE_ID
+	var username, password string
+	if u.User != nil {
+		username = u.User.Username()
+		password, _ = u.User.Password()
 	}
 
-	cc := constant.ClientConfig{
-		NamespaceId:         namespaceID, // 命名空间 ID
-		TimeoutMs:           5000,        // 请求超时时间
-		NotLoadCacheAtStart: true,        // 启动时不加载缓存
-		LogDir:              "./nacos/log",
-		CacheDir:            "./nacos/cache",
-		LogLevel:            "info",
-	}
+	cc := constant.NewClientConfig(
+		constant.WithNamespaceId(u.Query().Get("namespace")),
+		constant.WithNotLoadCacheAtStart(true),
+		constant.WithAppName(u.Query().Get("appname")),
+		constant.WithLogDir("./nacos/log"),
+		constant.WithCacheDir("./nacos/cache"),
+		constant.WithLogLevel("info"),
+		constant.WithUsername(username),
+		constant.WithPassword(password),
+	)
 
 	port, err := strconv.Atoi(u.Port())
 	if err != nil {
@@ -57,7 +60,7 @@ func NewNacosClient(uri string) (*nacosClient, error) {
 	}}
 
 	namingClient, err := clients.NewNamingClient(vo.NacosClientParam{
-		ClientConfig:  &cc,
+		ClientConfig:  cc,
 		ServerConfigs: sc,
 	})
 	if err != nil {
@@ -65,7 +68,7 @@ func NewNacosClient(uri string) (*nacosClient, error) {
 	}
 
 	configClient, err := clients.NewConfigClient(vo.NacosClientParam{
-		ClientConfig:  &cc,
+		ClientConfig:  cc,
 		ServerConfigs: sc,
 	})
 	if err != nil {
@@ -97,10 +100,10 @@ func splitHostPort(addr string) (string, int, error) {
 	return host, _p, nil
 }
 
-func (r *nacosClient) Register(inst nacs.Instance) error {
+func (r *nacosClient) Register(inst nacs.RegisterInstance) (context.CancelFunc, error) {
 	host, port, err := splitHostPort(inst.Address)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	success, err := r.namingClient.RegisterInstance(vo.RegisterInstanceParam{
@@ -110,23 +113,28 @@ func (r *nacosClient) Register(inst nacs.Instance) error {
 		Enable:      true,
 		Healthy:     true,
 		Metadata:    inst.Metadata,
-		ClusterName: inst.Cluster,
 		ServiceName: inst.Name,
 		GroupName:   inst.Group,
 		Ephemeral:   true, // 临时实例
 	})
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	if !success {
-		return errors.Errorf("failed to register service instance: %+v", inst)
+		return nil, errors.Errorf("failed to register service instance: %+v", inst)
 	}
 
-	return nil
+	return func() {
+		r.DeRegister(nacs.DeRegisterInstance{
+			Group:   inst.Group,
+			Name:    inst.Name,
+			Address: inst.Address,
+		})
+	}, nil
 }
 
-func (r *nacosClient) DeRegister(inst nacs.Instance) error {
+func (r *nacosClient) DeRegister(inst nacs.DeRegisterInstance) error {
 	host, port, err := splitHostPort(inst.Address)
 	if err != nil {
 		return err
@@ -135,7 +143,6 @@ func (r *nacosClient) DeRegister(inst nacs.Instance) error {
 	success, err := r.namingClient.DeregisterInstance(vo.DeregisterInstanceParam{
 		Ip:          host,
 		Port:        uint64(port),
-		Cluster:     inst.Cluster,
 		ServiceName: inst.Name,
 		GroupName:   inst.Group,
 		Ephemeral:   true,
@@ -154,7 +161,6 @@ func (r *nacosClient) DeRegister(inst nacs.Instance) error {
 func toInstance(inst model.Instance) nacs.Instance {
 	return nacs.Instance{
 		Enable:   inst.Enable,
-		Cluster:  inst.ClusterName,
 		Healthy:  inst.Healthy,
 		Name:     inst.ServiceName,
 		Address:  net.JoinHostPort(inst.Ip, fmt.Sprintf("%v", inst.Port)),
@@ -163,14 +169,14 @@ func toInstance(inst model.Instance) nacs.Instance {
 }
 
 func (r *nacosClient) Discover(svc nacs.Service) ([]nacs.Instance, error) {
+	if svc.Group == "" {
+		svc.Group = constant.DEFAULT_GROUP
+	}
+
 	param := vo.SelectInstancesParam{
 		ServiceName: svc.Name,
 		GroupName:   svc.Group,
 		HealthyOnly: true, // 只返回健康实例
-	}
-
-	if svc.Cluster != "" {
-		param.Clusters = append(param.Clusters, svc.Cluster)
 	}
 
 	instances, err := r.namingClient.SelectInstances(param)
@@ -180,13 +186,20 @@ func (r *nacosClient) Discover(svc nacs.Service) ([]nacs.Instance, error) {
 
 	result := make([]nacs.Instance, 0, len(instances))
 	for _, inst := range instances {
-		result = append(result, toInstance(inst))
+		val := toInstance(inst)
+		val.Group = svc.Group
+		val.Name = svc.Name
+		result = append(result, val)
 	}
 
 	return result, nil
 }
 
 func (r *nacosClient) Watch(svc nacs.Service, callback func([]nacs.Instance, error)) (context.CancelFunc, error) {
+	if svc.Group == "" {
+		svc.Group = constant.DEFAULT_GROUP
+	}
+
 	param := vo.SubscribeParam{
 		ServiceName: svc.Name,
 		GroupName:   svc.Group,
@@ -198,15 +211,14 @@ func (r *nacosClient) Watch(svc nacs.Service, callback func([]nacs.Instance, err
 
 			result := make([]nacs.Instance, 0, len(instances))
 			for _, inst := range instances {
-				result = append(result, toInstance(inst))
+				val := toInstance(inst)
+				val.Group = svc.Group
+				val.Name = svc.Name
+				result = append(result, val)
 			}
 
 			callback(result, nil)
 		},
-	}
-
-	if svc.Cluster != "" {
-		param.Clusters = append(param.Clusters, svc.Cluster)
 	}
 
 	return func() {
@@ -236,9 +248,13 @@ func WithLoadGroup(group string) nacs.LoadOpt {
 }
 
 func (r *nacosClient) Load(opts ...nacs.LoadOpt) ([]byte, error) {
-	nlo := nacosLoadOpt{Group: "DEFAULT_GROUP"}
+	nlo := nacosLoadOpt{}
 	for _, o := range opts {
 		o(&nlo)
+	}
+
+	if nlo.ID == "" {
+		return nil, errors.New("nacos: data ID cannot be empty")
 	}
 
 	content, err := r.configClient.GetConfig(vo.ConfigParam{
@@ -274,15 +290,19 @@ func WithMonitorGroup(group string) nacs.MonitorOpt {
 }
 
 func (r *nacosClient) Monitor(cb nacs.OnChange, opts ...nacs.MonitorOpt) (context.CancelFunc, error) {
-	nmo := nacosMonitorOpt{Group: "DEFAULT_GROUP"}
+	nmo := nacosMonitorOpt{Group: constant.DEFAULT_GROUP}
 	for _, o := range opts {
 		o(&nmo)
+	}
+
+	if cb == nil {
+		cb = func(err error, args ...any) {}
 	}
 
 	if err := r.configClient.ListenConfig(vo.ConfigParam{
 		DataId:   nmo.ID,
 		Group:    nmo.Group,
-		OnChange: func(namespace, group, dataId, data string) { cb(nil) },
+		OnChange: func(namespace, group, dataId, data string) { cb(nil, namespace, group, dataId, data) },
 	}); err != nil {
 		return nil, err
 	}

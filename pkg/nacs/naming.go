@@ -6,31 +6,39 @@ import (
 
 // Service 定义服务
 type Service struct {
-	Cluster string
-	Group   string
-	Name    string
-	Version string
+	Group string
+	Name  string // service@version
 }
 
-// Instance 定义服务实例
 type Instance struct {
 	Enable   bool
-	Cluster  string
 	Group    string
-	Healthy  bool // valid at watch and discover
-	Name     string
-	Version  string
+	Healthy  bool   // valid at watch and discover
+	Name     string // service@version
 	Address  string // host:port
 	Metadata map[string]string
+}
+
+type RegisterInstance struct {
+	Group    string
+	Name     string // service@version
+	Address  string // host:port
+	Metadata map[string]string
+}
+
+type DeRegisterInstance struct {
+	Group   string
+	Name    string // service@version
+	Address string // host:port
 }
 
 // Registry 注册中心接口
 type Registry interface {
 	// Register 注册服务实例
-	Register(Instance) error
+	Register(RegisterInstance) (context.CancelFunc, error)
 
 	// DeRegister 注销服务实例
-	DeRegister(Instance) error
+	DeRegister(DeRegisterInstance) error
 
 	// Discover 发现服务实例
 	Discover(Service) ([]Instance, error)

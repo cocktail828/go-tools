@@ -4,7 +4,7 @@ import "context"
 
 type LoadOpt func(any)
 type MonitorOpt func(any)
-type OnChange func(error)
+type OnChange func(error, ...any)
 
 type Configor interface {
 	Load(opts ...LoadOpt) ([]byte, error)

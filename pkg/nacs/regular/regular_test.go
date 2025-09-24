@@ -27,7 +27,7 @@ func TestRegular(t *testing.T) {
 	// monitor
 	data = []byte("updated_value")
 	ctx, cancel := context.WithCancel(context.Background())
-	_, err = configor.Monitor(func(err error) {
+	_, err = configor.Monitor(func(err error, args ...any) {
 		assert.NoError(t, err, "Monitor callback should not return error")
 
 		value, err := configor.Load(FileName(tempFilePath))
