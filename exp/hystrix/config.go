@@ -1,6 +1,10 @@
 package hystrix
 
-import "time"
+import (
+	"encoding/json"
+	"fmt"
+	"time"
+)
 
 var (
 	// DefaultTimeout is how long to wait for command to complete, in milliseconds
@@ -17,40 +21,86 @@ var (
 	DefaultFailureThreshold = 20 // 0~100
 )
 
+type Base[T any] struct{ val T }
+
+func (b Base[T]) Get() T   { return b.val }
+func (b *Base[T]) Set(v T) { b.val = v }
+
+type Mutable[T int | time.Duration] struct {
+	Val       Base[T]
+	Validator Base[func(T) bool]
+	OnUpdate  Base[func(T)]
+}
+
+func (m Mutable[T]) Equal(other Mutable[T]) bool {
+	return m.Val.Get() == other.Val.Get()
+}
+
+func (m Mutable[T]) String() string {
+	return fmt.Sprintf("%v", m.Val.Get())
+}
+
+func (m *Mutable[T]) Update(v T) {
+	if validator := m.Validator.Get(); validator != nil && !validator(v) {
+		return
+	}
+
+	oldVal := m.Val
+	m.Val.Set(v)
+	if oldVal != m.Val && m.OnUpdate.Get() != nil {
+		m.OnUpdate.Get()(v)
+	}
+}
+
+func (m Mutable[T]) MarshalJSON() ([]byte, error) {
+	return json.Marshal(m.Val.Get())
+}
+
+func (m *Mutable[T]) UnmarshalJSON(data []byte) error {
+	var Val T
+	err := json.Unmarshal(data, &Val)
+	if err == nil {
+		m.Val.Set(Val)
+		return nil
+	}
+
+	return fmt.Errorf("unmarshal Mutable failed, expect: %v, got: %w", Val, err)
+}
+
 type Config struct {
-	Timeout           time.Duration `json:"timeout"`            // ms
-	KeepAliveInterval time.Duration `json:"keepalive_interval"` // ms
-	KeepAliveProbes   int           `json:"keepalive_probes"`
-	MaxConcurrency    int           `json:"max_concurrency"`
-	MinQPSThreshold   int           `json:"min_qps_threshold"`
-	FailureThreshold  int           `json:"failure_threshold"` // 0~100
+	Timeout           Mutable[time.Duration] `json:"timeout"`            // ms
+	KeepAliveInterval Mutable[time.Duration] `json:"keepalive_interval"` // ms
+	KeepAliveProbes   Mutable[int]           `json:"keepalive_probes"`
+	MaxConcurrency    Mutable[int]           `json:"max_concurrency"`
+	MinQPSThreshold   Mutable[int]           `json:"min_qps_threshold"`
+	FailureThreshold  Mutable[int]           `json:"failure_threshold"` // 0~100
 }
 
-func setter[T int | time.Duration](v T, defalt T) T {
-	if v <= 0 {
-		return defalt
+func NewConfig() Config {
+	return Config{
+		Timeout: Mutable[time.Duration]{
+			Val:       Base[time.Duration]{val: DefaultTimeout},
+			Validator: Base[func(v time.Duration) bool]{val: func(v time.Duration) bool { return v >= 0 }},
+		},
+		KeepAliveInterval: Mutable[time.Duration]{
+			Val:       Base[time.Duration]{val: DefaultKeepAliveInterval},
+			Validator: Base[func(v time.Duration) bool]{val: func(v time.Duration) bool { return v >= time.Second }},
+		},
+		KeepAliveProbes: Mutable[int]{
+			Val:       Base[int]{val: DefaultRecoveryProbes},
+			Validator: Base[func(v int) bool]{val: func(v int) bool { return v >= 3 }},
+		},
+		MaxConcurrency: Mutable[int]{
+			Val:       Base[int]{val: DefaultMaxConcurrency},
+			Validator: Base[func(v int) bool]{val: func(v int) bool { return v >= 1 }},
+		},
+		MinQPSThreshold: Mutable[int]{
+			Val:       Base[int]{val: DefaultMinQPSNum},
+			Validator: Base[func(v int) bool]{val: func(v int) bool { return v >= 0 }},
+		},
+		FailureThreshold: Mutable[int]{
+			Val:       Base[int]{val: DefaultFailureThreshold},
+			Validator: Base[func(v int) bool]{val: func(v int) bool { return v >= 0 && v <= 100 }},
+		},
 	}
-	return v
-}
-
-func (cfg *Config) Normalize() {
-	cfg.Timeout = setter(0, DefaultTimeout)
-	cfg.KeepAliveInterval = setter(0, DefaultKeepAliveInterval)
-	cfg.KeepAliveProbes = setter(0, DefaultRecoveryProbes)
-	cfg.MaxConcurrency = setter(0, DefaultMaxConcurrency)
-	cfg.MinQPSThreshold = setter(0, DefaultMinQPSNum)
-	cfg.FailureThreshold = setter(0, DefaultFailureThreshold)
-	if cfg.FailureThreshold >= 100 {
-		cfg.FailureThreshold = DefaultFailureThreshold
-	}
-}
-
-func (cfg *Config) Update(config Config) {
-	config.Normalize()
-	cfg.Timeout = config.Timeout
-	cfg.KeepAliveInterval = config.KeepAliveInterval
-	cfg.KeepAliveProbes = config.KeepAliveProbes
-	cfg.MaxConcurrency = config.MaxConcurrency
-	cfg.MinQPSThreshold = config.MinQPSThreshold
-	cfg.FailureThreshold = config.FailureThreshold
 }

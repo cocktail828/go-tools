@@ -2,11 +2,14 @@ package hystrix
 
 import (
 	"context"
+	"encoding/json"
 	"net"
 	"slices"
 	"testing"
 	"time"
 
+	"github.com/cocktail828/go-tools/xlog"
+	"github.com/cocktail828/go-tools/z"
 	"github.com/cocktail828/go-tools/z/timex"
 	"github.com/stretchr/testify/assert"
 )
@@ -15,19 +18,21 @@ func TestSuccess(t *testing.T) {
 	timex.SetTime(func() int64 { return 0 })
 	defer timex.ResetTime()
 
-	assert.NoError(t, DoC(
+	h := NewHystrix(NewConfig(), xlog.NoopLogger{})
+	assert.NoError(t, h.DoC(
 		context.Background(),
 		t.Name(),
 		func(ctx context.Context) error { return nil },
 	))
 
-	v0, v1, _ := GetCircuit(t.Name()).statistic.DualCount(10)
+	v0, v1, _ := h.statistic.DualCount(10)
 	assert.EqualValues(t, 1, v0)
 	assert.EqualValues(t, 0, v1)
 }
 
 func TestFailOnError(t *testing.T) {
-	assert.Equal(t, net.ErrClosed, DoC(
+	h := NewHystrix(NewConfig(), xlog.NoopLogger{})
+	assert.Equal(t, net.ErrClosed, h.DoC(
 		context.Background(),
 		t.Name(),
 		func(ctx context.Context) error { return net.ErrClosed },
@@ -38,8 +43,9 @@ func TestFailOnCanceled(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
+	h := NewHystrix(NewConfig(), xlog.NoopLogger{})
 	assert.True(t, slices.Contains([]error{ErrCanceled, net.ErrClosed},
-		DoC(
+		h.DoC(
 			ctx,
 			t.Name(),
 			func(ctx context.Context) error { return net.ErrClosed },
@@ -48,9 +54,10 @@ func TestFailOnCanceled(t *testing.T) {
 }
 
 func TestFailOnTimeout(t *testing.T) {
-	GetCircuit(t.Name()).Timeout = 100 * time.Millisecond
+	h := NewHystrix(NewConfig(), xlog.NoopLogger{})
+	h.Timeout.Update(100 * time.Millisecond)
 
-	assert.Equal(t, ErrTimeout, DoC(
+	assert.Equal(t, ErrTimeout, h.DoC(
 		context.Background(),
 		t.Name(),
 		func(ctx context.Context) error {
@@ -61,10 +68,11 @@ func TestFailOnTimeout(t *testing.T) {
 }
 
 func TestFailOnNoTicket(t *testing.T) {
-	GetCircuit(t.Name()).MaxConcurrency = 1
-	GetCircuit(t.Name()).assigner.Resize(0)
+	h := NewHystrix(NewConfig(), xlog.NoopLogger{})
+	h.MaxConcurrency.Update(1)
+	h.assigner.Resize(0)
 
-	assert.Equal(t, ErrMaxConcurrency, DoC(
+	assert.Equal(t, ErrMaxConcurrency, h.DoC(
 		context.Background(),
 		t.Name(),
 		func(ctx context.Context) error {
@@ -76,8 +84,9 @@ func TestFailOnNoTicket(t *testing.T) {
 
 func TestManualy(t *testing.T) {
 	t.Run("manual-open", func(t *testing.T) {
-		GetCircuit(t.Name()).Trigger(true)
-		assert.Equal(t, ErrCircuitOpen, DoC(
+		h := NewHystrix(NewConfig(), xlog.NoopLogger{})
+		h.Trigger(true)
+		assert.Equal(t, ErrCircuitOpen, h.DoC(
 			context.Background(),
 			t.Name(),
 			func(ctx context.Context) error { return nil },
@@ -85,8 +94,9 @@ func TestManualy(t *testing.T) {
 	})
 
 	t.Run("manual-close", func(t *testing.T) {
-		GetCircuit(t.Name()).Trigger(false)
-		assert.Equal(t, nil, DoC(
+		h := NewHystrix(NewConfig(), xlog.NoopLogger{})
+		h.Trigger(false)
+		assert.Equal(t, nil, h.DoC(
 			context.Background(),
 			t.Name(),
 			func(ctx context.Context) error { return nil },
@@ -95,34 +105,36 @@ func TestManualy(t *testing.T) {
 }
 
 func TestReturnTicket(t *testing.T) {
-	GetCircuit(t.Name()).Timeout = 10 * time.Millisecond
+	h := NewHystrix(NewConfig(), xlog.NoopLogger{})
+	h.Timeout.Update(10 * time.Millisecond)
 
 	// the ticket must be returned whether happened
-	assert.Equal(t, ErrTimeout, DoC(
+	assert.Equal(t, ErrTimeout, h.DoC(
 		context.Background(),
 		t.Name(),
 		func(ctx context.Context) error {
 			select {}
 		}),
 	)
-	assert.EqualValues(t, 0, GetCircuit(t.Name()).assigner.Allocated())
+	assert.EqualValues(t, 0, h.assigner.Allocated())
 }
 
 func TestOpenOnTooManyFail(t *testing.T) {
 	defer timex.ResetTime()
 	timex.SetTime(func() int64 { return 0 })
 
-	GetCircuit(t.Name()).MinQPSThreshold = 2
+	h := NewHystrix(NewConfig(), xlog.NoopLogger{})
+	h.MinQPSThreshold.Update(2)
 	timex.SetTime(func() int64 { return 0 })
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		if i < 80 {
-			assert.NoError(t, DoC(
+			assert.NoError(t, h.DoC(
 				context.Background(),
 				t.Name(),
 				func(ctx context.Context) error { return nil },
 			))
 		} else {
-			assert.Equal(t, net.ErrClosed, DoC(
+			assert.Equal(t, net.ErrClosed, h.DoC(
 				context.Background(),
 				t.Name(),
 				func(ctx context.Context) error { return net.ErrClosed },
@@ -130,8 +142,8 @@ func TestOpenOnTooManyFail(t *testing.T) {
 		}
 	}
 
-	assert.Equal(t, 20, GetCircuit(t.Name()).failRate(timex.UnixNano()))
-	assert.Equal(t, ErrCircuitOpen, DoC(
+	assert.Equal(t, 20, int(h.failRate(timex.UnixNano())))
+	assert.Equal(t, ErrCircuitOpen, h.DoC(
 		context.Background(),
 		t.Name(),
 		func(ctx context.Context) error {
@@ -145,17 +157,18 @@ func TestSingleTest(t *testing.T) {
 	timex.SetTime(func() int64 { return 0 })
 	defer timex.ResetTime()
 
-	GetCircuit(t.Name()).MinQPSThreshold = 2
+	h := NewHystrix(NewConfig(), xlog.NoopLogger{})
+	h.MinQPSThreshold.Update(2)
 	timex.SetTime(func() int64 { return 0 })
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		if i < 80 {
-			assert.NoError(t, DoC(
+			assert.NoError(t, h.DoC(
 				context.Background(),
 				t.Name(),
 				func(ctx context.Context) error { return nil },
 			))
 		} else {
-			assert.Equal(t, net.ErrClosed, DoC(
+			assert.Equal(t, net.ErrClosed, h.DoC(
 				context.Background(),
 				t.Name(),
 				func(ctx context.Context) error { return net.ErrClosed },
@@ -163,8 +176,8 @@ func TestSingleTest(t *testing.T) {
 		}
 	}
 
-	assert.Equal(t, 20, GetCircuit(t.Name()).failRate(timex.UnixNano()))
-	assert.Equal(t, ErrCircuitOpen, DoC(
+	assert.Equal(t, 20, int(h.failRate(timex.UnixNano())))
+	assert.Equal(t, ErrCircuitOpen, h.DoC(
 		context.Background(),
 		t.Name(),
 		func(ctx context.Context) error {
@@ -173,9 +186,9 @@ func TestSingleTest(t *testing.T) {
 		}),
 	)
 
-	for i := 0; i < 5; i++ {
-		timex.SetTime(func() int64 { return GetCircuit(t.Name()).KeepAliveInterval.Nanoseconds() * int64(i+1) })
-		assert.Equal(t, nil, DoC(
+	for i := range 5 {
+		timex.SetTime(func() int64 { return h.KeepAliveInterval.Val.Get().Nanoseconds() * int64(i+1) })
+		assert.Equal(t, nil, h.DoC(
 			context.Background(),
 			t.Name(),
 			func(ctx context.Context) error {
@@ -185,7 +198,7 @@ func TestSingleTest(t *testing.T) {
 		)
 	}
 
-	assert.Equal(t, nil, DoC(
+	assert.Equal(t, nil, h.DoC(
 		context.Background(),
 		t.Name(),
 		func(ctx context.Context) error {
@@ -193,4 +206,39 @@ func TestSingleTest(t *testing.T) {
 			return nil
 		}),
 	)
+}
+
+func TestConfigMarshalUnmarshal(t *testing.T) {
+	raw := NewConfig()
+	raw.Timeout.Update(time.Second * 3)
+	raw.KeepAliveInterval.Update(time.Second * 5)
+	raw.KeepAliveProbes.Update(10)
+	raw.MaxConcurrency.Update(100)
+	raw.MinQPSThreshold.Update(10)
+	raw.FailureThreshold.Update(50)
+
+	bs, err := json.Marshal(raw)
+	z.Must(err)
+
+	cfg := Config{}
+	z.Must(json.Unmarshal(bs, &cfg))
+
+	// check if the config is equal
+	if !raw.Timeout.Equal(cfg.Timeout) ||
+		!raw.KeepAliveInterval.Equal(cfg.KeepAliveInterval) ||
+		!raw.KeepAliveProbes.Equal(cfg.KeepAliveProbes) ||
+		!raw.MaxConcurrency.Equal(cfg.MaxConcurrency) ||
+		!raw.MinQPSThreshold.Equal(cfg.MinQPSThreshold) ||
+		!raw.FailureThreshold.Equal(cfg.FailureThreshold) {
+		t.Fatalf("unmarshal config failed, expect: %v, got: %v", raw, cfg)
+	}
+}
+
+func TestConfigUpdate(t *testing.T) {
+	raw := NewConfig()
+	cfg := NewConfig()
+	cfg.FailureThreshold.Update(200) // will not success
+	if !raw.FailureThreshold.Equal(cfg.FailureThreshold) {
+		t.Fatalf("update FailureThreshold failed, expect: %v, got: %v", raw.FailureThreshold, cfg.FailureThreshold)
+	}
 }
