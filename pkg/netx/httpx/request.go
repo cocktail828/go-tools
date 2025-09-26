@@ -3,6 +3,7 @@ package httpx
 import (
 	"bytes"
 	"context"
+	"maps"
 	"net/http"
 )
 
@@ -29,9 +30,7 @@ func Body(val []byte) Option {
 
 func Headers(val map[string]string) Option {
 	return func(o *option) {
-		for k, v := range val {
-			o.headers[k] = v
-		}
+		maps.Copy(o.headers, val)
 	}
 }
 

@@ -31,48 +31,32 @@ func (NopCodec) Decode(s []byte) ([]byte, error) {
 	return s, nil
 }
 
-type md5Encoder struct{}
+type MD5Encoder struct{}
 
-func NewMD5Encoder() Encoder {
-	return &md5Encoder{}
-}
-
-func (e *md5Encoder) Encode(s []byte) ([]byte, error) {
+func (e MD5Encoder) Encode(s []byte) ([]byte, error) {
 	bs := md5.Sum(s)
 	return bs[:], nil
 }
 
-type sha256Encoder struct{}
+type SHA256Encoder struct{}
 
-func NewSHA256Encoder() Encoder {
-	return &sha256Encoder{}
-}
-
-func (e *sha256Encoder) Encode(s []byte) ([]byte, error) {
+func (e SHA256Encoder) Encode(s []byte) ([]byte, error) {
 	bs := sha256.Sum256(s)
 	return bs[:], nil
 }
 
-type crc32Encoder struct{}
+type CRC32Encoder struct{}
 
-func NewCRC32Encoder() Encoder {
-	return &crc32Encoder{}
-}
-
-func (e *crc32Encoder) Encode(s []byte) ([]byte, error) {
+func (e CRC32Encoder) Encode(s []byte) ([]byte, error) {
 	crc := crc32.ChecksumIEEE(s)
 	buf := make([]byte, 4)
 	binary.BigEndian.PutUint32(buf, crc)
 	return buf, nil
 }
 
-type crc64Encoder struct{}
+type CRC64Encoder struct{}
 
-func NewCRC64Encoder() Encoder {
-	return &crc64Encoder{}
-}
-
-func (e *crc64Encoder) Encode(s []byte) ([]byte, error) {
+func (e CRC64Encoder) Encode(s []byte) ([]byte, error) {
 	crc := crc64.Checksum(s, crc64.MakeTable(crc64.ECMA))
 	buf := make([]byte, 8)
 	binary.BigEndian.PutUint64(buf, crc)
