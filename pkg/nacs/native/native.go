@@ -2,7 +2,6 @@ package native
 
 import (
 	"context"
-	stderr "errors"
 	"net/url"
 	"os"
 	"sync"
@@ -15,7 +14,10 @@ import (
 type fileConfigor struct {
 	rctx    context.Context
 	rcancel context.CancelFunc
-	configs sync.Map
+
+	mu      sync.RWMutex
+	fpath   string // 文件路径
+	payload []byte // 文件内容
 }
 
 // native://localhost?file=path1
@@ -26,72 +28,48 @@ func NewNativeConfigor(uri string) (nacs.Configor, error) {
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	fc := &fileConfigor{
+	f := &fileConfigor{
 		rctx:    ctx,
 		rcancel: cancel,
 	}
 
-	if _, err := fc.loadConfigLocked(u.Query().Get("file")); err != nil {
+	if _, err := f.loadConfigLocked(u.Query().Get("file")); err != nil {
 		return nil, err
 	}
-	return fc, nil
+	return f, nil
 }
 
-func (f *fileConfigor) loadConfigLocked(fpath string) ([]byte, error) {
-	payload, err := os.ReadFile(fpath)
+func (f *fileConfigor) loadConfigLocked(fpath string) (payload []byte, err error) {
+	payload, err = os.ReadFile(fpath)
 	if err != nil {
 		return nil, err
 	}
-	f.configs.Store(fpath, payload)
-	return payload, nil
+
+	if fpath == "" {
+		return nil, errors.New("invalid file path")
+	}
+
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.fpath, f.payload = fpath, payload
+	return
 }
 
-type nativeLoadOpt struct {
-	fpath string
-}
-
-func FileName(v string) nacs.LoadOpt {
-	return func(o any) {
-		if f, ok := o.(*nativeLoadOpt); ok {
-			f.fpath = v
-		}
-	}
-}
-
-func (f *fileConfigor) Load(opts ...nacs.LoadOpt) ([]byte, error) {
-	var ro nativeLoadOpt
-	for _, o := range opts {
-		o(&ro)
-	}
-
-	if ro.fpath == "" {
-		return nil, errors.New("invalid get opt")
-	}
-
-	value, ok := f.configs.Load(ro.fpath)
-	if !ok {
-		return nil, errors.Errorf("config %s not found", ro.fpath)
-	}
-
-	return value.([]byte), nil
+func (f *fileConfigor) Load() ([]byte, error) {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+	return f.payload, nil
 }
 
 // we should only care about write event
-func (f *fileConfigor) Monitor(cb nacs.OnChange, opts ...nacs.MonitorOpt) (context.CancelFunc, error) {
+func (f *fileConfigor) Monitor(cb nacs.OnChange) (context.CancelFunc, error) {
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
-		return nil, errors.Errorf("failed to create watcher: %v", err)
+		return nil, errors.Wrap(err, "failed to create watcher")
 	}
 
-	errs := []error{}
-	f.configs.Range(func(key, _ any) bool {
-		if err := watcher.Add(key.(string)); err != nil {
-			errs = append(errs, err)
-		}
-		return true
-	})
-	if err := stderr.Join(errs...); err != nil {
-		return nil, errors.Errorf("failed to watch file: %v", err)
+	if err := watcher.Add(f.fpath); err != nil {
+		return nil, errors.Wrap(err, "failed to watch file")
 	}
 
 	if cb == nil {

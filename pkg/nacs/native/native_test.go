@@ -16,13 +16,14 @@ func TestNative(t *testing.T) {
 
 	data := []byte("hello world")
 	z.Must(os.WriteFile(tempFilePath, data, os.ModePerm))
+
 	configor, err := NewNativeConfigor("native://localhost?file=" + tempFilePath)
 	z.Must(err)
 	defer configor.Close()
 
-	value, err := configor.Load(FileName(tempFilePath))
+	value, err := configor.Load()
 	z.Must(err)
-	assert.Equal(t, string(data), string(value), "Load content should match initial content")
+	assert.Equal(t, string(data), string(value))
 
 	// monitor
 	data = []byte("updated_value")
@@ -30,9 +31,9 @@ func TestNative(t *testing.T) {
 	_, err = configor.Monitor(func(err error, args ...any) {
 		assert.NoError(t, err, "Monitor callback should not return error")
 
-		value, err := configor.Load(FileName(tempFilePath))
+		value, err := configor.Load()
 		z.Must(err)
-		assert.Equal(t, string(data), string(value), "Load content should match initial content")
+		assert.Equal(t, string(data), string(value))
 		cancel()
 	})
 	z.Must(err)

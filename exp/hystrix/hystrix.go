@@ -33,12 +33,12 @@ type hystrix struct {
 	assigner    *Assigner    // for concurrency control
 	statistic   *rolling.Rolling
 	recovery    recovery
-	logger      xlog.Logger
+	logger      xlog.Printer
 }
 
-func NewHystrix(cfg Config, logger xlog.Logger) *hystrix {
+func NewHystrix(cfg Config, logger xlog.Printer) *hystrix {
 	if logger == nil {
-		logger = xlog.NoopLogger{}
+		logger = xlog.NoopPrinter{}
 	}
 
 	h := &hystrix{
@@ -104,7 +104,7 @@ func (h *hystrix) allowRequest() (allow, singletest bool) {
 		if nsec >= lastTestAt+h.KeepAliveInterval.Val.Get().Nanoseconds() {
 			swapped := h.lastTestAt.CompareAndSwap(lastTestAt, nsec)
 			if swapped {
-				h.logger.Debugln("hystrix-go: allowing single test.")
+				h.logger.Printf("hystrix-go: allowing single test.")
 			}
 			return swapped, true
 		}
@@ -131,13 +131,13 @@ func (h *hystrix) trigger(open bool) {
 		if h.isOpen.CompareAndSwap(false, true) {
 			h.lastTestAt.Store(timex.UnixNano())
 			h.statistic.Reset()
-			h.logger.Debugln("hystrix-go: opening circuitbreaker.")
+			h.logger.Printf("hystrix-go: opening circuitbreaker.")
 		}
 	} else {
 		if h.isOpen.CompareAndSwap(true, false) {
 			h.recovery.Reset()
 			h.statistic.Reset()
-			h.logger.Debugln("hystrix-go: closing circuitbreaker.")
+			h.logger.Printf("hystrix-go: closing circuitbreaker.")
 		}
 	}
 }

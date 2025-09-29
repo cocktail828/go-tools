@@ -7,6 +7,7 @@ import (
 
 	"github.com/cocktail828/go-tools/pkg/nacs"
 	"github.com/cocktail828/go-tools/z"
+	"github.com/stretchr/testify/assert"
 )
 
 var (
@@ -16,24 +17,23 @@ var (
 )
 
 func init() {
-	_nac, err := NewNacosClient("nacos://nacos:nacos@172.29.231.108:8848?appname=xxx")
+	_nac, err := NewNacosClient("nacos://nacos:nacos@172.29.231.108:8848?appname=xxx&id=" + cfgname)
 	z.Must(err)
 	nac = _nac
 }
 
 func TestConfigor(t *testing.T) {
-	bs, err := nac.Load(WithLoadID(cfgname))
+	bs, err := nac.Load()
 	z.Must(err)
-	t.Logf("load config err=%v len(cfg)=%d", err, len(bs))
+	assert.NotEqual(t, 0, len(bs))
 
 	ctx, f := context.WithTimeout(context.Background(), time.Second*3)
 	cancel, err := nac.Monitor(func(err error, args ...any) {
 		t.Logf("monitor callback err=%v args=%v", err, args)
 		f()
-	}, WithMonitorID(cfgname))
+	})
 	z.Must(err)
 	defer cancel()
-	cancel()
 	<-ctx.Done()
 }
 

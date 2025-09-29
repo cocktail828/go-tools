@@ -16,11 +16,11 @@ func NewStaticConfigor(payload []byte) nacs.Configor {
 	}
 }
 
-func (s *staticConfigor) Load(opts ...nacs.LoadOpt) ([]byte, error) {
+func (s *staticConfigor) Load() ([]byte, error) {
 	return s.payload, nil
 }
 
-func (s *staticConfigor) Monitor(cb nacs.OnChange, opts ...nacs.MonitorOpt) (context.CancelFunc, error) {
+func (s *staticConfigor) Monitor(cb nacs.OnChange) (context.CancelFunc, error) {
 	return func() {}, nil
 }
 

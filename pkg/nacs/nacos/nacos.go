@@ -21,6 +21,9 @@ var _ nacs.Registry = &nacosClient{}
 var _ nacs.Configor = &nacosClient{}
 
 type nacosClient struct {
+	ID    string // config ID
+	Group string // config group
+
 	namingClient naming_client.INamingClient
 	configClient config_client.IConfigClient
 }
@@ -75,7 +78,14 @@ func NewNacosClient(uri string) (*nacosClient, error) {
 		return nil, err
 	}
 
+	group := u.Query().Get("group")
+	if group == "" {
+		group = constant.DEFAULT_GROUP
+	}
+
 	return &nacosClient{
+		ID:           u.Query().Get("id"),
+		Group:        group,
 		namingClient: namingClient,
 		configClient: configClient,
 	}, nil
@@ -226,40 +236,14 @@ func (r *nacosClient) Watch(svc nacs.Service, callback func([]nacs.Instance, err
 	}, r.namingClient.Subscribe(&param)
 }
 
-type nacosLoadOpt struct {
-	ID    string
-	Group string
-}
-
-func WithLoadID(id string) nacs.LoadOpt {
-	return func(o any) {
-		if f, ok := o.(*nacosLoadOpt); ok {
-			f.ID = id
-		}
-	}
-}
-
-func WithLoadGroup(group string) nacs.LoadOpt {
-	return func(o any) {
-		if f, ok := o.(*nacosLoadOpt); ok {
-			f.Group = group
-		}
-	}
-}
-
-func (r *nacosClient) Load(opts ...nacs.LoadOpt) ([]byte, error) {
-	nlo := nacosLoadOpt{}
-	for _, o := range opts {
-		o(&nlo)
-	}
-
-	if nlo.ID == "" {
+func (r *nacosClient) Load() ([]byte, error) {
+	if r.ID == "" {
 		return nil, errors.New("nacos: data ID cannot be empty")
 	}
 
 	content, err := r.configClient.GetConfig(vo.ConfigParam{
-		DataId: nlo.ID,
-		Group:  nlo.Group,
+		DataId: r.ID,
+		Group:  r.Group,
 	})
 	if err != nil {
 		return nil, err
@@ -268,40 +252,14 @@ func (r *nacosClient) Load(opts ...nacs.LoadOpt) ([]byte, error) {
 	return []byte(content), nil
 }
 
-type nacosMonitorOpt struct {
-	ID    string
-	Group string
-}
-
-func WithMonitorID(id string) nacs.MonitorOpt {
-	return func(o any) {
-		if f, ok := o.(*nacosMonitorOpt); ok {
-			f.ID = id
-		}
-	}
-}
-
-func WithMonitorGroup(group string) nacs.MonitorOpt {
-	return func(o any) {
-		if f, ok := o.(*nacosMonitorOpt); ok {
-			f.Group = group
-		}
-	}
-}
-
-func (r *nacosClient) Monitor(cb nacs.OnChange, opts ...nacs.MonitorOpt) (context.CancelFunc, error) {
-	nmo := nacosMonitorOpt{Group: constant.DEFAULT_GROUP}
-	for _, o := range opts {
-		o(&nmo)
-	}
-
+func (r *nacosClient) Monitor(cb nacs.OnChange) (context.CancelFunc, error) {
 	if cb == nil {
 		cb = func(err error, args ...any) {}
 	}
 
 	if err := r.configClient.ListenConfig(vo.ConfigParam{
-		DataId:   nmo.ID,
-		Group:    nmo.Group,
+		DataId:   r.ID,
+		Group:    r.Group,
 		OnChange: func(namespace, group, dataId, data string) { cb(nil, namespace, group, dataId, data) },
 	}); err != nil {
 		return nil, err
@@ -309,8 +267,8 @@ func (r *nacosClient) Monitor(cb nacs.OnChange, opts ...nacs.MonitorOpt) (contex
 
 	return func() {
 		r.configClient.CancelListenConfig(vo.ConfigParam{
-			DataId: nmo.ID,
-			Group:  nmo.Group,
+			DataId: r.ID,
+			Group:  r.Group,
 		})
 	}, nil
 }

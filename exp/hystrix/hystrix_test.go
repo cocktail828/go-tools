@@ -18,7 +18,7 @@ func TestSuccess(t *testing.T) {
 	timex.SetTime(func() int64 { return 0 })
 	defer timex.ResetTime()
 
-	h := NewHystrix(NewConfig(), xlog.NoopLogger{})
+	h := NewHystrix(NewConfig(), xlog.NoopPrinter{})
 	assert.NoError(t, h.DoC(
 		context.Background(),
 		t.Name(),
@@ -31,7 +31,7 @@ func TestSuccess(t *testing.T) {
 }
 
 func TestFailOnError(t *testing.T) {
-	h := NewHystrix(NewConfig(), xlog.NoopLogger{})
+	h := NewHystrix(NewConfig(), xlog.NoopPrinter{})
 	assert.Equal(t, net.ErrClosed, h.DoC(
 		context.Background(),
 		t.Name(),
@@ -43,7 +43,7 @@ func TestFailOnCanceled(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	h := NewHystrix(NewConfig(), xlog.NoopLogger{})
+	h := NewHystrix(NewConfig(), xlog.NoopPrinter{})
 	assert.True(t, slices.Contains([]error{ErrCanceled, net.ErrClosed},
 		h.DoC(
 			ctx,
@@ -54,7 +54,7 @@ func TestFailOnCanceled(t *testing.T) {
 }
 
 func TestFailOnTimeout(t *testing.T) {
-	h := NewHystrix(NewConfig(), xlog.NoopLogger{})
+	h := NewHystrix(NewConfig(), xlog.NoopPrinter{})
 	h.Timeout.Update(100 * time.Millisecond)
 
 	assert.Equal(t, ErrTimeout, h.DoC(
@@ -68,7 +68,7 @@ func TestFailOnTimeout(t *testing.T) {
 }
 
 func TestFailOnNoTicket(t *testing.T) {
-	h := NewHystrix(NewConfig(), xlog.NoopLogger{})
+	h := NewHystrix(NewConfig(), xlog.NoopPrinter{})
 	h.MaxConcurrency.Update(1)
 	h.assigner.Resize(0)
 
@@ -84,7 +84,7 @@ func TestFailOnNoTicket(t *testing.T) {
 
 func TestManualy(t *testing.T) {
 	t.Run("manual-open", func(t *testing.T) {
-		h := NewHystrix(NewConfig(), xlog.NoopLogger{})
+		h := NewHystrix(NewConfig(), xlog.NoopPrinter{})
 		h.Trigger(true)
 		assert.Equal(t, ErrCircuitOpen, h.DoC(
 			context.Background(),
@@ -94,7 +94,7 @@ func TestManualy(t *testing.T) {
 	})
 
 	t.Run("manual-close", func(t *testing.T) {
-		h := NewHystrix(NewConfig(), xlog.NoopLogger{})
+		h := NewHystrix(NewConfig(), xlog.NoopPrinter{})
 		h.Trigger(false)
 		assert.Equal(t, nil, h.DoC(
 			context.Background(),
@@ -105,7 +105,7 @@ func TestManualy(t *testing.T) {
 }
 
 func TestReturnTicket(t *testing.T) {
-	h := NewHystrix(NewConfig(), xlog.NoopLogger{})
+	h := NewHystrix(NewConfig(), xlog.NoopPrinter{})
 	h.Timeout.Update(10 * time.Millisecond)
 
 	// the ticket must be returned whether happened
@@ -123,7 +123,7 @@ func TestOpenOnTooManyFail(t *testing.T) {
 	defer timex.ResetTime()
 	timex.SetTime(func() int64 { return 0 })
 
-	h := NewHystrix(NewConfig(), xlog.NoopLogger{})
+	h := NewHystrix(NewConfig(), xlog.NoopPrinter{})
 	h.MinQPSThreshold.Update(2)
 	timex.SetTime(func() int64 { return 0 })
 	for i := range 100 {
@@ -157,7 +157,7 @@ func TestSingleTest(t *testing.T) {
 	timex.SetTime(func() int64 { return 0 })
 	defer timex.ResetTime()
 
-	h := NewHystrix(NewConfig(), xlog.NoopLogger{})
+	h := NewHystrix(NewConfig(), xlog.NoopPrinter{})
 	h.MinQPSThreshold.Update(2)
 	timex.SetTime(func() int64 { return 0 })
 	for i := range 100 {
