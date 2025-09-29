@@ -1,4 +1,4 @@
-package regular
+package native
 
 import (
 	"context"
@@ -8,7 +8,6 @@ import (
 	"sync"
 
 	"github.com/cocktail828/go-tools/pkg/nacs"
-	"github.com/cocktail828/go-tools/pkg/netx"
 	"github.com/pkg/errors"
 	"gopkg.in/fsnotify.v1"
 )
@@ -19,39 +18,23 @@ type fileConfigor struct {
 	configs sync.Map
 }
 
-// regular://localhost?file=path1&file=path2
-func NewFileConfigor(uris ...string) (nacs.Configor, error) {
-	if len(uris) == 0 {
-		return nil, errors.New("uris argument is empty")
-	}
-
-	fpaths := []string{}
-	for _, f := range uris {
-		u, err := netx.ParseRI(f)
-		if err != nil {
-			return nil, err
-		}
-
-		query, err := url.ParseQuery(u.Query)
-		if err != nil {
-			return nil, err
-		}
-		fpaths = append(fpaths, query["file"]...)
+// native://localhost?file=path1
+func NewNativeConfigor(uri string) (nacs.Configor, error) {
+	u, err := url.ParseRequestURI(uri)
+	if err != nil {
+		return nil, err
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	fc := fileConfigor{
+	fc := &fileConfigor{
 		rctx:    ctx,
 		rcancel: cancel,
 	}
 
-	for _, f := range fpaths {
-		if _, err := fc.loadConfigLocked(f); err != nil {
-			return nil, err
-		}
+	if _, err := fc.loadConfigLocked(u.Query().Get("file")); err != nil {
+		return nil, err
 	}
-
-	return &fc, nil
+	return fc, nil
 }
 
 func (f *fileConfigor) loadConfigLocked(fpath string) ([]byte, error) {
@@ -63,20 +46,20 @@ func (f *fileConfigor) loadConfigLocked(fpath string) ([]byte, error) {
 	return payload, nil
 }
 
-type regularLoadOpt struct {
+type nativeLoadOpt struct {
 	fpath string
 }
 
 func FileName(v string) nacs.LoadOpt {
 	return func(o any) {
-		if f, ok := o.(*regularLoadOpt); ok {
+		if f, ok := o.(*nativeLoadOpt); ok {
 			f.fpath = v
 		}
 	}
 }
 
 func (f *fileConfigor) Load(opts ...nacs.LoadOpt) ([]byte, error) {
-	var ro regularLoadOpt
+	var ro nativeLoadOpt
 	for _, o := range opts {
 		o(&ro)
 	}

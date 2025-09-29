@@ -1,4 +1,4 @@
-package regular
+package native
 
 import (
 	"context"
@@ -10,13 +10,13 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestRegular(t *testing.T) {
+func TestNative(t *testing.T) {
 	tempFilePath := "/tmp/test_config.txt"
 	defer os.Remove(tempFilePath)
 
 	data := []byte("hello world")
 	z.Must(os.WriteFile(tempFilePath, data, os.ModePerm))
-	configor, err := NewFileConfigor("regular://localhost?file=" + tempFilePath)
+	configor, err := NewNativeConfigor("native://localhost?file=" + tempFilePath)
 	z.Must(err)
 	defer configor.Close()
 
