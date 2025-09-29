@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"net/url"
+	"regexp"
 	"strconv"
 
 	"github.com/cocktail828/go-tools/pkg/nacs"
@@ -21,14 +22,32 @@ var _ nacs.Registry = &nacosClient{}
 var _ nacs.Configor = &nacosClient{}
 
 type nacosClient struct {
-	ID    string // config ID
-	Group string // config group
+	Group   string // group
+	App     string // app name
+	Version string // app version
 
 	namingClient naming_client.INamingClient
 	configClient config_client.IConfigClient
 }
 
-// nacos://$user:$password@$host:$port/$namespace
+// nacos://$user:$password@$host:$port/$group/$app/$version
+var re = regexp.MustCompile(`^/([^/]+)/([^/]+)/([^/]+)$`)
+
+func abstract(path string) (group, app, version string, err error) {
+	matches := re.FindStringSubmatch(path)
+	if matches == nil {
+		err = errors.New("nacos path format error: expect nacos://$user:$password@$host:$port/$group/$app/$version[?namespace=$ns]")
+		return
+	}
+
+	group, app, version = matches[1], matches[2], matches[3]
+	if group == "" || app == "" || version == "" {
+		err = errors.New("nacos path format error: expect nacos://$user:$password@$host:$port/$group/$app/$version[?namespace=$ns]")
+		return
+	}
+	return
+}
+
 func NewNacosClient(uri string) (*nacosClient, error) {
 	u, err := url.ParseRequestURI(uri)
 	if err != nil {
@@ -41,10 +60,15 @@ func NewNacosClient(uri string) (*nacosClient, error) {
 		password, _ = u.User.Password()
 	}
 
+	group, app, version, err := abstract(u.Path)
+	if err != nil {
+		return nil, err
+	}
+
 	cc := constant.NewClientConfig(
 		constant.WithNamespaceId(u.Query().Get("namespace")),
 		constant.WithNotLoadCacheAtStart(true),
-		constant.WithAppName(u.Query().Get("appname")),
+		constant.WithAppName(app),
 		constant.WithLogDir("./nacos/log"),
 		constant.WithCacheDir("./nacos/cache"),
 		constant.WithLogLevel("info"),
@@ -78,14 +102,10 @@ func NewNacosClient(uri string) (*nacosClient, error) {
 		return nil, err
 	}
 
-	group := u.Query().Get("group")
-	if group == "" {
-		group = constant.DEFAULT_GROUP
-	}
-
 	return &nacosClient{
-		ID:           u.Query().Get("id"),
 		Group:        group,
+		App:          app,
+		Version:      version,
 		namingClient: namingClient,
 		configClient: configClient,
 	}, nil
@@ -110,6 +130,7 @@ func splitHostPort(addr string) (string, int, error) {
 	return host, _p, nil
 }
 
+func (r *nacosClient) ServiceName() string { return r.App + "@" + r.Version }
 func (r *nacosClient) Register(inst nacs.RegisterInstance) (context.CancelFunc, error) {
 	host, port, err := splitHostPort(inst.Address)
 	if err != nil {
@@ -123,8 +144,8 @@ func (r *nacosClient) Register(inst nacs.RegisterInstance) (context.CancelFunc, 
 		Enable:      true,
 		Healthy:     true,
 		Metadata:    inst.Metadata,
-		ServiceName: inst.Name,
-		GroupName:   inst.Group,
+		ServiceName: r.ServiceName(),
+		GroupName:   r.Group,
 		Ephemeral:   true, // 临时实例
 	})
 	if err != nil {
@@ -137,8 +158,8 @@ func (r *nacosClient) Register(inst nacs.RegisterInstance) (context.CancelFunc, 
 
 	return func() {
 		r.DeRegister(nacs.DeRegisterInstance{
-			Group:   inst.Group,
-			Name:    inst.Name,
+			Group:   r.Group,
+			Name:    r.ServiceName(),
 			Address: inst.Address,
 		})
 	}, nil
@@ -236,13 +257,15 @@ func (r *nacosClient) Watch(svc nacs.Service, callback func([]nacs.Instance, err
 	}, r.namingClient.Subscribe(&param)
 }
 
+func (r *nacosClient) ID() string { return r.App + "_" + r.Version }
 func (r *nacosClient) Load() ([]byte, error) {
-	if r.ID == "" {
+	id := r.ID()
+	if id == "" {
 		return nil, errors.New("nacos: data ID cannot be empty")
 	}
 
 	content, err := r.configClient.GetConfig(vo.ConfigParam{
-		DataId: r.ID,
+		DataId: id,
 		Group:  r.Group,
 	})
 	if err != nil {
@@ -257,8 +280,13 @@ func (r *nacosClient) Monitor(cb nacs.OnChange) (context.CancelFunc, error) {
 		cb = func(err error, args ...any) {}
 	}
 
+	id := r.ID()
+	if id == "" {
+		return nil, errors.New("nacos: data ID cannot be empty")
+	}
+
 	if err := r.configClient.ListenConfig(vo.ConfigParam{
-		DataId:   r.ID,
+		DataId:   id,
 		Group:    r.Group,
 		OnChange: func(namespace, group, dataId, data string) { cb(nil, namespace, group, dataId, data) },
 	}); err != nil {
@@ -267,7 +295,7 @@ func (r *nacosClient) Monitor(cb nacs.OnChange) (context.CancelFunc, error) {
 
 	return func() {
 		r.configClient.CancelListenConfig(vo.ConfigParam{
-			DataId: r.ID,
+			DataId: id,
 			Group:  r.Group,
 		})
 	}, nil

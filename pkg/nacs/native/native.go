@@ -20,7 +20,7 @@ type fileConfigor struct {
 	payload []byte // 文件内容
 }
 
-// native://localhost?file=path1
+// native://localhost?/path1
 func NewNativeConfigor(uri string) (nacs.Configor, error) {
 	u, err := url.ParseRequestURI(uri)
 	if err != nil {
@@ -33,7 +33,7 @@ func NewNativeConfigor(uri string) (nacs.Configor, error) {
 		rcancel: cancel,
 	}
 
-	if _, err := f.loadConfigLocked(u.Query().Get("file")); err != nil {
+	if _, err := f.loadConfigLocked(u.Path); err != nil {
 		return nil, err
 	}
 	return f, nil

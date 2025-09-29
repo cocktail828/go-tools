@@ -20,8 +20,6 @@ type Instance struct {
 }
 
 type RegisterInstance struct {
-	Group    string
-	Name     string // service@version
 	Address  string // host:port
 	Metadata map[string]string
 }
