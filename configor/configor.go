@@ -4,6 +4,7 @@ import (
 	"os"
 	"reflect"
 	"strconv"
+	"time"
 
 	"github.com/pkg/errors"
 )
@@ -64,6 +65,15 @@ func (c *Configor) bindEnv(in any) error {
 		}
 
 		if envVal == "" {
+			continue
+		}
+
+		if field.Type() == reflect.TypeOf(time.Duration(0)) {
+			durationValue, err := time.ParseDuration(envVal)
+			if err != nil {
+				return errors.Errorf("error parsing %s as time.Duration: %v", envName, err)
+			}
+			field.Set(reflect.ValueOf(durationValue))
 			continue
 		}
 

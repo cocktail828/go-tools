@@ -4,17 +4,19 @@ import (
 	"log"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/stretchr/testify/assert"
 )
 
 type DB struct {
-	Name     string `env:"DB_NAME" default:"name"`
-	User     string `env:"DB_USER" default:"root"`
-	Password string `env:"DB_PASSWORD" validate:"required"`
-	Port     uint   `env:"DB_PORT" default:"3306"`
-	SSL      bool   `env:"DB_SSL" default:"true"`
+	Name     string        `env:"DB_NAME" default:"name"`
+	User     string        `env:"DB_USER" default:"root"`
+	Password string        `env:"DB_PASSWORD" validate:"required"`
+	Port     uint          `env:"DB_PORT" default:"3306"`
+	SSL      bool          `env:"DB_SSL" default:"true"`
+	Timeout  time.Duration `env:"DB_TIMEOUT" default:"5s"`
 }
 
 type Config struct {
@@ -96,6 +98,7 @@ func TestLoadConfigurationWithLoadEnvFalse(t *testing.T) {
 		"CONFIGOR_DB_USER":     "env_user",
 		"CONFIGOR_DB_PORT":     "6543",
 		"CONFIGOR_DB_PASSWORD": "env_password",
+		"CONFIGOR_DB_TIMEOUT":  "10s",
 	}
 	m.SetEnv()
 	defer m.ResetEnv()
@@ -115,6 +118,7 @@ func TestLoadConfigurationWithLoadEnvFalse(t *testing.T) {
 	assert.Equal(t, cfg.DB.User, "root", "DB.User should remain default when LoadEnv=false")
 	assert.EqualValues(t, cfg.DB.Port, 3306, "DB.Port should remain default when LoadEnv=false")
 	assert.Equal(t, cfg.DB.Password, "", "DB.Password should remain default when LoadEnv=false")
+	assert.Equal(t, cfg.DB.Timeout, time.Duration(5)*time.Second, "DB.Timeout should remain default when LoadEnv=false")
 }
 
 type Service struct {
