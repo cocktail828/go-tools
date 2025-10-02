@@ -53,7 +53,7 @@ func TestNative(t *testing.T) {
 	// monitor
 	data = []byte("updated_value")
 	ctx, cancel := context.WithCancel(context.Background())
-	_, err = configor.Monitor(func(err error, args ...any) {
+	_, err = configor.Monitor(func(name string, payload []byte, err error) {
 		assert.NoError(t, err, "Monitor callback should not return error")
 
 		value, err := configor.Load()

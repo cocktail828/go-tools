@@ -272,7 +272,7 @@ func (r *nacosClient) Load() ([]byte, error) {
 
 func (r *nacosClient) Monitor(cb nacs.OnChange) (context.CancelFunc, error) {
 	if cb == nil {
-		cb = func(err error, args ...any) {}
+		cb = func(name string, payload []byte, err error) {}
 	}
 
 	id := r.ID()
@@ -283,7 +283,7 @@ func (r *nacosClient) Monitor(cb nacs.OnChange) (context.CancelFunc, error) {
 	if err := r.configClient.ListenConfig(vo.ConfigParam{
 		DataId:   id,
 		Group:    r.Group,
-		OnChange: func(namespace, group, dataId, data string) { cb(nil, namespace, group, dataId, data) },
+		OnChange: func(namespace, group, dataId, data string) { cb(dataId, []byte(data), nil) },
 	}); err != nil {
 		return nil, err
 	}

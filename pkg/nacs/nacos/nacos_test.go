@@ -31,8 +31,8 @@ func TestConfigor(t *testing.T) {
 	assert.NotEqual(t, 0, len(bs))
 
 	ctx, f := context.WithTimeout(context.Background(), time.Second*3)
-	cancel, err := nac.Monitor(func(err error, args ...any) {
-		t.Logf("monitor callback err=%v args=%v", err, args)
+	cancel, err := nac.Monitor(func(name string, payload []byte, err error) {
+		t.Logf("monitor callback name=%v payload=%v err=%v", name, len(payload), err)
 		f()
 	})
 	z.Must(err)

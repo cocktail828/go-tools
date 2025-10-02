@@ -78,7 +78,7 @@ func (f *fileConfigor) Monitor(cb nacs.OnChange) (context.CancelFunc, error) {
 	}
 
 	if cb == nil {
-		cb = func(err error, a ...any) {}
+		cb = func(name string, payload []byte, err error) {}
 	}
 
 	ctx, cancel := context.WithCancel(f.rctx)
@@ -95,7 +95,7 @@ func (f *fileConfigor) Monitor(cb nacs.OnChange) (context.CancelFunc, error) {
 
 				if event.Op&fsnotify.Write == fsnotify.Write {
 					payload, err := f.loadConfigLocked(event.Name)
-					cb(err, payload, event.Name)
+					cb(event.Name, payload, err)
 				}
 
 			case _, ok := <-watcher.Errors:
