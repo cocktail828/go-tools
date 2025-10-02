@@ -2,6 +2,7 @@ package nacos
 
 import (
 	"context"
+	"net/url"
 	"testing"
 	"time"
 
@@ -16,7 +17,10 @@ var (
 )
 
 func init() {
-	_nac, err := NewNacosClient(uri)
+	_u, err := url.ParseRequestURI(uri)
+	z.Must(err)
+
+	_nac, err := NewNacosClient(_u)
 	z.Must(err)
 	nac = _nac
 }

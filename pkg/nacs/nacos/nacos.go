@@ -48,12 +48,7 @@ func abstract(path string) (group, app, version string, err error) {
 	return
 }
 
-func NewNacosClient(uri string) (*nacosClient, error) {
-	u, err := url.ParseRequestURI(uri)
-	if err != nil {
-		return nil, err
-	}
-
+func NewNacosClient(u *url.URL) (*nacosClient, error) {
 	var username, password string
 	if u.User != nil {
 		username = u.User.Username()

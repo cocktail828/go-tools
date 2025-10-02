@@ -21,12 +21,7 @@ type fileConfigor struct {
 }
 
 // native://localhost?/path1
-func NewNativeConfigor(uri string) (nacs.Configor, error) {
-	u, err := url.ParseRequestURI(uri)
-	if err != nil {
-		return nil, err
-	}
-
+func NewNativeConfigor(u *url.URL) (nacs.Configor, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	f := &fileConfigor{
 		rctx:    ctx,

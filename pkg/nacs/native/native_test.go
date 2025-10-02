@@ -2,6 +2,7 @@ package native
 
 import (
 	"context"
+	"net/url"
 	"os"
 	"testing"
 	"time"
@@ -17,7 +18,11 @@ func TestNative(t *testing.T) {
 	data := []byte("hello world")
 	z.Must(os.WriteFile(tempFilePath, data, os.ModePerm))
 
-	configor, err := NewNativeConfigor("native://localhost" + tempFilePath)
+	// create configor
+	u, err := url.ParseRequestURI("native://localhost" + tempFilePath)
+	z.Must(err)
+
+	configor, err := NewNativeConfigor(u)
 	z.Must(err)
 	defer configor.Close()
 
