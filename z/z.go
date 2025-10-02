@@ -3,12 +3,29 @@ package z
 import (
 	"fmt"
 	"os"
+	"regexp"
 	"runtime"
 	"strconv"
 	"strings"
 
 	"github.com/cocktail828/go-tools/z/reflectx"
 )
+
+var regexpVersion = regexp.MustCompile(`^(v?)((?:\d+\.){0,2}\d+)(\.(\d+))*(?:-rc\d+)?$`)
+
+func Version(in string) string {
+	matches := regexpVersion.FindStringSubmatch(in)
+	if len(matches) < 3 {
+		return in
+	}
+
+	baseVersion := matches[2]
+	if !strings.HasPrefix(baseVersion, "v") {
+		baseVersion = "v" + baseVersion
+	}
+
+	return baseVersion
+}
 
 func GoroutineID() uint64 {
 	var buf [64]byte
