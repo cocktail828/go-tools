@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/url"
 	"os"
+	"path/filepath"
 	"sync"
 
 	"github.com/cocktail828/go-tools/pkg/nacs"
@@ -28,7 +29,16 @@ func NewNativeConfigor(u *url.URL) (nacs.Configor, error) {
 		rcancel: cancel,
 	}
 
-	if _, err := f.loadConfigLocked(u.Path); err != nil {
+	fpath := u.Path
+	if u.Query().Get("relative") == "true" {
+		wd, err := os.Getwd()
+		if err != nil {
+			return nil, err
+		}
+		fpath = filepath.Join(wd, filepath.Base(fpath))
+	}
+
+	if _, err := f.loadConfigLocked(fpath); err != nil {
 		return nil, err
 	}
 	return f, nil

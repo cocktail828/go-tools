@@ -11,6 +11,26 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestNativeRelative(t *testing.T) {
+	tempFilePath := "test_config.txt"
+	defer os.Remove(tempFilePath)
+
+	data := []byte("hello world")
+	z.Must(os.WriteFile(tempFilePath, data, os.ModePerm))
+
+	// create configor
+	u, err := url.ParseRequestURI("native://localhost/" + tempFilePath + "?relative=true")
+	z.Must(err)
+
+	configor, err := NewNativeConfigor(u)
+	z.Must(err)
+	defer configor.Close()
+
+	value, err := configor.Load()
+	z.Must(err)
+	assert.Equal(t, string(data), string(value))
+}
+
 func TestNative(t *testing.T) {
 	tempFilePath := "/tmp/test_config.txt"
 	defer os.Remove(tempFilePath)
