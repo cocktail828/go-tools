@@ -10,7 +10,14 @@ func IsNil(obj any) bool {
 		return true
 	}
 
-	return reflect.ValueOf(obj).IsNil()
+	v := reflect.ValueOf(obj)
+	kind := v.Kind()
+	switch kind {
+	case reflect.Pointer, reflect.Interface, reflect.Map, reflect.Slice, reflect.Chan, reflect.Func:
+		return v.IsNil()
+	default:
+		return false
+	}
 }
 
 func BytesToString(b []byte) string {
