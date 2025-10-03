@@ -1,6 +1,7 @@
 package dsn
 
 import (
+	"net/url"
 	"strings"
 )
 
@@ -29,6 +30,14 @@ func Parse(uri string) (ri RI) {
 	ri.Path, ri.Query, _ = strings.Cut(rest, "?")
 	if !strings.HasPrefix(ri.Path, "/") {
 		ri.Path = "/" + ri.Path
+	}
+
+	if s, err := url.QueryUnescape(ri.Path); err == nil {
+		ri.Path = s
+	}
+
+	if s, err := url.QueryUnescape(ri.Query); err == nil {
+		ri.Query = s
 	}
 	return
 }

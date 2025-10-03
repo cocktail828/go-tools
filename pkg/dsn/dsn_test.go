@@ -8,6 +8,14 @@ func TestParseRI(t *testing.T) {
 		ri  RI
 	}{
 		{
+			uri: "mq://P%40ss%26w%5erd%7c123?c=e&d=f",
+			ri: RI{
+				Scheme: "mq",
+				Path:   "/P@ss&w^rd|123",
+				Query:  "c=e&d=f",
+			},
+		},
+		{
 			uri: "mq://a/b?c=e&d=f",
 			ri: RI{
 				Scheme: "mq",
