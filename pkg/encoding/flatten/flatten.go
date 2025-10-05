@@ -24,6 +24,12 @@ func flatten(prefix []string, mmp, result map[string]any) {
 	}
 }
 
+func FlattenMap(mmp map[string]any) map[string]any {
+	flattened := map[string]any{}
+	flatten(nil, mmp, flattened)
+	return flattened
+}
+
 func setValue(fieldValue reflect.Value, value any) error {
 	switch fieldValue.Kind() {
 	case reflect.String:
@@ -123,8 +129,7 @@ func Unmarshal(data []byte, v any) error {
 		return err
 	}
 
-	flattened := map[string]any{}
-	flatten(nil, mmp, flattened)
+	flattened := FlattenMap(mmp)
 
 	rv := reflect.ValueOf(v)
 	if rv.Kind() != reflect.Ptr || rv.IsNil() {
