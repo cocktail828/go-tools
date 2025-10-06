@@ -20,8 +20,6 @@ import (
 	"unicode/utf16"
 	"unicode/utf8"
 	_ "unsafe" // for linkname
-
-	"github.com/go-playground/validator/v10"
 )
 
 // Unmarshal parses the JSON-encoded data and stores the result
@@ -211,6 +209,9 @@ type errorContext struct {
 	FieldStack []string
 }
 
+// ValidateFn is the function type for custom validation.
+type ValidateFn func(field interface{}, tag string) error
+
 // decodeState represents the state while decoding a JSON value.
 type decodeState struct {
 	data                  []byte
@@ -222,17 +223,22 @@ type decodeState struct {
 	useNumber             bool
 	disallowUnknownFields bool
 	validateRules         map[string]string
-	validate              *validator.Validate
+	validateFn            ValidateFn
 }
 
 func (d *decodeState) validateValue(v reflect.Value, path []string) error {
-	rule, exist := d.validateRules[strings.Join(path, ".")]
+	if d.validateFn == nil || len(d.validateRules) == 0 {
+		return nil
+	}
+
+	rulekey := strings.Join(path, ".")
+	rule, exist := d.validateRules[rulekey]
 	if !exist {
 		return nil
 	}
 
-	if err := d.validate.Var(v.Interface(), rule); err != nil {
-		return fmt.Errorf("validate failed: %w, path=%s", err, strings.Join(path, "."))
+	if err := d.validateFn(v.Interface(), rule); err != nil {
+		return fmt.Errorf("validate failed: %w, path=%s", err, rulekey)
 	}
 	return nil
 }

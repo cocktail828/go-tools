@@ -10,8 +10,6 @@ import (
 	"bytes"
 	"errors"
 	"io"
-
-	"github.com/go-playground/validator/v10"
 )
 
 // A Decoder reads and decodes JSON values from an input stream.
@@ -28,8 +26,6 @@ type Decoder struct {
 	tokenStack []int
 }
 
-var defaultValidator = validator.New()
-
 // NewDecoder returns a new decoder that reads from r.
 //
 // The decoder introduces its own buffering and may
@@ -38,9 +34,9 @@ func NewDecoder(r io.Reader) *Decoder {
 	return &Decoder{r: r}
 }
 
-func (dec *Decoder) WithValidateRules(rules map[string]string) {
+func (dec *Decoder) WithValidateRules(v ValidateFn, rules map[string]string) {
 	dec.d.validateRules = rules
-	dec.d.validate = defaultValidator
+	dec.d.validateFn = v
 }
 
 // UseNumber causes the Decoder to unmarshal a number into an
