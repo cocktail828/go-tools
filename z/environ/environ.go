@@ -39,18 +39,18 @@ func WithString(v string) Option { return func(o *option) { o.strVal = v } }
 func WithFloat(v float64) Option { return func(o *option) { o.floatVal = v } }
 func WithInt(v int64) Option     { return func(o *option) { o.intVal = v } }
 
-func parseValue[T any](name string, parseFunc func(string) (T, error), defaultValue T) T {
+func parseValue[T any](name string, parseFn func(string) (T, error), defaultVal T) T {
 	if name == "" || name == "-" {
-		return defaultValue
+		return defaultVal
 	}
 	val, ok := os.LookupEnv(name)
 	if !ok {
-		return defaultValue
+		return defaultVal
 	}
-	if v, err := parseFunc(val); err == nil {
+	if v, err := parseFn(val); err == nil {
 		return v
 	}
-	return defaultValue
+	return defaultVal
 }
 
 func String(name string, opts ...Option) string {

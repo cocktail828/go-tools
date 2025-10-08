@@ -23,9 +23,8 @@ type Config struct {
 	MaxWorkers,
 	MinWorkers, // default MaxWorkers / 2
 	PendingTaskNum, // task queue length, default 1024
-	ExpandThreshold, // expand workers if task queue length is larger than expand threshold, default maxWorkers * 3
+	ExpandThreshold, // expand workers if task queue length is larger than expand threshold, default min(PendingTaskNum*2/3, MaxWorkers*10)
 	ShrinkThreshold int // shrink workers if task queue length is smaller than shrink threshold, default minWorkers
-	ShrinkInterval time.Duration // shrink workers interval
 }
 
 func (c *Config) Normalize() error {
@@ -34,9 +33,6 @@ func (c *Config) Normalize() error {
 	}
 	if c.PendingTaskNum <= 0 {
 		return errors.Wrapf(ErrInvalidParam, "check parameters pendingTaskNum(%d)", c.PendingTaskNum)
-	}
-	if c.ShrinkInterval <= 0 {
-		return errors.Wrapf(ErrInvalidParam, "check parameters shrinkInterval(%v)", c.ShrinkInterval)
 	}
 	if c.ShrinkThreshold <= 0 {
 		return errors.Wrapf(ErrInvalidParam, "check parameters shrinkThreshold(%d)", c.ShrinkThreshold)
@@ -53,16 +49,16 @@ func DefaultConfig() Config {
 		MinWorkers:     5,
 		PendingTaskNum: 1024,
 	}
-	c.ExpandThreshold = c.MaxWorkers * 3
+	c.ExpandThreshold = min(c.PendingTaskNum*2/3, c.MaxWorkers*10)
 	c.ShrinkThreshold = c.MinWorkers
-	c.ShrinkInterval = time.Second * 5
 	return c
 }
 
 type HybridPool struct {
 	c        Config
 	sema     *semaphore.Weighted
-	taskChan chan Task
+	taskCh   chan Task
+	shrinkCh chan struct{}
 	closed   atomic.Bool
 	ctx      context.Context
 	cancel   context.CancelFunc
@@ -77,7 +73,8 @@ func NewHybridPool(c Config) (*HybridPool, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	p := &HybridPool{
 		sema:     semaphore.NewWeighted(int64(c.MaxWorkers)),
-		taskChan: make(chan Task, c.PendingTaskNum),
+		taskCh:   make(chan Task, c.PendingTaskNum),
+		shrinkCh: make(chan struct{}, c.MaxWorkers),
 		ctx:      ctx,
 		cancel:   cancel,
 	}
@@ -85,21 +82,27 @@ func NewHybridPool(c Config) (*HybridPool, error) {
 	p.sema.Acquire(context.Background(), int64(c.MinWorkers))
 	for i := 0; i < c.MinWorkers; i++ {
 		p.wg.Add(1)
-		go p.spawn(false)
+		go p.spawn()
 	}
 
+	// 1. shrink workers if task queue length is smaller than shrink threshold
+	// and the number of assigned workers is larger than minWorkers
+	// 2. expand workers if task queue length is larger than expand threshold
+	// and the number of assigned workers is smaller than maxWorkers
 	p.wg.Add(1)
 	go func() {
 		defer p.wg.Done()
 
-		ticker := time.NewTicker(time.Second * 5)
+		ticker := time.NewTicker(time.Second)
 		defer ticker.Stop()
 		for {
 			select {
 			case <-ticker.C:
-				if len(p.taskChan) >= c.ExpandThreshold && p.sema.TryAcquire(1) {
+				if len(p.taskCh) <= p.c.ShrinkThreshold && p.sema.Assigned() >= int64(p.c.MinWorkers) {
+					p.shrinkCh <- struct{}{}
+				} else if len(p.taskCh) >= c.ExpandThreshold && p.sema.TryAcquire(1) {
 					p.wg.Add(1)
-					go p.spawn(true)
+					go p.spawn()
 				}
 			case <-p.ctx.Done():
 				return
@@ -109,26 +112,21 @@ func NewHybridPool(c Config) (*HybridPool, error) {
 	return p, nil
 }
 
-func (p *HybridPool) spawn(isElastic bool) {
+func (p *HybridPool) spawn() {
 	defer p.wg.Done()
 	defer p.sema.Release(1)
 
-	timer := time.NewTimer(p.c.ShrinkInterval)
-	defer timer.Stop()
 	for {
 		select {
 		case <-p.ctx.Done():
 			return
-		case <-timer.C: // elastic worker stoped for idle
-			if isElastic && len(p.taskChan) >= p.c.ShrinkThreshold && p.sema.Assigned() <= 3 {
-				return
-			}
-		case task, ok := <-p.taskChan:
+		case <-p.shrinkCh: // elastic worker stoped for idle
+			return
+		case task, ok := <-p.taskCh:
 			if !ok {
 				return
 			}
 			p.execute(task)
-			timer.Reset(p.c.ShrinkInterval)
 		}
 	}
 }
@@ -151,7 +149,7 @@ func (p *HybridPool) Close() {
 	p.wg.Wait()
 	for {
 		select {
-		case t := <-p.taskChan:
+		case t := <-p.taskCh:
 			p.execute(t)
 		default:
 			return
@@ -165,7 +163,7 @@ func (p *HybridPool) Submit(task Task) (err error) {
 	}
 
 	select {
-	case p.taskChan <- task:
+	case p.taskCh <- task:
 		return nil
 	default:
 		return ErrPoolFull
