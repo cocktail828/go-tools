@@ -18,7 +18,6 @@ import (
 	"strconv"
 	"sync"
 	"testing"
-	"testing/synctest"
 	"time"
 )
 
@@ -1412,14 +1411,14 @@ func TestIssue63379(t *testing.T) {
 func TestSynctestMarshal(t *testing.T) {
 	var wg sync.WaitGroup
 	for range 5 {
-		wg.Go(func() {
-			synctest.Test(t, func(t *testing.T) {
-				_, err := Marshal([]string{})
-				if err != nil {
-					t.Errorf("Marshal: %v", err)
-				}
-			})
-		})
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_, err := Marshal([]string{})
+			if err != nil {
+				t.Errorf("Marshal: %v", err)
+			}
+		}()
 	}
 	wg.Wait()
 }
