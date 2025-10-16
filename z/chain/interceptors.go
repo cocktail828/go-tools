@@ -17,7 +17,7 @@ func getChainUnaryHandler(interceptors []UnaryInterceptor, curr int, finalHandle
 	}
 }
 
-func ChainUnaryInterceptors(interceptors []UnaryInterceptor) UnaryInterceptor {
+func ChainUnaryInterceptors(interceptors ...UnaryInterceptor) UnaryInterceptor {
 	if len(interceptors) == 0 {
 		return func(ctx context.Context, in any, handler UnaryHandler) (resp any, err error) {
 			return handler(ctx, in)

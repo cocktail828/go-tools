@@ -10,7 +10,7 @@ import (
 
 func TestRecurse(t *testing.T) {
 	slice := []string{}
-	s := ChainUnaryInterceptors([]UnaryInterceptor{
+	s := ChainUnaryInterceptors(
 		func(ctx context.Context, in any, handler UnaryHandler) (resp any, err error) {
 			slice = append(slice, "1 in")
 			r, e := handler(ctx, in)
@@ -29,7 +29,7 @@ func TestRecurse(t *testing.T) {
 			slice = append(slice, "3 out")
 			return r, e
 		},
-	})
+	)
 
 	val, err := s(context.TODO(), nil, func(ctx context.Context, in any) (any, error) {
 		slice = append(slice, "end")
@@ -42,7 +42,7 @@ func TestRecurse(t *testing.T) {
 
 func TestFailure(t *testing.T) {
 	slice := []string{}
-	s := ChainUnaryInterceptors([]UnaryInterceptor{
+	s := ChainUnaryInterceptors(
 		func(ctx context.Context, in any, handler UnaryHandler) (resp any, err error) {
 			slice = append(slice, "1 in")
 			r, e := handler(ctx, in)
@@ -59,7 +59,7 @@ func TestFailure(t *testing.T) {
 			slice = append(slice, "3 out")
 			return r, e
 		},
-	})
+	)
 
 	_, err := s(context.TODO(), nil, func(ctx context.Context, in any) (any, error) {
 		slice = append(slice, "end")
@@ -70,7 +70,7 @@ func TestFailure(t *testing.T) {
 }
 
 func TestNilInter(t *testing.T) {
-	s := ChainUnaryInterceptors([]UnaryInterceptor{})
+	s := ChainUnaryInterceptors()
 	_, err := s(context.TODO(), nil, func(ctx context.Context, in any) (any, error) {
 		return nil, nil
 	})
