@@ -10,6 +10,7 @@ require (
 	github.com/nacos-group/nacos-sdk-go/v2 v2.2.9
 	github.com/pkg/errors v0.9.1
 	github.com/stretchr/testify v1.10.0
+	github.com/zclconf/go-cty v1.15.0
 	go.etcd.io/etcd/client/v3 v3.5.14
 	golang.org/x/net v0.43.0
 	golang.org/x/sync v0.16.0
@@ -78,7 +79,6 @@ require (
 	github.com/prometheus/procfs v0.8.0 // indirect
 	github.com/rogpeppe/go-internal v1.10.0 // indirect
 	github.com/tjfoc/gmsm v1.4.1 // indirect
-	github.com/zclconf/go-cty v1.15.0 // indirect
 	go.etcd.io/etcd/api/v3 v3.5.14 // indirect
 	go.etcd.io/etcd/client/pkg/v3 v3.5.14 // indirect
 	go.uber.org/atomic v1.7.0 // indirect
