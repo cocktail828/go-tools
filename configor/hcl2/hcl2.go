@@ -10,7 +10,7 @@ import (
 	"github.com/zclconf/go-cty/cty"
 )
 
-// time.Duration is not supported by HCL
+// time.Duration will be marshaled as int64
 func Unmarshal(data []byte, v any) error {
 	return hclsimple.Decode("example.hcl", data, nil, v)
 }

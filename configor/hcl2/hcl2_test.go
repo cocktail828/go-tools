@@ -2,6 +2,7 @@ package hcl2
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -28,19 +29,20 @@ func boolPtr(b bool) *bool { return &b }
 
 type DatabaseConfig struct {
 	Engine     string            `hcl:"engine,label"`
-	Version    string            `hcl:"version"`
 	Port       int               `hcl:"port"`
+	Version    string            `hcl:"version,label"`
 	AllowedIPs []string          `hcl:"allowed_ips"`
 	Parameters map[string]string `hcl:"parameters"`
 }
 
 type S3Config struct {
-	Engine     string            `hcl:"s3_engine,label"`
+	Engine     string            `hcl:"s3_engine"`
 	AllowedIPs []string          `hcl:"s3_allowed_ips"`
 	Parameters map[string]string `hcl:"s3_parameters"`
 }
 
 type AWSInstance struct {
+	Timeout          time.Duration     `hcl:"timeout"`
 	InstanceType     string            `hcl:"instance_type"`
 	AMI              string            `hcl:"ami"`
 	S3               S3Config          `hcl:"s3_config,block"`
@@ -95,6 +97,7 @@ func TestHCL2(t *testing.T) {
 
 	{
 		obj := AWSInstance{
+			Timeout:      time.Second,
 			InstanceType: "t3.medium",
 			AMI:          "ami-0c55b159cbfafe1f0",
 			S3: S3Config{
