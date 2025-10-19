@@ -70,17 +70,14 @@ func (m *Map[T]) Len() int {
 // Otherwise, it stores and returns the given value.
 // The loaded result is true if the value was loaded, false if stored.
 func (m *Map[T]) LoadOrStore(key string, value T) (actual T, loaded bool) {
-	m.mu.RLock()
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	v, ok := m.m[key]
 	if ok {
-		m.mu.RUnlock()
 		return v, true
 	}
-	m.mu.RUnlock()
 
-	m.mu.Lock()
 	m.m[key] = value
-	m.mu.Unlock()
 	return value, false
 }
 

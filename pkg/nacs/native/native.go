@@ -21,42 +21,35 @@ type fileConfigor struct {
 	payload []byte // 文件内容
 }
 
-// native://localhost?/path1
-func NewNativeConfigor(u *url.URL) (nacs.Configor, error) {
+// file:///tmp/test_config.txt
+// file://./test_config.txt
+func NewFileConfigor(u *url.URL) (nacs.Configor, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	f := &fileConfigor{
 		rctx:    ctx,
 		rcancel: cancel,
+		fpath:   filepath.Join(u.Host, u.Path),
 	}
 
-	fpath := u.Path
-	if u.Query().Get("relative") == "true" {
-		wd, err := os.Getwd()
-		if err != nil {
-			return nil, err
-		}
-		fpath = filepath.Join(wd, filepath.Base(fpath))
-	}
-
-	if _, err := f.loadConfigLocked(fpath); err != nil {
+	if _, err := f.loadConfigLocked(f.fpath); err != nil {
 		return nil, err
 	}
 	return f, nil
 }
 
 func (f *fileConfigor) loadConfigLocked(fpath string) (payload []byte, err error) {
+	if fpath == "" {
+		return nil, errors.New("empty file path")
+	}
+
 	payload, err = os.ReadFile(fpath)
 	if err != nil {
 		return nil, err
 	}
 
-	if fpath == "" {
-		return nil, errors.New("invalid file path")
-	}
-
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	f.fpath, f.payload = fpath, payload
+	f.payload = payload
 	return
 }
 
@@ -70,11 +63,11 @@ func (f *fileConfigor) Load() ([]byte, error) {
 func (f *fileConfigor) Monitor(cb nacs.OnChange) (context.CancelFunc, error) {
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to create watcher")
+		return nil, errors.Wrap(err, "failed to create fsnotify watcher")
 	}
 
 	if err := watcher.Add(f.fpath); err != nil {
-		return nil, errors.Wrap(err, "failed to watch file")
+		return nil, errors.Wrapf(err, "failed to watch file %s", f.fpath)
 	}
 
 	if cb == nil {

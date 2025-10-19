@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/url"
 	"os"
+	"path"
 	"testing"
 	"time"
 
@@ -13,22 +14,20 @@ import (
 
 func TestNative(t *testing.T) {
 	tests := map[string]string{
-		"/tmp/test_config.txt": "native://localhost/tmp/test_config.txt",
-		"./test_config.txt":    "native://localhost/test_config.txt?relative=true",
+		"/tmp/test_config.txt": "file:///tmp/test_config.txt",
+		"./test_config.txt":    "file://./test_config.txt",
 	}
 
-	for filePath, uri := range tests {
-		tempFilePath := filePath
+	for _, uri := range tests {
+		u, err := url.ParseRequestURI(uri)
+		z.Must(err)
+		tempFilePath := path.Join(u.Host, u.Path)
 		defer os.Remove(tempFilePath)
 
 		data := []byte("hello world")
 		z.Must(os.WriteFile(tempFilePath, data, os.ModePerm))
 
-		// create configor
-		u, err := url.ParseRequestURI(uri)
-		z.Must(err)
-
-		configor, err := NewNativeConfigor(u)
+		configor, err := NewFileConfigor(u)
 		z.Must(err)
 		defer configor.Close()
 

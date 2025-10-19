@@ -18,7 +18,7 @@ type Config struct {
 	Verbose bool `hcl:"verbose" json:"verbose" toml:"verbose" yaml:"verbose"`
 
 	// BufSize is the buffer size in bytes
-	BufSize int `hcl:"bufsize" json:"bufsize" toml:"bufsize" yaml:"bufsize" default:"10485760"`
+	BufSize int `hcl:"bufsize" json:"bufsize" toml:"bufsize" yaml:"bufsize"`
 
 	// Filename is the file to write logs to.  Backup log files will be retained in the same directory.
 	// It uses <processname>-lumberjack.log in os.TempDir() if empty.
