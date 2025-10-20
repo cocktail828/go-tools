@@ -1,28 +1,27 @@
 package balancer
 
-import (
-	"sync"
-)
+import "sync/atomic"
 
 type rrBalancer struct {
-	mu    sync.RWMutex
-	pos   uint16
-	array []Node
+	nodeArray
+	pos atomic.Uint32
 }
 
-func NewRR(array []Node) Balancer {
-	return &rrBalancer{array: array}
+func NewRR(nodes []Node) Balancer {
+	if nodes == nil {
+		nodes = []Node{}
+	}
+	return &rrBalancer{nodeArray: nodeArray{nodes: nodes}}
 }
 
-func (b *rrBalancer) Pick() (n Node) {
+func (b *rrBalancer) Pick() Node {
 	b.mu.RLock()
-	array := b.array
-	b.mu.RUnlock()
+	defer b.mu.RUnlock()
 
-	if len(array) == 0 {
+	if b.Empty() {
 		return nil
 	}
-	c := array[b.pos%uint16(len(array))]
-	b.pos++
-	return c
+
+	pos := b.pos.Add(1) % uint32(b.Len())
+	return b.nodes[pos]
 }

@@ -10,7 +10,7 @@ import (
 
 func TestRecurse(t *testing.T) {
 	slice := []string{}
-	s := ChainUnaryInterceptors(
+	s := ChainInterceptors(
 		func(ctx context.Context, in any, handler UnaryHandler) (resp any, err error) {
 			slice = append(slice, "1 in")
 			r, e := handler(ctx, in)
@@ -42,7 +42,7 @@ func TestRecurse(t *testing.T) {
 
 func TestFailure(t *testing.T) {
 	slice := []string{}
-	s := ChainUnaryInterceptors(
+	s := ChainInterceptors(
 		func(ctx context.Context, in any, handler UnaryHandler) (resp any, err error) {
 			slice = append(slice, "1 in")
 			r, e := handler(ctx, in)
@@ -70,7 +70,7 @@ func TestFailure(t *testing.T) {
 }
 
 func TestNilInter(t *testing.T) {
-	s := ChainUnaryInterceptors()
+	s := ChainInterceptors()
 	_, err := s(context.TODO(), nil, func(ctx context.Context, in any) (any, error) {
 		return nil, nil
 	})

@@ -2,7 +2,6 @@ package balancer
 
 import (
 	"math/rand"
-	"sync"
 	"time"
 )
 
@@ -11,22 +10,20 @@ func init() {
 }
 
 type randomBalancer struct {
-	mu    sync.RWMutex
-	array []Node
+	nodeArray
 }
 
-func NewRandom(array []Node) Balancer {
-	return &randomBalancer{array: array}
+func NewRandom(nodes []Node) Balancer {
+	return &randomBalancer{nodeArray: nodeArray{nodes: nodes}}
 }
 
-func (b *randomBalancer) Pick() (n Node) {
+func (b *randomBalancer) Pick() Node {
 	b.mu.RLock()
-	array := b.array
-	b.mu.RUnlock()
+	defer b.mu.RUnlock()
 
-	if len(array) == 0 {
+	if b.Empty() {
 		return nil
 	}
-	c := array[rand.Intn(len(array))]
-	return c
+
+	return b.nodes[rand.Intn(b.Len())]
 }

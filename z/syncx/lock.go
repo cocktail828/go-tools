@@ -15,23 +15,22 @@ func WithLock(locker sync.Locker, f func()) {
 
 type locker struct {
 	*NamedMutex
-	id any // goroutine id or name
+	id     any       // goroutine id or name
+	holdAt time.Time // the beging time of get lock or blocked by a lock
 }
 
 func (l *locker) Lock() {
 	if l.OnRelease != nil {
-		l.holders.Store(l.id, time.Now())
+		l.holdAt = time.Now()
 	}
-
 	l.Locker.Lock()
 }
 
 func (l *locker) Unlock() {
 	l.Locker.Unlock()
-
 	if l.OnRelease != nil {
-		if start, ok := l.holders.LoadAndDelete(l.id); ok {
-			l.OnRelease(l.id, time.Since(start.(time.Time)))
+		if l.OnRelease != nil && !l.holdAt.IsZero() {
+			l.OnRelease(l.id, time.Since(l.holdAt))
 		}
 	}
 }
@@ -39,7 +38,6 @@ func (l *locker) Unlock() {
 type NamedMutex struct {
 	sync.Locker
 	OnRelease func(id any, duration time.Duration)
-	holders   sync.Map // map[name]time.Time
 }
 
 // ByName returns a locker that locks by name.

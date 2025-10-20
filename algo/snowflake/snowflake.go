@@ -8,23 +8,23 @@ import (
 )
 
 const (
-	// Epoch is set to the Twitter snowflake epoch of Nov 04 2010 01:42:54 UTC in milliseconds.
+	// epoch is set to the Twitter snowflake epoch of Nov 04 2010 01:42:54 UTC in milliseconds.
 	// You may customize this to set a different epoch for your application.
-	Epoch int64 = 1288834974657
+	epoch int64 = 1288834974657
 
-	// NodeBits holds the number of bits to use for Node.
+	// nodeBits holds the number of bits to use for Node.
 	// Remember, you have a total of 22 bits to share between Node/Step.
-	NodeBits uint8 = 10
+	nodeBits uint8 = 10
 
-	// StepBits holds the number of bits to use for Step.
+	// stepBits holds the number of bits to use for Step.
 	// Remember, you have a total of 22 bits to share between Node/Step.
-	StepBits uint8 = 12
+	stepBits uint8 = 12
 
 	// Pre-calculate constants
-	maxNode   = -1 ^ (-1 << NodeBits)
-	maxStep   = -1 ^ (-1 << StepBits)
-	timeShift = NodeBits + StepBits
-	nodeShift = StepBits
+	maxNode   = -1 ^ (-1 << nodeBits)
+	maxStep   = -1 ^ (-1 << stepBits)
+	timeShift = nodeBits + stepBits
+	nodeShift = stepBits
 )
 
 // A Node struct holds the basic information needed for a snowflake generator node.
@@ -43,7 +43,7 @@ func NewNode(node int64) (*Node, error) {
 	}
 
 	return &Node{
-		epoch: time.UnixMilli(Epoch),
+		epoch: time.UnixMilli(epoch),
 		node:  node,
 	}, nil
 }

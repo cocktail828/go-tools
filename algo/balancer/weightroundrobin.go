@@ -1,35 +1,38 @@
 package balancer
 
-import (
-	"sync"
-)
-
 type wrrBalancer struct {
-	mu        sync.Mutex
-	array     []Node
+	nodeArray
 	busyArray []int
 }
 
-func NewWRR(array []Node) Balancer {
+func NewWRR(nodes []Node) Balancer {
 	return &wrrBalancer{
-		array:     array,
-		busyArray: make([]int, len(array)),
+		nodeArray: nodeArray{nodes: nodes},
+		busyArray: make([]int, len(nodes)),
 	}
+}
+
+func (b *wrrBalancer) Update(nodes []Node) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.updateLocked(nodes)
+	b.busyArray = make([]int, len(nodes))
 }
 
 // nginx weighted round-robin balancing
 // view: https://github.com/phusion/nginx/commit/27e94984486058d73157038f7950a0a36ecc6e35
-func (b *wrrBalancer) Pick() (n Node) {
-	if len(b.array) == 0 {
-		return
+func (b *wrrBalancer) Pick() Node {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+
+	if b.Empty() {
+		return nil
 	}
 
-	b.mu.Lock()
-	defer b.mu.Unlock()
 	allWeight := 0
 	pos := -1
-	for i := 0; i < len(b.array); i++ {
-		c := b.array[i]
+	for i := 0; i < b.Len(); i++ {
+		c := b.nodes[i]
 		allWeight += c.Weight()                             // 计算总权重
 		b.busyArray[i] += c.Weight()                        // 当前权重加上权重
 		if pos == -1 || b.busyArray[i] > b.busyArray[pos] { // 如果最优节点不存在或者当前节点由于最优节点，则赋值或者替换
@@ -39,8 +42,8 @@ func (b *wrrBalancer) Pick() (n Node) {
 
 	if pos != -1 {
 		b.busyArray[pos] -= allWeight
-		n = b.array[pos]
+		return b.nodes[pos]
 	}
 
-	return
+	return nil
 }

@@ -2,7 +2,6 @@ package runnable
 
 import (
 	"context"
-	"time"
 
 	"github.com/pkg/errors"
 )
@@ -42,19 +41,4 @@ func (g *Graceful) GoContext(inCtx context.Context) error {
 
 func (g *Graceful) Go() error {
 	return g.GoContext(context.Background())
-}
-
-func Timeout(d time.Duration, f func(context.Context) error) error {
-	ctx, cancel := context.WithTimeout(context.TODO(), d)
-	defer cancel()
-
-	c := make(chan error, 1)
-	go func() { c <- f(ctx) }()
-
-	select {
-	case <-ctx.Done():
-		return context.DeadlineExceeded
-	case err := <-c:
-		return err
-	}
 }

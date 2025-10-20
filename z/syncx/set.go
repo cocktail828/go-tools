@@ -69,7 +69,7 @@ func (s *Set[T]) Range(f func(value T) bool) {
 	defer s.mu.RUnlock()
 	for v := range s.m {
 		if !f(v) {
-			break
+			return
 		}
 	}
 }

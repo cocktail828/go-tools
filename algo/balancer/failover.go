@@ -1,31 +1,39 @@
 package balancer
 
 import (
-	"sync"
 	"sync/atomic"
 )
 
 type failoverBalancer struct {
-	mu    sync.RWMutex
-	pos   atomic.Uint32
-	array []Node
+	nodeArray
+	pos atomic.Uint32
 }
 
-func NewFailover(array []Node) Balancer {
-	return &failoverBalancer{array: array}
+func NewFailover(nodes []Node) Balancer {
+	return &failoverBalancer{nodeArray: nodeArray{nodes: nodes}}
 }
 
-func (b *failoverBalancer) Pick() (n Node) {
+func (b *failoverBalancer) Pick() Node {
 	b.mu.RLock()
-	array := b.array
-	b.mu.RUnlock()
+	defer b.mu.RUnlock()
 
-	for i := b.pos.Load(); i < uint32(len(array)); i++ {
-		n := array[i]
-		if h, ok := n.(Healthy); ok && h.Healthy() {
+	if b.Empty() {
+		return nil
+	}
+
+	pos := b.pos.Load()
+	for i := range uint32(b.Len()) {
+		n := b.nodes[(i+pos)%uint32(b.Len())]
+		h, ok := n.(Healthy)
+		if !ok {
+			return n
+		}
+
+		if h.Healthy() {
 			b.pos.Store(i)
 			return n
 		}
 	}
+
 	return nil
 }
