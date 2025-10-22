@@ -1,10 +1,8 @@
-package syncx
+package z
 
 import (
 	"sync"
 	"time"
-
-	"github.com/cocktail828/go-tools/z"
 )
 
 func WithLock(locker sync.Locker, f func()) {
@@ -52,6 +50,6 @@ func (n *NamedMutex) ByName(name string) sync.Locker {
 func (n *NamedMutex) ByGoroutine() sync.Locker {
 	return &locker{
 		NamedMutex: n,
-		id:         z.GoroutineID(),
+		id:         GoroutineID(),
 	}
 }

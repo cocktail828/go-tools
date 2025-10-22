@@ -65,13 +65,16 @@ When you need to unwrap all errors, you should use `WrappedErrors()` instead.
 Added in version 4.2.0.
 */
 func (e Error) Unwrap() error {
-	return e[len(e)-1]
+	if len(e) > 0 {
+		return e[len(e)-1] // 保持现有行为，返回最后一个错误
+	}
+	return nil
 }
 
-// WrappedErrors returns the list of errors that this Error is wrapping.
+// All returns the list of errors that this Error is wrapping.
 // It is an implementation of the `errwrap.Wrapper` interface
 // in package [errwrap](https://github.com/hashicorp/errwrap) so that
 // `retry.Error` can be used with that library.
-func (e Error) WrappedErrors() []error {
+func (e Error) All() []error {
 	return e
 }

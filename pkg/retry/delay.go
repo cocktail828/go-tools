@@ -1,29 +1,36 @@
 package retry
 
 import (
-	"math"
 	"math/rand"
+	"sync"
 	"time"
 )
 
 type DelayFunc func(attempt uint) time.Duration
 
-func init() {
-	rand.Seed(time.Now().UnixNano())
-}
+var (
+	randMu  sync.Mutex
+	randGen = rand.New(rand.NewSource(time.Now().UnixNano()))
+)
 
-func BackOffDelay(delay time.Duration, maxBackOffN uint) DelayFunc {
-	if delay <= 0 {
-		delay = time.Millisecond * 100
+func BackoffDelay(initialDelay time.Duration, maxDelay time.Duration) DelayFunc {
+	if initialDelay <= 0 {
+		initialDelay = time.Millisecond * 100
 	}
-
-	maxPossibleAttempt := uint(math.Log2(float64(math.MaxInt64 / int64(delay))))
-	if maxBackOffN == 0 || maxBackOffN > maxPossibleAttempt {
-		maxBackOffN = maxPossibleAttempt
+	if maxDelay <= 0 {
+		maxDelay = time.Second * 10
 	}
 
 	return func(attempt uint) time.Duration {
-		return delay * (1 << min(attempt, maxBackOffN))
+		backoff := initialDelay * (1 << min(attempt, uint(30)))
+
+		randMu.Lock()
+		jitter := time.Duration(randGen.Int63n(int64(backoff)))
+		randMu.Unlock()
+
+		// random jitter (backoff * (0.9 ~ 1.1))
+		backoff += jitter/5 - backoff/10
+		return max(backoff, maxDelay)
 	}
 }
 
@@ -31,18 +38,16 @@ func FixedDelay(v time.Duration) DelayFunc {
 	if v <= 0 {
 		v = time.Millisecond * 100
 	}
-	return func(attempt uint) time.Duration { return v }
+	return func(_ uint) time.Duration { return v }
 }
 
-func RandomDelay(maxJitter time.Duration) DelayFunc {
-	return func(attempt uint) time.Duration {
-		return time.Duration(rand.Int63n(int64(maxJitter)))
+func RandomDelay(maxDelay time.Duration) DelayFunc {
+	if maxDelay <= 0 {
+		maxDelay = time.Second * 10
 	}
-}
-
-func min(a, b uint) uint {
-	if a < b {
-		return a
+	return func(_ uint) time.Duration {
+		randMu.Lock()
+		defer randMu.Unlock()
+		return time.Duration(randGen.Int63n(int64(maxDelay)))
 	}
-	return b
 }
