@@ -1,39 +1,45 @@
 package colorful
 
 import (
-	"fmt"
-	"log"
+	"os"
 	"testing"
+
+	"github.com/cocktail828/go-tools/xlog"
 )
 
-func dump(prefix string, l *Logger) {
-	l.Debug(prefix+".Debug", "key1", "val1", "key2", "val2")
-	l.Debugln(prefix+".Debugln", "key1", "val1", "key2", "val2")
-	l.Debugf(prefix+".Debugf xxxx %v", "123")
-
-	l.Info(prefix+".Info", "key1", "val1", "key2", "val2")
-	l.Infoln(prefix+".Infoln", "key1", "val1", "key2", "val2")
-	l.Infof(prefix+".Infof xxxx %v", "123")
-
-	l.Warn(prefix+".Warn", "key1", "val1", "key2", "val2")
-	l.Warnln(prefix+".Infoln", "key1", "val1", "key2", "val2")
-	l.Warnf(prefix+".Warnf xxxx %v", "123")
-
-	l.Error(prefix+".Error", "key1", "val1", "key2", "val2")
-	l.Errorln(prefix+".Errorln", "key1", "val1", "key2", "val2")
-	l.Errorf(prefix+".Errorf xxxx %v", "123")
-}
-
 func TestColorful(t *testing.T) {
-	func() {
-		fmt.Println("=============== default ==============")
-		log.SetFlags(log.Flags() | log.Llongfile)
-		dump("default", Default())
-	}()
+	logs := []func() *Logger{
+		func() *Logger {
+			l := Default()
+			l.SetPrefix("[default] ")
+			l.SetFlags(l.Flags() | Llongfile)
+			return l
+		},
+		func() *Logger {
+			l := NewColorful(os.Stderr, "", LstdFlags|Llongfile)
+			l.SetPrefix("[new] ")
+			return l
+		},
+	}
 
-	func() {
-		fmt.Println("=============== new ==============")
-		log.SetFlags(log.Flags() | log.Llongfile)
-		dump("new", NewColorfulLog(log.Default()))
-	}()
+	for _, f := range logs {
+		l := f()
+		l.SetLevel(xlog.LevelDebug)
+
+		l.Debug("Debug", "key1", "val1", "key2", "val2")
+		l.Debugln("Debugln", "key1", "val1", "key2", "val2")
+		l.Debugf("Debugf xxxx %v", "123")
+
+		l.Info("Info", "key1", "val1", "key2", "val2")
+		l.Infoln("Infoln", "key1", "val1", "key2", "val2")
+		l.Infof("Infof xxxx %v", "123")
+
+		l.Warn("Warn", "key1", "val1", "key2", "val2")
+		l.Warnln("Infoln", "key1", "val1", "key2", "val2")
+		l.Warnf("Warnf xxxx %v", "123")
+
+		l.Error("Error", "key1", "val1", "key2", "val2")
+		l.Errorln("Errorln", "key1", "val1", "key2", "val2")
+		l.Errorf("Errorf xxxx %v", "123")
+	}
 }

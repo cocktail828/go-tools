@@ -2,16 +2,21 @@ package snowflake
 
 import (
 	"testing"
+
+	"github.com/cocktail828/go-tools/pkg/mapset"
+	"github.com/cocktail828/go-tools/z"
 )
 
 func TestGenerateDuplicateID(t *testing.T) {
-	var x, y int64
-	node, _ := NewNode(1)
+	node, err := NewNode(1)
+	z.Must(err)
+
+	set := mapset.NewSet[int64]()
 	for i := 0; i < 1000000; i++ {
-		y = node.Generate()
-		if x == y {
-			t.Errorf("x(%d) & y(%d) are the same", x, y)
+		y := node.Generate()
+		if set.Contains(y) {
+			t.Errorf("y(%d) is duplicated", y)
 		}
-		x = y
+		set.Add(y)
 	}
 }

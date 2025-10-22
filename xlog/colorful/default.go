@@ -1,6 +1,7 @@
 package colorful
 
 import (
+	"io"
 	"log"
 	"os"
 
@@ -9,10 +10,18 @@ import (
 )
 
 var (
-	std = NewColorfulLog(log.Default())
+	std = newColorful(log.Default())
 )
 
 func Default() *Logger { return std }
+
+func Flags() Flag                          { return std.Flags() }
+func Output(calldepth int, s string) error { return std.Output(calldepth, s) }
+func Prefix() string                       { return std.Prefix() }
+func SetFlags(flag Flag)                   { std.SetFlags(flag) }
+func SetOutput(w io.Writer)                { std.SetOutput(w) }
+func SetPrefix(prefix string)              { std.SetPrefix(prefix) }
+func Writer() io.Writer                    { return std.Writer() }
 
 func SetColor(lv xlog.Level, c *color.Color) { std.SetColor(lv, c) }
 
@@ -48,3 +57,7 @@ func Errorf(format string, v ...any) { std.logf(3, std.erro, format, v...) }
 func Fatal(v ...any)                 { std.log(3, std.fata, v...); os.Exit(1) }
 func Fatalln(v ...any)               { std.logln(3, std.fata, v...); os.Exit(1) }
 func Fatalf(format string, v ...any) { std.logf(3, std.fata, format, v...); os.Exit(1) }
+
+func Panic(v ...any)                 { std.Panic(v...) }
+func Panicln(v ...any)               { std.Panicln(v...) }
+func Panicf(format string, v ...any) { std.Panicf(format, v...) }
