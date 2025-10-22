@@ -1,4 +1,4 @@
-package httpx_test
+package httpx
 
 import (
 	"encoding/json"
@@ -7,7 +7,6 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/cocktail828/go-tools/pkg/netx/httpx"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -33,7 +32,7 @@ func TestResponse_BindJSON(t *testing.T) {
 	assert.NoError(t, err)
 	defer resp.Body.Close()
 
-	httpResp := &httpx.Response{Response: resp}
+	httpResp := &Response{Response: resp}
 	var data TestJSONStruct
 	assert.NoError(t, httpResp.BindJSON(&data))
 	assert.Equal(t, "test", data.Name)
@@ -51,7 +50,7 @@ func TestResponse_BindXML(t *testing.T) {
 	assert.NoError(t, err)
 	defer resp.Body.Close()
 
-	httpResp := &httpx.Response{Response: resp}
+	httpResp := &Response{Response: resp}
 	var data TestXMLStruct
 	assert.NoError(t, httpResp.BindXML(&data))
 	assert.Equal(t, "test", data.Name)
@@ -73,13 +72,13 @@ func TestResponse_Bind_AutoContentType(t *testing.T) {
 
 	resp, _ := http.Get(jsonServer.URL)
 	var jsonData TestJSONStruct
-	assert.NoError(t, (&httpx.Response{Response: resp}).Bind(&jsonData))
+	assert.NoError(t, (&Response{Response: resp}).Bind(&jsonData))
 	assert.Equal(t, "json", jsonData.Name)
 	resp.Body.Close()
 
 	resp, _ = http.Get(xmlServer.URL)
 	var xmlData TestXMLStruct
-	assert.NoError(t, (&httpx.Response{Response: resp}).Bind(&xmlData))
+	assert.NoError(t, (&Response{Response: resp}).Bind(&xmlData))
 	assert.Equal(t, "xml", xmlData.Name)
 	resp.Body.Close()
 }
@@ -98,11 +97,11 @@ func TestResponse_Bind_Errors(t *testing.T) {
 
 	resp, _ := http.Get(noContentTypeServer.URL)
 	var data TestJSONStruct
-	assert.Error(t, (&httpx.Response{Response: resp}).Bind(&data))
+	assert.Error(t, (&Response{Response: resp}).Bind(&data))
 	resp.Body.Close()
 
 	resp, _ = http.Get(unsupportedTypeServer.URL)
-	assert.Error(t, (&httpx.Response{Response: resp}).Bind(&data))
+	assert.Error(t, (&Response{Response: resp}).Bind(&data))
 	resp.Body.Close()
 }
 
@@ -114,7 +113,7 @@ func TestResponse_Bind_BodyCaching(t *testing.T) {
 	defer server.Close()
 
 	resp, _ := http.Get(server.URL)
-	httpResp := &httpx.Response{Response: resp}
+	httpResp := &Response{Response: resp}
 	defer resp.Body.Close()
 
 	var data1 TestJSONStruct

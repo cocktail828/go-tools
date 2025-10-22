@@ -1,11 +1,8 @@
 package balancer
 
-import "sync"
-
-// for failover balancer
-type Healthy interface {
-	Healthy() bool // health status
-}
+import (
+	"sync"
+)
 
 type Balancer interface {
 	Update(nodes []Node)
@@ -13,7 +10,9 @@ type Balancer interface {
 }
 
 type Node interface {
-	Weight() int // weight
+	MarkFailure()  // mark node as failed
+	Healthy() bool // health status
+	Weight() int   // weight
 	Value() any
 }
 
@@ -22,31 +21,49 @@ type nodeArray struct {
 	nodes []Node
 }
 
-func (ns *nodeArray) Nodes() []Node {
-	ns.mu.RLock()
-	defer ns.mu.RUnlock()
-	return ns.nodes
+func (na *nodeArray) Nodes() []Node {
+	na.mu.RLock()
+	defer na.mu.RUnlock()
+	return na.nodes
 }
 
-func (ns *nodeArray) Len() int {
-	ns.mu.RLock()
-	defer ns.mu.RUnlock()
-	return len(ns.nodes)
-}
-
-func (ns *nodeArray) Empty() bool {
-	return ns.Len() == 0
-}
-
-func (ns *nodeArray) updateLocked(nodes []Node) {
+func (na *nodeArray) updateLocked(nodes []Node) {
 	if nodes == nil {
 		nodes = []Node{}
 	}
-	ns.nodes = nodes
+	na.nodes = nodes
 }
 
-func (ns *nodeArray) Update(nodes []Node) {
-	ns.mu.Lock()
-	defer ns.mu.Unlock()
-	ns.updateLocked(nodes)
+func (na *nodeArray) Update(nodes []Node) {
+	na.mu.Lock()
+	defer na.mu.Unlock()
+	na.updateLocked(nodes)
+}
+
+func (na *nodeArray) Remove(n Node) {
+	na.mu.Lock()
+	defer na.mu.Unlock()
+
+	for i, node := range na.nodes {
+		if node == n {
+			copy(na.nodes[i:], na.nodes[i+1:])
+			na.nodes[len(na.nodes)-1] = nil
+			na.nodes = na.nodes[:len(na.nodes)-1]
+			break
+		}
+	}
+}
+
+type nodeArrayRemove interface {
+	Remove(Node)
+}
+
+type WrapNode struct {
+	Node
+	nodeArrayRemove
+}
+
+func (w WrapNode) MarkFailure() {
+	w.nodeArrayRemove.Remove(w.Node)
+	w.Node.MarkFailure()
 }

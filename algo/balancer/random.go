@@ -18,12 +18,16 @@ func NewRandom(nodes []Node) Balancer {
 }
 
 func (b *randomBalancer) Pick() Node {
-	b.mu.RLock()
-	defer b.mu.RUnlock()
-
-	if b.Empty() {
+	if len(b.nodes) == 0 {
 		return nil
 	}
 
-	return b.nodes[rand.Intn(b.Len())]
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+
+	n := b.nodes[rand.Intn(len(b.nodes))]
+	if n.Healthy() {
+		return WrapNode{Node: n, nodeArrayRemove: b}
+	}
+	return nil
 }

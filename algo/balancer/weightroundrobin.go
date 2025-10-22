@@ -22,16 +22,16 @@ func (b *wrrBalancer) Update(nodes []Node) {
 // nginx weighted round-robin balancing
 // view: https://github.com/phusion/nginx/commit/27e94984486058d73157038f7950a0a36ecc6e35
 func (b *wrrBalancer) Pick() Node {
-	b.mu.RLock()
-	defer b.mu.RUnlock()
-
-	if b.Empty() {
+	if len(b.nodes) == 0 {
 		return nil
 	}
 
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
 	allWeight := 0
 	pos := -1
-	for i := 0; i < b.Len(); i++ {
+	for i := 0; i < len(b.nodes); i++ {
 		c := b.nodes[i]
 		allWeight += c.Weight()                             // 计算总权重
 		b.busyArray[i] += c.Weight()                        // 当前权重加上权重
@@ -42,7 +42,7 @@ func (b *wrrBalancer) Pick() Node {
 
 	if pos != -1 {
 		b.busyArray[pos] -= allWeight
-		return b.nodes[pos]
+		return WrapNode{Node: b.nodes[pos], nodeArrayRemove: b}
 	}
 
 	return nil

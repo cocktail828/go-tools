@@ -14,24 +14,17 @@ func NewFailover(nodes []Node) Balancer {
 }
 
 func (b *failoverBalancer) Pick() Node {
-	b.mu.RLock()
-	defer b.mu.RUnlock()
-
-	if b.Empty() {
+	if len(b.nodes) == 0 {
 		return nil
 	}
 
-	pos := b.pos.Load()
-	for i := range uint32(b.Len()) {
-		n := b.nodes[(i+pos)%uint32(b.Len())]
-		h, ok := n.(Healthy)
-		if !ok {
-			return n
-		}
+	b.mu.RLock()
+	defer b.mu.RUnlock()
 
-		if h.Healthy() {
-			b.pos.Store(i)
-			return n
+	pos := b.pos.Load()
+	for i := range uint32(len(b.nodes)) {
+		if n := b.nodes[(i+pos)%uint32(len(b.nodes))]; n.Healthy() {
+			return WrapNode{Node: n, nodeArrayRemove: b}
 		}
 	}
 

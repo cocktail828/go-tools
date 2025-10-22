@@ -1,10 +1,8 @@
 package balancer
 
-import "sync/atomic"
-
 type rrBalancer struct {
 	nodeArray
-	pos atomic.Uint32
+	pos uint32
 }
 
 func NewRR(nodes []Node) Balancer {
@@ -15,13 +13,19 @@ func NewRR(nodes []Node) Balancer {
 }
 
 func (b *rrBalancer) Pick() Node {
-	b.mu.RLock()
-	defer b.mu.RUnlock()
-
-	if b.Empty() {
+	if len(b.nodes) == 0 {
 		return nil
 	}
 
-	pos := b.pos.Add(1) % uint32(b.Len())
-	return b.nodes[pos]
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+
+	for i := range uint32(len(b.nodes)) {
+		if n := b.nodes[(i+b.pos)%uint32(len(b.nodes))]; n.Healthy() {
+			b.pos += i + 1
+			return WrapNode{Node: n, nodeArrayRemove: b}
+		}
+	}
+
+	return nil
 }
