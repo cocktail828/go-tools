@@ -51,6 +51,7 @@ type PriorityQueue struct {
 }
 
 // New initializes an empty priority queue.
+// The lower the priority value, the higher the priority.
 func New() PriorityQueue {
 	return PriorityQueue{
 		itemHeap: &itemHeap{},
@@ -60,7 +61,36 @@ func New() PriorityQueue {
 
 // Len returns the number of elements in the queue.
 func (pq *PriorityQueue) Len() int {
+	pq.mu.RLock()
+	defer pq.mu.RUnlock()
 	return pq.itemHeap.Len()
+}
+
+// Clear the queue, removing all elements.
+func (pq *PriorityQueue) Clear() {
+	pq.mu.Lock()
+	defer pq.mu.Unlock()
+	pq.itemHeap = &itemHeap{}
+	pq.lookup = make(map[any]*item)
+}
+
+// TryPush attempts to insert an element with the given priority.
+// If the element already exists in the queue, it returns false.
+func (pq *PriorityQueue) TryPush(v any, priority float64) bool {
+	pq.mu.Lock()
+	defer pq.mu.Unlock()
+	_, ok := pq.lookup[v]
+	if ok {
+		return false
+	}
+
+	newItem := &item{
+		value:    v,
+		priority: priority,
+	}
+	heap.Push(pq.itemHeap, newItem)
+	pq.lookup[v] = newItem
+	return true
 }
 
 // Push inserts a new element into the queue. No action is performed on duplicate elements.

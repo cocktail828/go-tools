@@ -5,15 +5,23 @@ import (
 )
 
 type Balancer interface {
+	// Nodes returns all nodes in balancer
 	Nodes() []Node
+	// Update updates balancer nodes
 	Update(nodes []Node)
+	// Pick picks a node from balancer
+	// It returns nil if no node is available
 	Pick() Node
 }
 
 type Node interface {
-	MarkFailure()  // mark node as failed
-	Healthy() bool // health status, this method wont probe node health
-	Weight() int   // weight
+	// MarkFailure marks node as failed and remove it from balancer
+	MarkFailure()
+	// Healthy returns true if node is healthy, this method wont probe node health
+	Healthy() bool
+	// Weight returns node weight, only used by weight roundrobin
+	Weight() int
+	// Value returns node value
 	Value() any
 }
 
@@ -35,18 +43,35 @@ func (na *nodeArray) updateLocked(nodes []Node) {
 	na.nodes = nodes
 }
 
+// Update updates balancer nodes
 func (na *nodeArray) Update(nodes []Node) {
+	tmp := map[any]struct{}{}
+	for _, n := range nodes {
+		tmp[n.Value()] = struct{}{}
+	}
+
+	na.mu.RLock()
+	for _, n := range na.nodes {
+		delete(tmp, n.Value())
+	}
+	na.mu.RUnlock()
+
+	// nodes not changed
+	if len(tmp) == 0 {
+		return
+	}
+
 	na.mu.Lock()
 	defer na.mu.Unlock()
 	na.updateLocked(nodes)
 }
 
-func (na *nodeArray) Remove(n Node) {
+func (na *nodeArray) Remove(node Node) {
 	na.mu.Lock()
 	defer na.mu.Unlock()
 
-	for i, node := range na.nodes {
-		if node == n {
+	for i, n := range na.nodes {
+		if n == node {
 			copy(na.nodes[i:], na.nodes[i+1:])
 			na.nodes[len(na.nodes)-1] = nil
 			na.nodes = na.nodes[:len(na.nodes)-1]
@@ -55,16 +80,13 @@ func (na *nodeArray) Remove(n Node) {
 	}
 }
 
-type nodeArrayRemove interface {
-	Remove(Node)
-}
-
-type WrapNode struct {
+type fallibleNode struct {
 	Node
-	nodeArrayRemove
+	*nodeArray
 }
 
-func (w WrapNode) MarkFailure() {
-	w.nodeArrayRemove.Remove(w.Node)
+// MarkFailure marks node as unhealthy and remove it from balancer
+func (w fallibleNode) MarkFailure() {
+	w.nodeArray.Remove(w.Node)
 	w.Node.MarkFailure()
 }

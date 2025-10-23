@@ -1,13 +1,13 @@
 package balancer
 
 type wrrBalancer struct {
-	nodeArray
+	*nodeArray
 	busyArray []int
 }
 
 func NewWeightRoundRobin(nodes []Node) Balancer {
 	return &wrrBalancer{
-		nodeArray: nodeArray{nodes: nodes},
+		nodeArray: &nodeArray{nodes: nodes},
 		busyArray: make([]int, len(nodes)),
 	}
 }
@@ -46,7 +46,7 @@ func (b *wrrBalancer) Pick() Node {
 
 	if pos != -1 {
 		b.busyArray[pos] -= allWeight
-		return WrapNode{Node: b.nodes[pos], nodeArrayRemove: b}
+		return fallibleNode{Node: b.nodes[pos], nodeArray: b.nodeArray}
 	}
 
 	return nil

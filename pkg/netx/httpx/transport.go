@@ -3,7 +3,6 @@ package httpx
 import (
 	"context"
 	"crypto/tls"
-	"fmt"
 	"net"
 	"net/http"
 	"strings"
@@ -49,6 +48,20 @@ func (e inEndpoint) Healthy() bool { return true }
 func (e inEndpoint) Weight() int   { return 100 }
 func (e inEndpoint) Value() any    { return e.Addr }
 
+// lookupInternal performs a DNS lookup for the given hostport.
+// It returns a slice of healthy nodes for the given hostport.
+//
+// Parameters:
+// - hostport: the hostport to lookup, e.g. "example.com:80".
+//
+// Returns:
+// - []balancer.Node: the healthy nodes for the given hostport.
+//
+// If the hostport is not in the format of "host:port", it will return nil.
+// If the host lookup fails, it will return nil.
+// If no healthy node is found, it will return nil.
+//
+// Otherwise, it will return a slice of inEndpoint, each inEndpoint represents a healthy node.
 func lookupInternal(hostport string) []balancer.Node {
 	host, port, err := net.SplitHostPort(hostport)
 	if err != nil {
@@ -67,7 +80,7 @@ func lookupInternal(hostport string) []balancer.Node {
 		}
 
 		addr := net.JoinHostPort(host, port)
-		probe := healthy.SocketProbe{addr, "tcp", time.Millisecond * 100}
+		probe := healthy.SocketProbe{Addr: addr, Network: "tcp", Timeout: time.Millisecond * 100}
 		if err := probe.Probe(); err == nil {
 			healthyNodes = append(healthyNodes, inEndpoint{Addr: addr})
 		} else {
@@ -150,26 +163,12 @@ func (lb *lbRoundTripper) Pick(hostport string) string {
 		lb.sg.Do(hostport, func() (any, error) {
 			lb.lastCheckAt = now
 			healthyNodes := lookupInternal(hostport)
-
-			// check if nodes changed
-			tmp := map[string]struct{}{}
-			for _, node := range selector.Nodes() {
-				tmp[node.Value().(string)] = struct{}{}
-			}
-
-			for _, node := range healthyNodes {
-				delete(tmp, node.Value().(string))
-			}
-
-			if len(tmp) > 0 {
-				selector.Update(healthyNodes)
-			}
+			selector.Update(healthyNodes)
 			return "", nil
 		})
 	}
 
 	val := selector.Pick()
-	fmt.Println(val)
 	if val == nil {
 		return ""
 	}

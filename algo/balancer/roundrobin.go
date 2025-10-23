@@ -1,7 +1,7 @@
 package balancer
 
 type rrBalancer struct {
-	nodeArray
+	*nodeArray
 	pos uint32
 }
 
@@ -9,7 +9,7 @@ func NewRoundRobin(nodes []Node) Balancer {
 	if nodes == nil {
 		nodes = []Node{}
 	}
-	return &rrBalancer{nodeArray: nodeArray{nodes: nodes}}
+	return &rrBalancer{nodeArray: &nodeArray{nodes: nodes}}
 }
 
 func (b *rrBalancer) String() string {
@@ -28,7 +28,7 @@ func (b *rrBalancer) Pick() Node {
 		idx := (i + b.pos) % uint32(len(b.nodes))
 		if n := b.nodes[idx]; n.Healthy() {
 			b.pos = idx + 1
-			return WrapNode{Node: n, nodeArrayRemove: b}
+			return fallibleNode{Node: n, nodeArray: b.nodeArray}
 		}
 	}
 

@@ -15,10 +15,10 @@ func (x X) MarkFailure()  {}
 
 func TestRR(t *testing.T) {
 	assert.Equal(t, nil, NewRoundRobin(nil).Pick())
-	lb := NewRoundRobin([]Node{X(3), X(2), X(1)})
+	b := NewRoundRobin([]Node{X(3), X(2), X(1)})
 	res := []any{}
 	for range 6 {
-		res = append(res, int(lb.Pick().Value().(X)))
+		res = append(res, int(b.Pick().Value().(X)))
 	}
 
 	assert.ElementsMatch(t, []any{3, 2, 1, 3, 2, 1}, res)
@@ -26,11 +26,11 @@ func TestRR(t *testing.T) {
 
 func TestWRR(t *testing.T) {
 	assert.Equal(t, nil, NewWeightRoundRobin(nil).Pick())
-	lb := NewWeightRoundRobin([]Node{X(3), X(2), X(1)})
+	b := NewWeightRoundRobin([]Node{X(3), X(2), X(1)})
 
 	m := map[int]int{3: 0, 2: 0, 1: 0}
 	for range 6000 {
-		if v := lb.Pick(); v != nil {
+		if v := b.Pick(); v != nil {
 			m[v.Weight()]++
 		}
 	}
