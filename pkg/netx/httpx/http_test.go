@@ -16,12 +16,3 @@ func TestHTTPX(t *testing.T) {
 	)
 	z.Must(err)
 }
-
-func TestInsure(t *testing.T) {
-	url := "https://aiportal.h3c.com:40212/snappyservice/profile/upload/ZJSZTB/virtualHuman.png"
-	for _, b := range []bool{true, false} {
-		InsecureSSL(b)
-		_, err := http.DefaultClient.Get(url)
-		assert.Nil(t, err)
-	}
-}

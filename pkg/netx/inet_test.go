@@ -15,7 +15,7 @@ func TestInet(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func TestTrans(t *testing.T) {
+func TestIPConvert(t *testing.T) {
 	ip := net.ParseIP("10.10.0.200")
 	n, ok := IP2Long(ip)
 	if !ok {

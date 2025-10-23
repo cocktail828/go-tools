@@ -5,13 +5,14 @@ import (
 )
 
 type Balancer interface {
+	Nodes() []Node
 	Update(nodes []Node)
 	Pick() Node
 }
 
 type Node interface {
 	MarkFailure()  // mark node as failed
-	Healthy() bool // health status
+	Healthy() bool // health status, this method wont probe node health
 	Weight() int   // weight
 	Value() any
 }

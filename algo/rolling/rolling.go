@@ -53,20 +53,9 @@ func (r *Rolling) indexByTime(nsec int64) int64 {
 	return (nsec / _ROLLING_PRECISION) & (r.numCounter - 1)
 }
 
-func (r *Rolling) floorOfTime(nsec int64) int64 {
-	return (nsec / _ROLLING_PRECISION) * _ROLLING_PRECISION
-}
-
-func (r *Rolling) calcQPS(cnt, win int64) float64 {
-	if win == 0 {
-		return 0
-	}
-	return float64(cnt) * 1e3 / float64(win) / _ROLLING_WINSIZE
-}
-
 func (r *Rolling) incrBy(nsec, n int64) {
 	pos := r.indexByTime(nsec)
-	floor := r.floorOfTime(nsec)
+	floor := mathx.Floor(nsec, _ROLLING_PRECISION)
 
 	curr := &r.counters[pos]
 	for old := curr.nanots.Load(); old < floor; {
@@ -85,7 +74,7 @@ func (r *Rolling) count(dual bool, nsec, num int64) (int64, int64, int64) {
 
 	var cnt0, cnt1, win int64
 	edge := r.indexByTime(nsec)
-	old := r.floorOfTime(nsec) - _ROLLING_PRECISION*(num-1)
+	old := mathx.Floor(nsec, _ROLLING_PRECISION) - _ROLLING_PRECISION*(num-1)
 
 	for i := int64(0); i < num; i++ {
 		indexByTime := (edge - i + r.numCounter) & (r.numCounter - 1)
@@ -115,9 +104,16 @@ func (r *Rolling) DualCount(num int) (int64, int64, int64) {
 	return r.count(true, timex.UnixNano(), int64(num))
 }
 
+func calcQPS(cnt, win int64) float64 {
+	if win == 0 {
+		return 0
+	}
+	return float64(cnt) * 1e3 / float64(win) / _ROLLING_WINSIZE
+}
+
 func (r *Rolling) DualQPS(num int) (float64, float64) {
 	cnt0, cnt1, win := r.count(true, timex.UnixNano(), int64(num))
-	return r.calcQPS(cnt0, win), r.calcQPS(cnt1, win)
+	return calcQPS(cnt0, win), calcQPS(cnt1, win)
 }
 
 func (r *Rolling) IncrBy(n int) {
@@ -131,7 +127,7 @@ func (r *Rolling) Count(num int) (int64, int64) {
 
 func (r *Rolling) QPS(num int) float64 {
 	cnt, _, win := r.count(false, timex.UnixNano(), int64(num))
-	return r.calcQPS(cnt, win)
+	return calcQPS(cnt, win)
 }
 
 func (r *Rolling) At(nsec int64) *snapshot {
@@ -145,33 +141,33 @@ func (r *Rolling) Reset() {
 }
 
 type snapshot struct {
-	*Rolling
+	ro *Rolling
 	tm int64
 }
 
 func (r *snapshot) DualIncrBy(v0, v1 int) {
-	r.incrBy(r.tm, mathx.MergeInt32(int32(v0), int32(v1)))
+	r.ro.incrBy(r.tm, mathx.MergeInt32(int32(v0), int32(v1)))
 }
 
 func (r *snapshot) DualCount(num int) (int64, int64, int64) {
-	return r.count(true, r.tm, int64(num))
+	return r.ro.count(true, r.tm, int64(num))
 }
 
 func (r *snapshot) DualQPS(num int) (float64, float64) {
-	cnt0, cnt1, win := r.count(true, r.tm, int64(num))
-	return r.calcQPS(cnt0, win), r.calcQPS(cnt1, win)
+	cnt0, cnt1, win := r.ro.count(true, r.tm, int64(num))
+	return calcQPS(cnt0, win), calcQPS(cnt1, win)
 }
 
 func (r *snapshot) IncrBy(n int) {
-	r.incrBy(r.tm, int64(n))
+	r.ro.incrBy(r.tm, int64(n))
 }
 
 func (r *snapshot) Count(num int) (int64, int64) {
-	cnt, _, win := r.count(false, r.tm, int64(num))
+	cnt, _, win := r.ro.count(false, r.tm, int64(num))
 	return cnt, win
 }
 
 func (r *snapshot) QPS(num int) float64 {
-	cnt, _, win := r.count(false, r.tm, int64(num))
-	return r.calcQPS(cnt, win)
+	cnt, _, win := r.ro.count(false, r.tm, int64(num))
+	return calcQPS(cnt, win)
 }

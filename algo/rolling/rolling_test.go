@@ -25,7 +25,7 @@ func TestCount(t *testing.T) {
 
 func TestQPS(t *testing.T) {
 	r := NewRolling(128)
-	for i := int64(0); i < 13; i++ {
+	for i := range int64(13) {
 		timex.SetTime(func() int64 { return i * _ROLLING_PRECISION })
 		r.IncrBy(100 * int(i+1))
 	}

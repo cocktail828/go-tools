@@ -5,11 +5,15 @@ type wrrBalancer struct {
 	busyArray []int
 }
 
-func NewWRR(nodes []Node) Balancer {
+func NewWeightRoundRobin(nodes []Node) Balancer {
 	return &wrrBalancer{
 		nodeArray: nodeArray{nodes: nodes},
 		busyArray: make([]int, len(nodes)),
 	}
+}
+
+func (b *wrrBalancer) String() string {
+	return "weightroundrobin"
 }
 
 func (b *wrrBalancer) Update(nodes []Node) {

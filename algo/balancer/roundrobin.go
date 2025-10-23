@@ -5,11 +5,15 @@ type rrBalancer struct {
 	pos uint32
 }
 
-func NewRR(nodes []Node) Balancer {
+func NewRoundRobin(nodes []Node) Balancer {
 	if nodes == nil {
 		nodes = []Node{}
 	}
 	return &rrBalancer{nodeArray: nodeArray{nodes: nodes}}
+}
+
+func (b *rrBalancer) String() string {
+	return "roundrobin"
 }
 
 func (b *rrBalancer) Pick() Node {
@@ -21,8 +25,9 @@ func (b *rrBalancer) Pick() Node {
 	defer b.mu.RUnlock()
 
 	for i := range uint32(len(b.nodes)) {
-		if n := b.nodes[(i+b.pos)%uint32(len(b.nodes))]; n.Healthy() {
-			b.pos += i + 1
+		idx := (i + b.pos) % uint32(len(b.nodes))
+		if n := b.nodes[idx]; n.Healthy() {
+			b.pos = idx + 1
 			return WrapNode{Node: n, nodeArrayRemove: b}
 		}
 	}

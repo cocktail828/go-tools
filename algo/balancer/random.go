@@ -17,6 +17,10 @@ func NewRandom(nodes []Node) Balancer {
 	return &randomBalancer{nodeArray: nodeArray{nodes: nodes}}
 }
 
+func (b *randomBalancer) String() string {
+	return "random"
+}
+
 func (b *randomBalancer) Pick() Node {
 	if len(b.nodes) == 0 {
 		return nil
@@ -25,9 +29,11 @@ func (b *randomBalancer) Pick() Node {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
 
-	n := b.nodes[rand.Intn(len(b.nodes))]
-	if n.Healthy() {
-		return WrapNode{Node: n, nodeArrayRemove: b}
+	for i := 0; i < len(b.nodes)/2; i++ {
+		n := b.nodes[rand.Intn(len(b.nodes))]
+		if n.Healthy() {
+			return WrapNode{Node: n, nodeArrayRemove: b}
+		}
 	}
 	return nil
 }
