@@ -176,21 +176,34 @@ func (lb *lbRoundTripper) Pick(hostport string) string {
 }
 
 func (lb *lbRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
-	hostport := req.URL.Host
-	if !strings.Contains(hostport, ":") {
-		port, ok := lb.portMap[req.URL.Scheme]
-		if !ok {
-			// unknow port, fallback to default mode
+	rawhost := req.URL.Host
+	oldHost := rawhost
+	defer func() { req.URL.Host = oldHost }()
+
+	var hostWithoutPort, port string
+	var err error
+
+	// 1. IP+PORT format
+	if strings.Contains(rawhost, ":") {
+		hostWithoutPort, port, err = net.SplitHostPort(rawhost)
+		if err != nil {
 			return lb.transport.RoundTrip(req)
 		}
-
-		hostport += ":" + port
+	} else {
+		// 2. IP only format
+		hostWithoutPort = rawhost
+		defaultPort, ok := lb.portMap[req.URL.Scheme]
+		if !ok {
+			return lb.transport.RoundTrip(req)
+		}
+		port = defaultPort
 	}
-	old := req.URL.Host
-	defer func() { req.URL.Host = old }()
 
-	if addr := lb.Pick(hostport); addr != "" {
-		req.URL.Host = addr
+	// domain, use load balancer
+	if ip := net.ParseIP(hostWithoutPort); ip == nil {
+		if addr := lb.Pick(hostWithoutPort + ":" + port); addr != "" {
+			req.URL.Host = addr
+		}
 	}
 
 	return lb.transport.RoundTrip(req)
