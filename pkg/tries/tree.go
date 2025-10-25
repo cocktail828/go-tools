@@ -1,21 +1,11 @@
-// Copyright 2013 Julien Schmidt. All rights reserved.
-// Use of this source code is governed by a BSD-style license that can be found
-// in the LICENSE file.
-
-package httprouter
+package tries
 
 import (
+	"errors"
 	"strings"
 	"unicode"
 	"unicode/utf8"
 )
-
-func min(a, b int) int {
-	if a <= b {
-		return a
-	}
-	return b
-}
 
 const maxParamCount uint8 = ^uint8(0)
 
@@ -51,7 +41,7 @@ type node struct {
 	priority  uint32
 	indices   string
 	children  []*node
-	handle    Handle
+	handle    any
 }
 
 // increments priority of the given child and reorders if necessary
@@ -80,7 +70,7 @@ func (n *node) incrementChildPrio(pos int) int {
 
 // addRoute adds a node with the given handle to the path.
 // Not concurrency-safe!
-func (n *node) addRoute(path string, handle Handle) {
+func (n *node) addRoute(path string, handle any) error {
 	fullPath := path
 	n.priority++
 	numParams := countParams(path)
@@ -160,7 +150,7 @@ func (n *node) addRoute(path string, handle Handle) {
 							pathSeg = strings.SplitN(path, "/", 2)[0]
 						}
 						prefix := fullPath[:strings.Index(fullPath, pathSeg)] + n.path
-						panic("'" + pathSeg +
+						return errors.New("'" + pathSeg +
 							"' in new path '" + fullPath +
 							"' conflicts with existing wildcard '" + n.path +
 							"' in existing prefix '" + prefix +
@@ -186,6 +176,24 @@ func (n *node) addRoute(path string, handle Handle) {
 					}
 				}
 
+				// Check for potential conflicts with existing param or catchAll routes
+				if n.wildChild {
+					wildChildNode := n.children[0]
+					if wildChildNode.nType == param || wildChildNode.nType == catchAll {
+						// Determine if this is a conflict between a static path and a wildcard
+						if c != ':' && c != '*' {
+							// We're trying to add a static path where a wildcard exists
+							pathSeg := strings.SplitN(path, "/", 2)[0]
+							prefix := fullPath[:strings.Index(fullPath, pathSeg)]
+							return errors.New("'" + pathSeg +
+								"' in new path '" + fullPath +
+								"' conflicts with existing wildcard '" + wildChildNode.path +
+								"' in existing prefix '" + prefix +
+								"'")
+						}
+					}
+				}
+
 				// Otherwise insert it
 				if c != ':' && c != '*' {
 					// []byte for proper unicode char conversion, see #65
@@ -197,24 +205,25 @@ func (n *node) addRoute(path string, handle Handle) {
 					n.incrementChildPrio(len(n.indices) - 1)
 					n = child
 				}
-				n.insertChild(numParams, path, fullPath, handle)
-				return
+				err := n.insertChild(numParams, path, fullPath, handle)
+				return err
 
 			} else if i == len(path) { // Make node a (in-path) leaf
 				if n.handle != nil {
-					panic("a handle is already registered for path '" + fullPath + "'")
+					return errors.New("a handle is already registered for path '" + fullPath + "'")
 				}
 				n.handle = handle
 			}
-			return
+			return nil
 		}
 	} else { // Empty tree
 		n.insertChild(numParams, path, fullPath, handle)
 		n.nType = root
 	}
+	return nil
 }
 
-func (n *node) insertChild(numParams uint8, path, fullPath string, handle Handle) {
+func (n *node) insertChild(numParams uint8, path, fullPath string, handle any) error {
 	var offset int // already handled bytes of the path
 
 	// find prefix until first wildcard (beginning with ':'' or '*'')
@@ -230,23 +239,28 @@ func (n *node) insertChild(numParams uint8, path, fullPath string, handle Handle
 			switch path[end] {
 			// the wildcard name must not contain ':' and '*'
 			case ':', '*':
-				panic("only one wildcard per path segment is allowed, has: '" +
+				return errors.New("only one wildcard per path segment is allowed, has: '" +
 					path[i:] + "' in path '" + fullPath + "'")
 			default:
 				end++
 			}
 		}
 
-		// check if this Node existing children which would be
-		// unreachable if we insert the wildcard here
+		// Check if this node has existing static children which would conflict
+		// with the new wildcard route
 		if len(n.children) > 0 {
-			panic("wildcard route '" + path[i:end] +
-				"' conflicts with existing children in path '" + fullPath + "'")
+			for _, child := range n.children {
+				if child.nType == static {
+					// We have existing static routes where we're trying to add a wildcard
+					return errors.New("wildcard route '" + path[i:end] +
+						"' conflicts with existing static routes in path '" + fullPath + "'")
+				}
+			}
 		}
 
 		// check if the wildcard has a name
 		if end-i < 2 {
-			panic("wildcards must be named with a non-empty name in path '" + fullPath + "'")
+			return errors.New("wildcards must be named with a non-empty name in path '" + fullPath + "'")
 		}
 
 		if c == ':' { // param
@@ -282,17 +296,17 @@ func (n *node) insertChild(numParams uint8, path, fullPath string, handle Handle
 
 		} else { // catchAll
 			if end != max || numParams > 1 {
-				panic("catch-all routes are only allowed at the end of the path in path '" + fullPath + "'")
+				return errors.New("catch-all routes are only allowed at the end of the path in path '" + fullPath + "'")
 			}
 
 			if len(n.path) > 0 && n.path[len(n.path)-1] == '/' {
-				panic("catch-all conflicts with existing handle for the path segment root in path '" + fullPath + "'")
+				return errors.New("catch-all conflicts with existing handle for the path segment root in path '" + fullPath + "'")
 			}
 
 			// currently fixed width 1 for '/'
 			i--
 			if path[i] != '/' {
-				panic("no / before catch-all in path '" + fullPath + "'")
+				return errors.New("no / before catch-all in path '" + fullPath + "'")
 			}
 
 			n.path = path[offset:i]
@@ -322,21 +336,19 @@ func (n *node) insertChild(numParams uint8, path, fullPath string, handle Handle
 			}
 			n.children = []*node{child}
 
-			return
+			return nil
 		}
 	}
 
 	// insert remaining path part and handle to the leaf
 	n.path = path[offset:]
 	n.handle = handle
+	return nil
 }
 
 // Returns the handle registered with the given path (key). The values of
 // wildcards are saved to a map.
-// If no handle can be found, a TSR (trailing slash redirect) recommendation is
-// made if a handle exists with an extra (without the) trailing slash for the
-// given path.
-func (n *node) getValue(path string) (handle Handle, p Params, tsr bool) {
+func (n *node) getValue(path string) (handle any, p Params) {
 walk: // outer loop for walking the tree
 	for {
 		if len(path) > len(n.path) {
@@ -355,11 +367,7 @@ walk: // outer loop for walking the tree
 					}
 
 					// Nothing found.
-					// We can recommend to redirect to the same URL without a
-					// trailing slash if a leaf exists for that path.
-					tsr = (path == "/" && n.handle != nil)
 					return
-
 				}
 
 				// handle wildcard child
@@ -391,7 +399,6 @@ walk: // outer loop for walking the tree
 						}
 
 						// ... but we can't
-						tsr = (len(path) == end+1)
 						return
 					}
 
@@ -401,7 +408,6 @@ walk: // outer loop for walking the tree
 						// No handle found. Check if a handle for this path + a
 						// trailing slash exists for TSR recommendation
 						n = n.children[0]
-						tsr = (n.path == "/" && n.handle != nil)
 					}
 
 					return
@@ -432,17 +438,12 @@ walk: // outer loop for walking the tree
 			}
 
 			if path == "/" && n.wildChild && n.nType != root {
-				tsr = true
 				return
 			}
 
-			// No handle found. Check if a handle for this path + a
-			// trailing slash exists for trailing slash recommendation
+			// No handle found.
 			for i := 0; i < len(n.indices); i++ {
 				if n.indices[i] == '/' {
-					n = n.children[i]
-					tsr = (len(n.path) == 1 && n.handle != nil) ||
-						(n.nType == catchAll && n.children[0].handle != nil)
 					return
 				}
 			}
@@ -450,11 +451,7 @@ walk: // outer loop for walking the tree
 			return
 		}
 
-		// Nothing found. We can recommend to redirect to the same URL with an
-		// extra trailing slash if a leaf exists for that path
-		tsr = (path == "/") ||
-			(len(n.path) == len(path)+1 && n.path[len(path)] == '/' &&
-				path == n.path[:len(n.path)-1] && n.handle != nil)
+		// Nothing found.
 		return
 	}
 }

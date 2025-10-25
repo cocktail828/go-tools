@@ -9,3 +9,6 @@ github.com/jmoiron/sqlx
 #
 github.com/tidwall/gjson
 github.com/mitchellh/mapstructure
+
+https://github.com/soheilhy/cmux
+https://github.com/xtaci/smux

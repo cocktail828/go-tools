@@ -1,0 +1,44 @@
+syntax = "proto3";
+
+package rpc;
+
+option go_package = "./;messagepb";
+
+import "google/protobuf/any.proto";
+
+enum message_type {
+  UPLOAD = 0;
+  SEARCH = 1;
+  QUERY = 2;
+  UPDATE = 3;
+  DELETE = 4;
+  ANY = 100;
+}
+
+message pair {
+  string key = 1;
+  string value = 2;
+}
+
+message Request {
+  repeated string tags = 2;
+  repeated pair slices = 3;
+  bytes data = 4;
+  map<string, string> meta = 5;
+  google.protobuf.Any extra = 6;
+}
+
+message Response {
+  int32 code = 1;
+  string message = 2;
+  Request detail = 3;
+}
+
+service Versatile {
+  rpc Upload(Request) returns (Response);
+  rpc Search(Request) returns (Response);
+  rpc Query(Request) returns (Response);
+  rpc Update(Request) returns (Response);
+  rpc Delete(Request) returns (Response);
+  rpc Any(Request) returns (Response);
+}
