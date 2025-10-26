@@ -93,7 +93,7 @@ type myStruct struct {
 // Alternatively a set of structs
 mySet := mapset.NewSet[myStruct]()
 
-// Lastly a set that can hold anything using the any or empty interface keyword: interface{}. This is effectively removes type safety.
+// Lastly a set that can hold anything using the any or empty interface keyword: any. This is effectively removes type safety.
 mySet := mapset.NewSet[any]()
 ```
 

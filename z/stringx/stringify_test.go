@@ -222,7 +222,7 @@ func TestStringifyComplexNested(t *testing.T) {
 	complexObj := struct {
 		ID    int
 		Items []map[string]*SimpleStruct
-		Meta  map[string]interface{}
+		Meta  map[string]any
 	}{
 		ID: 100,
 		Items: []map[string]*SimpleStruct{
@@ -230,7 +230,7 @@ func TestStringifyComplexNested(t *testing.T) {
 				"item1": {Name: "Item One", Age: 1},
 			},
 		},
-		Meta: map[string]interface{}{
+		Meta: map[string]any{
 			"string": "text",
 			"number": 42,
 			"bool":   true,

@@ -1413,7 +1413,7 @@ func Test_Example(t *testing.T) {
 	   requiredClasses.Add("Math")
 	   requiredClasses.Add("Biology")
 
-	   scienceSlice := []interface{}{"Biology", "Chemistry"}
+	   scienceSlice := []any{"Biology", "Chemistry"}
 	   scienceClasses := NewSet(scienceSlice)
 
 	   electiveClasses := NewSet()

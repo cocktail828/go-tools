@@ -451,7 +451,7 @@ func Test_IterConcurrent(t *testing.T) {
 		cs = append(cs, s.Iter())
 	}
 
-	c := make(chan interface{})
+	c := make(chan any)
 	go func() {
 		for n := 0; n < len(ints)*N; {
 			for _, d := range cs {

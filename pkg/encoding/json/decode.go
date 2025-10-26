@@ -210,7 +210,7 @@ type errorContext struct {
 }
 
 // ValidateFn is the function type for custom validation.
-type ValidateFn func(field interface{}, tag string) error
+type ValidateFn func(field any, tag string) error
 
 // decodeState represents the state while decoding a JSON value.
 type decodeState struct {
