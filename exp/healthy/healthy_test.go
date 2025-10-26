@@ -16,13 +16,13 @@ func TestCounterEvaluater(t *testing.T) {
 	assert.True(t, e.Alive())
 
 	timex.SetTime(func() int64 { return time.Now().UnixNano() })
-	for i := 0; i < 4; i++ {
+	for range 4 {
 		e.Check(errNoop)
 	}
 	assert.False(t, e.Alive())
 
 	timex.SetTime(func() int64 { return time.Now().UnixNano() + int64(time.Minute) })
-	for i := 0; i < 6; i++ {
+	for range 6 {
 		e.Check(nil)
 	}
 	assert.True(t, e.Alive())
@@ -33,7 +33,7 @@ func TestPercentageEvaluater(t *testing.T) {
 	assert.True(t, e.Alive())
 
 	timex.SetTime(func() int64 { return time.Now().UnixNano() })
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		if i < 91 {
 			e.Check(errNoop)
 		} else {
@@ -42,13 +42,13 @@ func TestPercentageEvaluater(t *testing.T) {
 	}
 	assert.False(t, e.Alive())
 
-	for i := 0; i < 20000; i++ {
+	for range 20000 {
 		e.Check(nil)
 	}
 	assert.True(t, e.Alive())
 
 	timex.SetTime(func() int64 { return time.Now().UnixNano() + int64(time.Minute) })
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		if i < 3 {
 			e.Check(errNoop)
 		} else {

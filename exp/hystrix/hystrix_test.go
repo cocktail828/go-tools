@@ -3,12 +3,12 @@ package hystrix
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net"
 	"slices"
 	"testing"
 	"time"
 
-	"github.com/cocktail828/go-tools/xlog"
 	"github.com/cocktail828/go-tools/z"
 	"github.com/cocktail828/go-tools/z/timex"
 	"github.com/stretchr/testify/assert"
@@ -18,20 +18,20 @@ func TestSuccess(t *testing.T) {
 	timex.SetTime(func() int64 { return 0 })
 	defer timex.ResetTime()
 
-	h := NewHystrix(NewConfig(), xlog.NoopPrinter{})
+	h := NewHystrix(NewConfig())
 	assert.NoError(t, h.DoC(
 		context.Background(),
 		t.Name(),
 		func(ctx context.Context) error { return nil },
 	))
 
-	v0, v1, _ := h.statistic.DualCount(10)
+	v0, v1, _ := h.statistic.Count(10)
 	assert.EqualValues(t, 1, v0)
 	assert.EqualValues(t, 0, v1)
 }
 
 func TestFailOnError(t *testing.T) {
-	h := NewHystrix(NewConfig(), xlog.NoopPrinter{})
+	h := NewHystrix(NewConfig())
 	assert.Equal(t, net.ErrClosed, h.DoC(
 		context.Background(),
 		t.Name(),
@@ -43,7 +43,7 @@ func TestFailOnCanceled(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	h := NewHystrix(NewConfig(), xlog.NoopPrinter{})
+	h := NewHystrix(NewConfig())
 	assert.True(t, slices.Contains([]error{ErrCanceled, net.ErrClosed},
 		h.DoC(
 			ctx,
@@ -54,7 +54,7 @@ func TestFailOnCanceled(t *testing.T) {
 }
 
 func TestFailOnTimeout(t *testing.T) {
-	h := NewHystrix(NewConfig(), xlog.NoopPrinter{})
+	h := NewHystrix(NewConfig())
 	h.Timeout.Update(100 * time.Millisecond)
 
 	assert.Equal(t, ErrTimeout, h.DoC(
@@ -68,7 +68,7 @@ func TestFailOnTimeout(t *testing.T) {
 }
 
 func TestFailOnNoTicket(t *testing.T) {
-	h := NewHystrix(NewConfig(), xlog.NoopPrinter{})
+	h := NewHystrix(NewConfig())
 	h.MaxConcurrency.Update(1)
 	h.assigner.Resize(0)
 
@@ -84,7 +84,7 @@ func TestFailOnNoTicket(t *testing.T) {
 
 func TestManualy(t *testing.T) {
 	t.Run("manual-open", func(t *testing.T) {
-		h := NewHystrix(NewConfig(), xlog.NoopPrinter{})
+		h := NewHystrix(NewConfig())
 		h.Trigger(true)
 		assert.Equal(t, ErrCircuitOpen, h.DoC(
 			context.Background(),
@@ -94,7 +94,7 @@ func TestManualy(t *testing.T) {
 	})
 
 	t.Run("manual-close", func(t *testing.T) {
-		h := NewHystrix(NewConfig(), xlog.NoopPrinter{})
+		h := NewHystrix(NewConfig())
 		h.Trigger(false)
 		assert.Equal(t, nil, h.DoC(
 			context.Background(),
@@ -105,7 +105,7 @@ func TestManualy(t *testing.T) {
 }
 
 func TestReturnTicket(t *testing.T) {
-	h := NewHystrix(NewConfig(), xlog.NoopPrinter{})
+	h := NewHystrix(NewConfig())
 	h.Timeout.Update(10 * time.Millisecond)
 
 	// the ticket must be returned whether happened
@@ -123,7 +123,7 @@ func TestOpenOnTooManyFail(t *testing.T) {
 	defer timex.ResetTime()
 	timex.SetTime(func() int64 { return 0 })
 
-	h := NewHystrix(NewConfig(), xlog.NoopPrinter{})
+	h := NewHystrix(NewConfig())
 	h.MinQPSThreshold.Update(2)
 	timex.SetTime(func() int64 { return 0 })
 	for i := range 100 {
@@ -157,7 +157,7 @@ func TestSingleTest(t *testing.T) {
 	timex.SetTime(func() int64 { return 0 })
 	defer timex.ResetTime()
 
-	h := NewHystrix(NewConfig(), xlog.NoopPrinter{})
+	h := NewHystrix(NewConfig())
 	h.MinQPSThreshold.Update(2)
 	timex.SetTime(func() int64 { return 0 })
 	for i := range 100 {
@@ -192,7 +192,7 @@ func TestSingleTest(t *testing.T) {
 			context.Background(),
 			t.Name(),
 			func(ctx context.Context) error {
-				assert.EqualValues(t, true, ctx.Value(singleTestMeta{}))
+				assert.EqualValues(t, true, ctx.Value(singleTestMeta{}), fmt.Sprintf("i: %d", i))
 				return nil
 			}),
 		)

@@ -16,7 +16,7 @@ type counterEvaluater struct {
 
 	// privates
 	healthy bool // 健康状态
-	*rolling.Rolling
+	ro      *rolling.DualRolling
 }
 
 // 适合仅有主动健康检测的场景
@@ -25,20 +25,20 @@ func NewCounterEvaluater(maxFailure, minSuccess int) Evaluater {
 		MaxFailure: maxFailure,
 		MinSuccess: minSuccess,
 		healthy:    true,
-		Rolling:    rolling.NewRolling(128),
+		ro:         rolling.NewRolling(128).Dual(),
 	}
 }
 
 func (e *counterEvaluater) Check(err error) {
 	if err == nil {
-		e.DualIncrBy(1, 0)
+		e.ro.IncrBy(1, 0)
 	} else {
-		e.DualIncrBy(0, 1)
+		e.ro.IncrBy(0, 1)
 	}
 }
 
 func (e *counterEvaluater) Alive() bool {
-	posi, nega, _ := e.DualCount(24) // 获取过期 128ms*24=3.072s 的计数器信息
+	posi, nega, _ := e.ro.Count(24) // 获取过期 128ms*24=3.072s 的计数器信息
 	if nega > int64(e.MaxFailure) {
 		e.healthy = false
 		return e.healthy
@@ -58,7 +58,7 @@ type percentageEvaluater struct {
 
 	// privates
 	healthy bool // 健康状态
-	*rolling.Rolling
+	ro      *rolling.DualRolling
 }
 
 // 基于成功率的健康状态检测
@@ -68,20 +68,20 @@ func NewPercentageEvaluater(minAlivePct, recoveryPct float32) Evaluater {
 		MinAlivePct: minAlivePct,
 		RecoveryPct: recoveryPct,
 		healthy:     true,
-		Rolling:     rolling.NewRolling(128),
+		ro:          rolling.NewRolling(128).Dual(),
 	}
 }
 
 func (e *percentageEvaluater) Check(err error) {
 	if err == nil {
-		e.DualIncrBy(1, 0)
+		e.ro.IncrBy(1, 0)
 	} else {
-		e.DualIncrBy(0, 1)
+		e.ro.IncrBy(0, 1)
 	}
 }
 
 func (e *percentageEvaluater) Alive() bool {
-	posi, nega, _ := e.DualCount(24)
+	posi, nega, _ := e.ro.Count(24)
 	var pct float32
 	if sum := posi + nega; sum > 0 {
 		pct = float32(posi) / float32(sum)

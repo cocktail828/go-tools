@@ -10,7 +10,7 @@ var (
 	// DefaultTimeout is how long to wait for command to complete, in milliseconds
 	DefaultTimeout = 1000 * time.Millisecond
 	// DefaultKeepAliveInterval is how long, in milliseconds, to wait after a circuitbreaker opens before testing for recovery
-	DefaultKeepAliveInterval = 2000 * time.Millisecond
+	DefaultKeepAliveInterval = 1000 * time.Millisecond
 	// DefaultRecoveryProbes is how many probes circuitbreaker will try, before recovery
 	DefaultRecoveryProbes = 5
 	// DefaultMaxConcurrency is how many commands of the same type can run at the same time

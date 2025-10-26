@@ -25,10 +25,9 @@ func (s *Assigner) Release() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if s.allocated <= 0 {
-		panic("cannot release unacquired assigner")
+	if s.allocated > 0 {
+		s.allocated--
 	}
-	s.allocated--
 }
 
 func (s *Assigner) Resize(newMax int) {
