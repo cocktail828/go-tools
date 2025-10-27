@@ -3,8 +3,10 @@ package colorful
 import (
 	"os"
 	"testing"
+	"time"
 
 	"github.com/cocktail828/go-tools/xlog"
+	"golang.org/x/time/rate"
 )
 
 func TestColorful(t *testing.T) {
@@ -41,5 +43,13 @@ func TestColorful(t *testing.T) {
 		l.Error("Error", "key1", "val1", "key2", "val2")
 		l.Errorln("Errorln", "key1", "val1", "key2", "val2")
 		l.Errorf("Errorf xxxx %v", "123")
+	}
+
+	{
+		l := Default().Limited(rate.NewLimiter(rate.Every(time.Second), 1))
+		for range 100 {
+			l.Errorln("Error", "key1", "val1", "key2", "val2")
+			time.Sleep(time.Millisecond * 10)
+		}
 	}
 }
