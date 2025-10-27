@@ -20,7 +20,7 @@ func (s *staticConfigor) Load() ([]byte, error) {
 	return s.payload, nil
 }
 
-func (s *staticConfigor) Monitor(cb nacs.OnChange) (context.CancelFunc, error) {
+func (s *staticConfigor) Monitor(cb func(name string, payload []byte, err error)) (context.CancelFunc, error) {
 	return func() {}, nil
 }
 

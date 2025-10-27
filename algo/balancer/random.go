@@ -5,9 +5,9 @@ import (
 	"time"
 )
 
-func init() {
-	rand.Seed(time.Now().UnixNano())
-}
+var (
+	randGen = rand.New(rand.NewSource(time.Now().UnixNano()))
+)
 
 type randomBalancer struct {
 	*nodeArray
@@ -30,7 +30,7 @@ func (b *randomBalancer) Pick() Node {
 	defer b.mu.RUnlock()
 
 	for i := 0; i < len(b.nodes)/2; i++ {
-		n := b.nodes[rand.Intn(len(b.nodes))]
+		n := b.nodes[randGen.Intn(len(b.nodes))]
 		if n.Healthy() {
 			return fallibleNode{Node: n, nodeArray: b.nodeArray}
 		}

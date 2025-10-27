@@ -2,16 +2,13 @@ package nacos
 
 import (
 	"context"
-	"fmt"
-	"net"
 	"net/url"
 	"regexp"
 	"strconv"
+	"strings"
 
 	"github.com/cocktail828/go-tools/pkg/nacs"
 	"github.com/nacos-group/nacos-sdk-go/v2/clients"
-	"github.com/nacos-group/nacos-sdk-go/v2/clients/config_client"
-	"github.com/nacos-group/nacos-sdk-go/v2/clients/naming_client"
 	"github.com/nacos-group/nacos-sdk-go/v2/common/constant"
 	"github.com/nacos-group/nacos-sdk-go/v2/model"
 	"github.com/nacos-group/nacos-sdk-go/v2/vo"
@@ -22,27 +19,34 @@ var _ nacs.Registry = &nacosClient{}
 var _ nacs.Configor = &nacosClient{}
 
 type nacosClient struct {
-	Group   string // group
-	App     string // app name
-	Version string // app version
-
-	namingClient naming_client.INamingClient
-	configClient config_client.IConfigClient
+	inGroup      string // group
+	inService    string // app
+	inVersion    string // version
+	namingClient *refNamingClient
+	configClient *refConfigClient
 }
 
-// nacos://$user:$password@$host:$port/$group/$app/$version
+// ServiceName returns the service name in nacos format: $service@$version
+// It is used to identify the service in nacos.
+func (r *nacosClient) ServiceName() string { return nacs.Compose(r.inService, r.inVersion) }
+
+// ConfigID returns the config ID in nacos format: $service.$version
+// It is used to identify the config in nacos.
+func (r *nacosClient) ConfigID() string { return r.inService + "_" + r.inVersion }
+
+// nacos://$user:$password@$host:$port/$group/$service/$version
 var re = regexp.MustCompile(`^/([^/]+)/([^/]+)/([^/]+)$`)
 
-func abstract(path string) (group, app, version string, err error) {
+func abstract(path string) (group, service, version string, err error) {
 	matches := re.FindStringSubmatch(path)
 	if matches == nil {
-		err = errors.New("nacos path format error: expect nacos://$user:$password@$host:$port/$group/$app/$version[?namespace=$ns]")
+		err = errors.New("nacos path format error: expect nacos://$user:$password@$host:$port/$group/$service/$version[?namespace=$ns]")
 		return
 	}
 
-	group, app, version = matches[1], matches[2], matches[3]
-	if group == "" || app == "" || version == "" {
-		err = errors.New("nacos path format error: expect nacos://$user:$password@$host:$port/$group/$app/$version[?namespace=$ns]")
+	group, service, version = matches[1], matches[2], matches[3]
+	if group == "" || service == "" || version == "" {
+		err = errors.New("nacos path format error: expect nacos://$user:$password@$host:$port/$group/$service/$version[?namespace=$ns]")
 		return
 	}
 	return
@@ -55,15 +59,19 @@ func NewNacosClient(u *url.URL) (*nacosClient, error) {
 		password, _ = u.User.Password()
 	}
 
-	group, app, version, err := abstract(u.Path)
+	group, service, version, err := abstract(u.Path)
 	if err != nil {
 		return nil, err
+	}
+
+	if group == "" {
+		group = constant.DEFAULT_GROUP
 	}
 
 	cc := constant.NewClientConfig(
 		constant.WithNamespaceId(u.Query().Get("namespace")),
 		constant.WithNotLoadCacheAtStart(true),
-		constant.WithAppName(app),
+		constant.WithAppName(service),
 		constant.WithLogDir("./nacos/log"),
 		constant.WithCacheDir("./nacos/cache"),
 		constant.WithLogLevel("info"),
@@ -98,50 +106,48 @@ func NewNacosClient(u *url.URL) (*nacosClient, error) {
 	}
 
 	return &nacosClient{
-		Group:        group,
-		App:          app,
-		Version:      version,
-		namingClient: namingClient,
-		configClient: configClient,
+		inGroup:      group,
+		inService:    service,
+		inVersion:    version,
+		namingClient: &refNamingClient{INamingClient: namingClient},
+		configClient: &refConfigClient{IConfigClient: configClient},
 	}, nil
 }
 
+// Share will create a new client with different group, service, version
+// But shared the same instance of namingClient and configClient
+// Notice, namingClient and configClient will be close only when the last 'nacosClient' is closed
+func (r *nacosClient) Share(group, service, version string) *nacosClient {
+	if group == "" {
+		group = constant.DEFAULT_GROUP
+	}
+
+	return &nacosClient{
+		inGroup:      group,
+		inService:    service,
+		inVersion:    version,
+		namingClient: r.namingClient.Share(),
+		configClient: r.configClient.Share(),
+	}
+}
+
 func (r *nacosClient) Close() error {
-	r.namingClient.CloseClient()
-	r.configClient.CloseClient()
+	r.namingClient.Close()
+	r.configClient.Close()
 	return nil
 }
 
-func splitHostPort(addr string) (string, int, error) {
-	host, port, err := net.SplitHostPort(addr)
-	if err != nil {
-		return "", 0, err
-	}
-
-	_p, err := strconv.Atoi(port)
-	if err != nil {
-		return "", 0, errors.Errorf("invalid address: %v", addr)
-	}
-	return host, _p, nil
-}
-
-func (r *nacosClient) ServiceName() string { return r.App + "@" + r.Version }
-func (r *nacosClient) Register(inst nacs.RegisterInstance) (context.CancelFunc, error) {
-	host, port, err := splitHostPort(inst.Address)
-	if err != nil {
-		return nil, err
-	}
-
+func (r *nacosClient) Register(inst nacs.Instance) (context.CancelFunc, error) {
 	success, err := r.namingClient.RegisterInstance(vo.RegisterInstanceParam{
-		Ip:          host,
-		Port:        uint64(port),
-		Weight:      1, // 权重
+		Ip:          inst.Host,
+		Port:        uint64(inst.Port),
+		Weight:      100, // 权重
 		Enable:      true,
 		Healthy:     true,
 		Metadata:    inst.Metadata,
 		ServiceName: r.ServiceName(),
-		GroupName:   r.Group,
-		Ephemeral:   true, // 临时实例
+		GroupName:   r.inGroup,
+		Ephemeral:   true, // ephemeral instance
 	})
 	if err != nil {
 		return nil, err
@@ -152,25 +158,20 @@ func (r *nacosClient) Register(inst nacs.RegisterInstance) (context.CancelFunc, 
 	}
 
 	return func() {
-		r.DeRegister(nacs.DeRegisterInstance{
-			Group:   r.Group,
-			Name:    r.ServiceName(),
-			Address: inst.Address,
+		r.DeRegister(nacs.Instance{
+			Service: r.ServiceName(),
+			Host:    inst.Host,
+			Port:    inst.Port,
 		})
 	}, nil
 }
 
-func (r *nacosClient) DeRegister(inst nacs.DeRegisterInstance) error {
-	host, port, err := splitHostPort(inst.Address)
-	if err != nil {
-		return err
-	}
-
+func (r *nacosClient) DeRegister(inst nacs.Instance) error {
 	success, err := r.namingClient.DeregisterInstance(vo.DeregisterInstanceParam{
-		Ip:          host,
-		Port:        uint64(port),
-		ServiceName: inst.Name,
-		GroupName:   inst.Group,
+		Ip:          inst.Host,
+		Port:        uint64(inst.Port),
+		ServiceName: r.ServiceName(),
+		GroupName:   r.inGroup,
 		Ephemeral:   true,
 	})
 	if err != nil {
@@ -185,23 +186,26 @@ func (r *nacosClient) DeRegister(inst nacs.DeRegisterInstance) error {
 }
 
 func toInstance(inst model.Instance) nacs.Instance {
+	// nacos combine group and service name with '@@'
+	_, svc, found := strings.Cut(inst.ServiceName, "@@")
+	if !found {
+		svc = inst.ServiceName
+	}
+
 	return nacs.Instance{
 		Enable:   inst.Enable,
 		Healthy:  inst.Healthy,
-		Name:     inst.ServiceName,
-		Address:  net.JoinHostPort(inst.Ip, fmt.Sprintf("%v", inst.Port)),
+		Service:  svc,
+		Host:     inst.Ip,
+		Port:     uint(inst.Port),
 		Metadata: inst.Metadata,
 	}
 }
 
-func (r *nacosClient) Discover(svc nacs.Service) ([]nacs.Instance, error) {
-	if svc.Group == "" {
-		svc.Group = constant.DEFAULT_GROUP
-	}
-
+func (r *nacosClient) Discover() ([]nacs.Instance, error) {
 	param := vo.SelectInstancesParam{
-		ServiceName: svc.Name,
-		GroupName:   svc.Group,
+		ServiceName: r.ServiceName(),
+		GroupName:   r.inGroup,
 		HealthyOnly: true, // 只返回健康实例
 	}
 
@@ -212,23 +216,16 @@ func (r *nacosClient) Discover(svc nacs.Service) ([]nacs.Instance, error) {
 
 	result := make([]nacs.Instance, 0, len(instances))
 	for _, inst := range instances {
-		val := toInstance(inst)
-		val.Group = svc.Group
-		val.Name = svc.Name
-		result = append(result, val)
+		result = append(result, toInstance(inst))
 	}
 
 	return result, nil
 }
 
-func (r *nacosClient) Watch(svc nacs.Service, callback func([]nacs.Instance, error)) (context.CancelFunc, error) {
-	if svc.Group == "" {
-		svc.Group = constant.DEFAULT_GROUP
-	}
-
+func (r *nacosClient) Watch(callback func([]nacs.Instance, error)) (context.CancelFunc, error) {
 	param := vo.SubscribeParam{
-		ServiceName: svc.Name,
-		GroupName:   svc.Group,
+		ServiceName: r.ServiceName(),
+		GroupName:   r.inGroup,
 		SubscribeCallback: func(instances []model.Instance, err error) {
 			if err != nil {
 				callback(nil, err)
@@ -237,10 +234,7 @@ func (r *nacosClient) Watch(svc nacs.Service, callback func([]nacs.Instance, err
 
 			result := make([]nacs.Instance, 0, len(instances))
 			for _, inst := range instances {
-				val := toInstance(inst)
-				val.Group = svc.Group
-				val.Name = svc.Name
-				result = append(result, val)
+				result = append(result, toInstance(inst))
 			}
 
 			callback(result, nil)
@@ -252,16 +246,15 @@ func (r *nacosClient) Watch(svc nacs.Service, callback func([]nacs.Instance, err
 	}, r.namingClient.Subscribe(&param)
 }
 
-func (r *nacosClient) ID() string { return r.App + "_" + r.Version }
 func (r *nacosClient) Load() ([]byte, error) {
-	id := r.ID()
+	id := r.ConfigID()
 	if id == "" {
 		return nil, errors.New("nacos: data ID cannot be empty")
 	}
 
 	content, err := r.configClient.GetConfig(vo.ConfigParam{
 		DataId: id,
-		Group:  r.Group,
+		Group:  r.inGroup,
 	})
 	if err != nil {
 		return nil, err
@@ -270,19 +263,19 @@ func (r *nacosClient) Load() ([]byte, error) {
 	return []byte(content), nil
 }
 
-func (r *nacosClient) Monitor(cb nacs.OnChange) (context.CancelFunc, error) {
+func (r *nacosClient) Monitor(cb func(name string, payload []byte, err error)) (context.CancelFunc, error) {
 	if cb == nil {
 		cb = func(name string, payload []byte, err error) {}
 	}
 
-	id := r.ID()
+	id := r.ConfigID()
 	if id == "" {
 		return nil, errors.New("nacos: data ID cannot be empty")
 	}
 
 	if err := r.configClient.ListenConfig(vo.ConfigParam{
 		DataId:   id,
-		Group:    r.Group,
+		Group:    r.inGroup,
 		OnChange: func(namespace, group, dataId, data string) { cb(dataId, []byte(data), nil) },
 	}); err != nil {
 		return nil, err
@@ -291,7 +284,7 @@ func (r *nacosClient) Monitor(cb nacs.OnChange) (context.CancelFunc, error) {
 	return func() {
 		r.configClient.CancelListenConfig(vo.ConfigParam{
 			DataId: id,
-			Group:  r.Group,
+			Group:  r.inGroup,
 		})
 	}, nil
 }

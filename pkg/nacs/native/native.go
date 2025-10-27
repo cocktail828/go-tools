@@ -16,9 +16,8 @@ type fileConfigor struct {
 	rctx    context.Context
 	rcancel context.CancelFunc
 
-	mu      sync.RWMutex
-	fpath   string // 文件路径
-	payload []byte // 文件内容
+	fpath string   // 当前配置管理器关联的文件路径
+	dmap  sync.Map // map[path] => payload([]byte)
 }
 
 // file:///tmp/test_config.txt
@@ -47,20 +46,20 @@ func (f *fileConfigor) loadConfigLocked(fpath string) (payload []byte, err error
 		return nil, err
 	}
 
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.payload = payload
+	f.dmap.Store(fpath, payload)
 	return
 }
 
 func (f *fileConfigor) Load() ([]byte, error) {
-	f.mu.RLock()
-	defer f.mu.RUnlock()
-	return f.payload, nil
+	payload, ok := f.dmap.Load(f.fpath)
+	if !ok {
+		return nil, errors.Errorf("file %q not found", f.fpath)
+	}
+	return payload.([]byte), nil
 }
 
 // we should only care about write event
-func (f *fileConfigor) Monitor(cb nacs.OnChange) (context.CancelFunc, error) {
+func (f *fileConfigor) Monitor(cb func(name string, payload []byte, err error)) (context.CancelFunc, error) {
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to create fsnotify watcher")

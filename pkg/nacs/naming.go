@@ -2,47 +2,42 @@ package nacs
 
 import (
 	"context"
+	"strings"
 )
 
-// Service 定义服务
-type Service struct {
-	Group string
-	Name  string // service@version
-}
-
 type Instance struct {
-	Enable   bool
-	Group    string
+	Enable   bool   // valid at watch and discover
 	Healthy  bool   // valid at watch and discover
-	Name     string // service@version
-	Address  string // host:port
+	Service  string // service@version format, valid at watch and discover
+	Host     string // host
+	Port     uint   // port
 	Metadata map[string]string
 }
 
-type RegisterInstance struct {
-	Address  string // host:port
-	Metadata map[string]string
+func Compose(service, version string) string {
+	return service + "@" + version
 }
 
-type DeRegisterInstance struct {
-	Group   string
-	Name    string // service@version
-	Address string // host:port
+func (i Instance) ServiceVersion() (string, string) {
+	service, version, _ := strings.Cut(i.Service, "@")
+	return service, version
 }
 
-// Registry 注册中心接口
+// Registry is a service registry interface
+// Service details such as service name, service version, and cluster information
+// must be provided and handled in specific implementations
 type Registry interface {
-	// Register 注册服务实例
-	Register(RegisterInstance) (context.CancelFunc, error)
+	// Register register a service instance
+	Register(instance Instance) (context.CancelFunc, error)
 
-	// DeRegister 注销服务实例
-	DeRegister(DeRegisterInstance) error
+	// DeRegister de-registers a service instance
+	DeRegister(instance Instance) error
 
-	// Discover 发现服务实例
-	Discover(Service) ([]Instance, error)
+	// Discover discovers service instances
+	Discover() ([]Instance, error)
 
-	// Watch 监听服务实例的变化
-	Watch(svc Service, callback func([]Instance, error)) (context.CancelFunc, error)
+	// Watch watches service instance changes
+	Watch(callback func([]Instance, error)) (context.CancelFunc, error)
 
 	Close() error
 }
