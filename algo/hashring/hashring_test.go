@@ -1,135 +1,333 @@
 package hashring
 
 import (
+	"math"
+	"strconv"
+	"sync"
 	"testing"
+
+	"github.com/cocktail828/go-tools/z/mathx"
 )
 
 const (
+	// Test nodes
 	node1 = "192.168.1.1"
 	node2 = "192.168.1.2"
 	node3 = "192.168.1.3"
+	node4 = "192.168.1.4"
 )
 
-func getNodesCount(nodes nodeArray) (int, int, int) {
-	node1Count := 0
-	node2Count := 0
-	node3Count := 0
-
-	for _, node := range nodes {
-		if node.key == node1 {
-			node1Count += 1
-		}
-		if node.key == node2 {
-			node2Count += 1
-
-		}
-		if node.key == node3 {
-			node3Count += 1
-
-		}
+// TestHashRingCreation tests the creation of a new hash ring with default and custom options
+func TestHashRingCreation(t *testing.T) {
+	// Test with default options
+	hr := New()
+	if hr == nil {
+		t.Fatal("Expected non-nil HashRing")
 	}
-	return node1Count, node2Count, node3Count
-}
-
-func TestHashRing(t *testing.T) {
-	hring := New()
-	hring.AddMany(map[string]int{
-		node1: 2,
-		node2: 2,
-		node3: 3,
-	})
-
-	for k, v := range map[string]string{
-		"1": node3,
-		"2": node3,
-		"3": node3,
-	} {
-		if val := hring.Get(k); val != v {
-			t.Fatalf("key: %v, expect %v, but got %v", k, v, val)
-		}
+	if hr.virualSpots != DefaultVirualSpots {
+		t.Fatalf("Expected virualSpots to be %d, got %d", DefaultVirualSpots, hr.virualSpots)
 	}
 
-	hring.Remove(node3)
-	for k, v := range map[string]string{
-		"1": node1,
-		"2": node1,
-		"3": node2,
-	} {
-		if val := hring.Get(k); val != v {
-			t.Fatalf("key: %v, expect %v, but got %v", k, v, val)
-		}
+	// Test with custom virtual spots
+	customSpots := 100
+	hr = New(WithVirtualSpots(customSpots))
+	if hr.virualSpots != customSpots {
+		t.Fatalf("Expected virualSpots to be %d, got %d", customSpots, hr.virualSpots)
 	}
 
-	hring.Add(node3, 3)
-	for k, v := range map[string]string{
-		"1": node3,
-		"2": node3,
-		"3": node3,
-	} {
-		if val := hring.Get(k); val != v {
-			t.Fatalf("key: %v, expect %v, but got %v", k, v, val)
-		}
+	// Test with custom hash function
+	customHash := func(s string) uint32 {
+		return mathx.MurmurHash3_32([]byte(s), 123)
+	}
+	hr = New(WithHash(customHash))
+	if hr.hashFunc == nil {
+		t.Fatal("Expected non-nil hash function")
 	}
 }
 
-var (
-	patchids = []string{"1866652039436464128", "1866447602558332928", "1866405925902774272", "1866106275048226816", "1866351400563142656", "1866488424989491200", "1866426284274384896", "1866504890283356160", "1866485555053621248", "1866441508553388032", "2434459338076160   ", "1866481704384753664", "1866486266600517632", "1866419898568179712", "1866425953503182848", "1866347844611375104", "1866498944542998528", "1866509022713118720", "1866333031978008576", "1866489952865386496", "1866457023279689728", "1866367485429710848", "1866439333274222592", "1866488636449521664", "1866521268642017280", "1866434897877434368", "1866459718409416704", "1866475433862524928", "1866490058800922624", "1866464241203052544", "1866377282120089600", "1866386485739941888", "1866492806854242304", "1866496622853128192", "1866512539750133760", "2434558723453954   ", "1866407200673394688", "1866488829144100864", "1866455367871922176", "1866495332848660480", "1866490260454670336", "1866516094674567168", "1866514390713266176", "1866458937065242624", "1866449146397884416", "1866476624537350144", "1866505341036818432", "1866483339899072512", "1866483656682270720", "1866498074711322624", "1866393029600903168", "1866366176945274880", "1866436969561620480", "1866320060207755264", "1865421816799850496", "1866130441981816832", "1866145231064166400", "1866383951361245184", "1866519955556564992", "1866359669100802048", "1866433963793350656", "1866473094527217664", "1866394625319530496", "1866481704384753664", "1866430001627299840", "1866465048790986752", "1866483098449768448", "1866435618488221696", "1866505196413157376", "1866396914176524288", "1866489251959304192", "1866459957165977600", "1866430084317868032", "1866471186676740096", "1866408053635444736", "1866342692072488960", "1866452316616425472", "1866357730694819840", "1866510963375636480", "1866336083971702784", "1866385505510260736", "1866480176945201152", "1866345453656768512", "2431323291016192   ", "2434400061912069   ", "2434408704275456   ", "2434506530577408   ", "1866374231275499520", "1866476624537350144", "1866403778452680704", "1866400140007206912", "1866473896012574720", "1866424877706149888", "1866431613431083008", "1865765233685852160", "1866468205164265472", "1866453081179189248", "1866458036782919680", "1866415237156990976", "1866363210213392384", "1866506904388272128", "2434514108798977   ", "1866427276466221056", "1866393269741584384", "1866332493638955008", "1866495887012687872", "1866641970925961216", "1866507403363512320", "1866324070415499264", "1866459363634212864", "1866485373725605888", "1866482284654264320", "1866480065603207168", "2434528676665345   ", "1866381504781778944", "1866434466426159104", "1866511194854944768", "1866101505067614208", "1866497179357577216", "1866472982900011008", "1866391060467449856", "1866495413861777408", "1866344565890383872", "1866350592803241984", "1866362717676273664", "1866401897512857600", "1866358477025079296", "1866373544164618240", "1866432089056903168", "1866494312043147264", "1866515823760142336", "1866458256077910016", "1866380354128867328", "1866112502478041088", "1866425136708616192", "1866478111170789376", "1866467041408348160", "1866476143606005760", "1866499930556624896", "1866367176871542784", "1866493329254940672", "1866466806669930496", "1866405592367661056", "1866343029831401472", "1866407473060020224", "1866491140826361856", "1866444884938747904", "1866318692466327552", "1866406480058413056", "1866306987027890176", "2434355481256960   ", "1866351151715221504", "1866475230833045504", "1866441765609697280", "1866489066680119296", "1866496968967094272", "1866411668286767104", "1866504319153369088", "1866487264232636416", "1866381253056430080", "1865774105083408384", "1866641507547643904", "1866503125769158656", "1866639767884562432", "1866401902315470848", "1866341427133317120", "1866492114433507328", "1866476540223586304", "1866348338553450496", "1866332023604412416", "1866444602976661504", "1866341700929093632", "1866401730604859392", "1866385786625097728", "1866507793991761920", "1866325800519626752", "1866477307609116672", "1866468878098264064", "2434442669912065   ", "2434443580076033   ", "1866336056842809344", "1866491966231969792", "1866450292260765696", "1866487086188625920", "1866447528055046144", "1866349013907832832", "1866417946530574336", "1866415667299778560", "2434437584318467   ", "1866497007382724608", "1866410288792764416", "1866352655645835264", "1866400779688898560", "1866406411817222144", "1866370814863896576", "1866414852052774912", "1866471588050661376", "1866494552171380736", "1866332980153053184", "1866398886061441024", "1866468005553143808", "1866119783722811392", "1866378512586141696", "1866438585975078912", "1866438706016059392", "1866490328360452096", "2434507625453569   ", "1866447260626087936", "1866474918055542784", "1866486940394483712", "1866156490635505664", "1866397044875231232", "1866492652000538624", "1866418232804405248", "1866488266532745216", "1866429637435748352", "1866447583017205760", "1866347442335543296", "1866385097039441920", "1866326766065184768", "1866361250093498368", "1866392433237983232", "1866394421602185216", "1866362288338792448", "1866475018924359680", "1866375698589974528", "1866381554404589568", "1866343303874641920", "1866044248778899456", "1866370500077187072", "1866376359708618752", "1866407140615290880", "1866368829339238400", "1866367495886110720", "1866350094972911616", "1866382330065616896", "1866493225076817920", "1866455151684911104", "1865748728571265024", "1866393111813320704", "1866392466494484480", "1866423798910054400", "1866325279092277248", "1866403150401929216", "1866346485124202496", "2434425767758849   ", "1866367254667493376", "1866326250694275072", "1866440422237040640", "1866377218609803264", "1866391444430815232", "1866369443041275904", "1866378209212268544", "1866363813903761408"}
-)
+// TestAddAndGet tests adding nodes and getting the responsible node for a key
+func TestAddAndGet(t *testing.T) {
+	hr := New()
 
-func TestHashRing_Func(t *testing.T) {
-	f := func(name string, fn HashFunc) {
-		t.Run(name, func(t *testing.T) {
-			hring := New(WithHash(fn))
-			hring.AddMany(map[string]int{
-				"xspark13b6k1": 1,
-				"xspark13b6k2": 1,
-				"xspark13b6k3": 1,
-			})
-			n1, n2, n3 := 0, 0, 0
-			for _, patchid := range patchids {
-				switch hring.Get(patchid) {
-				case "xspark13b6k1":
-					n1++
-				case "xspark13b6k2":
-					n2++
-				case "xspark13b6k3":
-					n3++
-				}
-			}
-			t.Log(name, n1, n2, n3)
-		})
+	// Add a single node
+	hr.Add(node1, 1)
+
+	// Verify that we can get the node
+	key := "test-key"
+	node := hr.Get(key)
+	if node != node1 {
+		t.Fatalf("Expected node %s, got %s", node1, node)
 	}
 
-	f("sha256", Sha256)
-	f("md5", Md5)
-	f("crc32", Crc32)
+	// Add multiple nodes
+	hr.Add(node2, 1)
+	hr.Add(node3, 1)
+
+	// Verify that all nodes are in the hash ring
+	nodesMap := make(map[string]bool)
+	nodesMap[node1] = false
+	nodesMap[node2] = false
+	nodesMap[node3] = false
+
+	// Check multiple keys to ensure distribution
+	for i := 0; i < 100; i++ {
+		key := "key-" + strconv.Itoa(i)
+		node := hr.Get(key)
+		if node == "" {
+			t.Fatalf("Expected non-empty node for key %s", key)
+		}
+		nodesMap[node] = true
+	}
+
+	// Ensure all nodes were used
+	for node, used := range nodesMap {
+		if !used {
+			t.Fatalf("Node %s was never selected", node)
+		}
+	}
 }
 
-func TestHashRingX(t *testing.T) {
-	hring := New(WithHash(Sha256), WithVirtualSpots(100))
-	hring.AddMany(map[string]int{
-		"xspark13b6k1": 1,
-		"xspark13b6k2": 1,
-		"xspark13b6k3": 1,
-	})
+// TestAddMany tests adding multiple nodes with weights at once
+func TestAddMany(t *testing.T) {
+	hr := New()
 
-	v := hring.Get(patchids[0])
-	for range 10000 {
-		if v != hring.Get(patchids[0]) {
-			panic("not equal")
+	// Add multiple nodes with weights
+	nodes := map[string]int{
+		node1: 1,
+		node2: 1,
+		node3: 1,
+	}
+	hr.AddMany(nodes)
+
+	// Verify nodes are added
+	counts := make(map[string]int)
+	for i := 0; i < 1000; i++ {
+		key := "key-" + strconv.Itoa(i)
+		node := hr.Get(key)
+		counts[node]++
+	}
+
+	// Ensure all nodes are present
+	for node := range nodes {
+		if counts[node] == 0 {
+			t.Fatalf("Node %s was never selected", node)
+		}
+	}
+}
+
+// TestRemove tests removing a node from the hash ring
+func TestRemove(t *testing.T) {
+	hr := New()
+	hr.Add(node1, 1)
+	hr.Add(node2, 1)
+
+	// Verify node1 is present
+	key := "test-key"
+	// nodeBefore := hr.Get(key)
+
+	// Remove node1
+	hr.Remove(node1)
+
+	// Verify node1 is no longer present
+	if hr.Get(key) == node1 {
+		t.Fatalf("Node %s should have been removed", node1)
+	}
+
+	// After removing all nodes, Get should return empty string
+	hr.Remove(node2)
+	if node := hr.Get(key); node != "" {
+		t.Fatalf("Expected empty string for empty hash ring, got %s", node)
+	}
+}
+
+// TestUpdate tests updating a node's weight
+func TestUpdate(t *testing.T) {
+	hr := New()
+	hr.Add(node1, 1)
+	hr.Add(node2, 1)
+
+	// Get initial distribution
+	initialCounts := make(map[string]int)
+	for i := 0; i < 1000; i++ {
+		key := "key-" + strconv.Itoa(i)
+		node := hr.Get(key)
+		initialCounts[node]++
+	}
+
+	// Add node2's weight to be higher
+	hr.Add(node2, 5)
+
+	// Get new distribution
+	updatedCounts := make(map[string]int)
+	for i := 0; i < 1000; i++ {
+		key := "key-" + strconv.Itoa(i)
+		node := hr.Get(key)
+		updatedCounts[node]++
+	}
+
+	// Verify node2 has more keys after weight increase
+	if updatedCounts[node2] <= initialCounts[node2] {
+		t.Fatalf("Node2 should have more keys after weight increase")
+	}
+}
+
+// TestWeights tests that node weights affect distribution correctly
+func TestWeights(t *testing.T) {
+	hr := New()
+
+	// Add nodes with different weights
+	hr.Add(node1, 1) // 1x weight
+	hr.Add(node2, 2) // 2x weight
+	hr.Add(node3, 3) // 3x weight
+
+	// Test distribution
+	counts := make(map[string]int)
+	samples := 10000
+	for i := 0; i < samples; i++ {
+		key := "key-" + strconv.Itoa(i)
+		node := hr.Get(key)
+		counts[node]++
+	}
+
+	// Calculate percentages
+	totalWeight := 1 + 2 + 3
+	expectedNode1 := float64(counts[node1]) / float64(samples) * float64(totalWeight)
+	expectedNode2 := float64(counts[node2]) / float64(samples) * float64(totalWeight)
+	expectedNode3 := float64(counts[node3]) / float64(samples) * float64(totalWeight)
+
+	// Allow for some distribution variance
+	tolerance := 0.2
+	if !approximatelyEqual(expectedNode1, 1.0, tolerance) {
+		t.Fatalf("Node1 distribution (%.2f) not close to expected weight (1.0)", expectedNode1)
+	}
+	if !approximatelyEqual(expectedNode2, 2.0, tolerance) {
+		t.Fatalf("Node2 distribution (%.2f) not close to expected weight (2.0)", expectedNode2)
+	}
+	if !approximatelyEqual(expectedNode3, 3.0, tolerance) {
+		t.Fatalf("Node3 distribution (%.2f) not close to expected weight (3.0)", expectedNode3)
+	}
+}
+
+// TestVirtualSpots tests that different virtual spot counts affect distribution granularity
+func TestVirtualSpots(t *testing.T) {
+	// Test with low virtual spots
+	lowVirtualSpots := 10
+	hrLow := New(WithVirtualSpots(lowVirtualSpots))
+	hrLow.AddMany(map[string]int{node1: 1, node2: 1, node3: 1})
+
+	// Test with high virtual spots
+	highVirtualSpots := 1000
+	hrHigh := New(WithVirtualSpots(highVirtualSpots))
+	hrHigh.AddMany(map[string]int{node1: 1, node2: 1, node3: 1})
+
+	// Calculate distribution for both
+	samples := 10000
+	lowCounts := make(map[string]int)
+	highCounts := make(map[string]int)
+
+	for i := 0; i < samples; i++ {
+		key := "key-" + strconv.Itoa(i)
+		lowCounts[hrLow.Get(key)]++
+		highCounts[hrHigh.Get(key)]++
+	}
+
+	// The high virtual spots should have a more even distribution
+	lowDeviation := calculateDeviation(lowCounts, samples, 3)
+	highDeviation := calculateDeviation(highCounts, samples, 3)
+
+	if highDeviation >= lowDeviation {
+		t.Fatalf("Expected lower distribution deviation with high virtual spots")
+	}
+}
+
+// TestConsistency tests that adding/removing nodes doesn't disrupt existing key mapping unnecessarily
+func TestConsistency(t *testing.T) {
+	// Create initial hash ring with three nodes
+	hr := New()
+	hr.AddMany(map[string]int{node1: 1, node2: 1, node3: 1})
+
+	// Get initial mapping for some keys
+	keyNodeMap := make(map[string]string)
+	keys := 1000
+	for i := 0; i < keys; i++ {
+		key := "persistent-key-" + strconv.Itoa(i)
+		keyNodeMap[key] = hr.Get(key)
+	}
+
+	// Add a new node
+	hr.Add(node4, 1)
+
+	// Calculate how many keys changed their node assignment
+	changed := 0
+	for key, originalNode := range keyNodeMap {
+		newNode := hr.Get(key)
+		if newNode != originalNode {
+			changed++
 		}
 	}
 
-	n1, n2, n3 := 0, 0, 0
-	for _, patchid := range patchids {
-		switch hring.Get(patchid) {
-		case "xspark13b6k1":
-			n1++
-		case "xspark13b6k2":
-			n2++
-		case "xspark13b6k3":
-			n3++
-		}
+	// Check that most keys remain mapped to the same node (consistent hashing property)
+	changeRatio := float64(changed) / float64(keys)
+	expectedMaxChangeRatio := 0.25 // Approximately 1/(N+1) where N is the original number of nodes
+	if changeRatio > expectedMaxChangeRatio {
+		t.Fatalf("Too many keys changed nodes: %.2f%% (expected <= %.2f%%)",
+			changeRatio*100, expectedMaxChangeRatio*100)
 	}
-	t.Log(n1, n2, n3)
+}
+
+// TestConcurrencySafety is a simple concurrency test to check for race conditions
+func TestConcurrencySafety(t *testing.T) {
+	// This is a basic test to check for race conditions
+	// When running with -race flag, it will detect any data races
+
+	hr := New()
+	hr.AddMany(map[string]int{node1: 1, node2: 1, node3: 1})
+
+	// Run concurrent operations
+	var wg sync.WaitGroup
+	operations := 1000
+
+	// Concurrent gets
+	for i := 0; i < operations; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			key := "concurrent-key-" + strconv.Itoa(i)
+			hr.Get(key)
+		}(i)
+	}
+
+	// Concurrent updates
+	for i := 0; i < 100; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			// Periodically update weights
+			weight := (i % 5) + 1
+			hr.Add(node1, weight)
+		}(i)
+	}
+
+	// Wait for all goroutines to finish
+	wg.Wait()
+}
+
+// Helper functions
+func approximatelyEqual(a, b, tolerance float64) bool {
+	diff := math.Abs(a - b)
+	return diff <= tolerance
+}
+
+func calculateDeviation(counts map[string]int, total int, nodeCount int) float64 {
+	// Calculate standard deviation of distribution
+	expected := float64(total) / float64(nodeCount)
+	variance := 0.0
+
+	for _, count := range counts {
+		diff := float64(count) - expected
+		variance += diff * diff
+	}
+
+	variance /= float64(nodeCount)
+	return math.Sqrt(variance) / expected // Normalized standard deviation
 }

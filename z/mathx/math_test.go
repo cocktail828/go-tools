@@ -59,9 +59,3 @@ func TestCeilOf(t *testing.T) {
 		assert.Equal(t, tt.ceil, Ceil(tt.num, tt.base), "num=%v, base=%v", tt.num, tt.base)
 	}
 }
-
-func TestMemhash(t *testing.T) {
-	for _, s := range []string{"", "a", "ab", "abc"} {
-		t.Logf("memhash(%s) = %v", s, MemHashString(s))
-	}
-}

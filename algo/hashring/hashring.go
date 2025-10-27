@@ -1,14 +1,13 @@
 package hashring
 
 import (
-	"crypto/md5"
-	"crypto/sha256"
-	"hash/crc32"
 	"maps"
 	"math"
 	"sort"
 	"strconv"
 	"sync"
+
+	"github.com/cocktail828/go-tools/z/mathx"
 )
 
 const (
@@ -30,37 +29,17 @@ func (p nodeArray) Sort()              { sort.Sort(p) }
 
 // HashRing store nodes and weigths
 type HashRing struct {
-	hashFunc    HashFunc
+	hashFunc    func(string) uint32
 	virualSpots int
 	mu          sync.RWMutex
 	nodes       nodeArray
 	weights     map[string]int
 }
 
-type HashFunc func(string) uint32
-
-func Crc32(key string) uint32 {
-	return crc32.ChecksumIEEE([]byte(key))
-}
-
-func Sha256(key string) uint32 {
-	hash := sha256.New()
-	hash.Write([]byte(key))
-	hashBytes := hash.Sum(nil)[6:10]
-	return (uint32(hashBytes[3]) << 24) | (uint32(hashBytes[2]) << 16) | (uint32(hashBytes[1]) << 8) | (uint32(hashBytes[0]))
-}
-
-func Md5(key string) uint32 {
-	hash := md5.New()
-	hash.Write([]byte(key))
-	hashBytes := hash.Sum(nil)[6:10]
-	return (uint32(hashBytes[3]) << 24) | (uint32(hashBytes[2]) << 16) | (uint32(hashBytes[1]) << 8) | (uint32(hashBytes[0]))
-}
-
 type Option func(*HashRing)
 
 // set hash func
-func WithHash(f HashFunc) Option {
+func WithHash(f func(string) uint32) Option {
 	return func(hr *HashRing) {
 		hr.hashFunc = f
 	}
@@ -77,7 +56,9 @@ func WithVirtualSpots(n int) Option {
 // default Hash crc32
 func New(opts ...Option) *HashRing {
 	hring := &HashRing{
-		hashFunc:    Crc32,
+		hashFunc: func(s string) uint32 {
+			return mathx.MurmurHash3_32([]byte(s), 0)
+		},
 		virualSpots: DefaultVirualSpots,
 		weights:     make(map[string]int),
 	}
@@ -89,19 +70,21 @@ func New(opts ...Option) *HashRing {
 	return hring
 }
 
-func (h *HashRing) AddMany(nodeWeight map[string]int) {
+// AddMany add nodes with weights
+func (h *HashRing) AddMany(weights map[string]int) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	maps.Copy(h.weights, nodeWeight)
+	maps.Copy(h.weights, weights)
 	h.updateLocked()
 }
 
+// Add add a node with weight
+// If the node already exists, it will update the weight
 func (h *HashRing) Add(key string, weight int) {
-	h.AddMany(map[string]int{key: weight})
-}
-
-func (h *HashRing) Update(key string, weight int) {
-	h.Add(key, weight)
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	maps.Copy(h.weights, map[string]int{key: weight})
+	h.updateLocked()
 }
 
 func (h *HashRing) Remove(key string) {
