@@ -13,7 +13,7 @@ import (
 
 var (
 	nac *nacosClient
-	uri = "nacos://nacos:nacos@172.29.231.108:8848/group/asfd/v1.0.0?namespace=xxx"
+	uri = "nacos://nacos:nacos@127.0.0.1:8848/myns/mygroup/asfd/v1.0.0"
 )
 
 func init() {

@@ -3,7 +3,6 @@ package nacos
 import (
 	"context"
 	"net/url"
-	"regexp"
 	"strconv"
 	"strings"
 
@@ -34,24 +33,7 @@ func (r *nacosClient) ServiceName() string { return nacs.Compose(r.inService, r.
 // It is used to identify the config in nacos.
 func (r *nacosClient) ConfigID() string { return r.inService + "_" + r.inVersion }
 
-// nacos://$user:$password@$host:$port/$group/$service/$version
-var re = regexp.MustCompile(`^/([^/]+)/([^/]+)/([^/]+)$`)
-
-func abstract(path string) (group, service, version string, err error) {
-	matches := re.FindStringSubmatch(path)
-	if matches == nil {
-		err = errors.New("nacos path format error: expect nacos://$user:$password@$host:$port/$group/$service/$version[?namespace=$ns]")
-		return
-	}
-
-	group, service, version = matches[1], matches[2], matches[3]
-	if group == "" || service == "" || version == "" {
-		err = errors.New("nacos path format error: expect nacos://$user:$password@$host:$port/$group/$service/$version[?namespace=$ns]")
-		return
-	}
-	return
-}
-
+// nacos://$user:$password@$host:$port/$namespace/$group/$service/$version
 func NewNacosClient(u *url.URL) (*nacosClient, error) {
 	var username, password string
 	if u.User != nil {
@@ -59,24 +41,20 @@ func NewNacosClient(u *url.URL) (*nacosClient, error) {
 		password, _ = u.User.Password()
 	}
 
-	group, service, version, err := abstract(u.Path)
-	if err != nil {
-		return nil, err
+	parts := strings.Split(u.Path, "/")
+	if len(parts) < 5 || parts[1] == "" || parts[2] == "" || parts[3] == "" || parts[4] == "" {
+		return nil, errors.New("nacos path format error: expect nacos://$user:$password@$host:$port/$namespace/$group/$service/$version")
 	}
-
-	if group == "" {
-		group = constant.DEFAULT_GROUP
-	}
+	namespace, group, service, version := parts[1], parts[2], parts[3], parts[4]
 
 	cc := constant.NewClientConfig(
-		constant.WithNamespaceId(u.Query().Get("namespace")),
+		constant.WithNamespaceId(namespace),
 		constant.WithNotLoadCacheAtStart(true),
 		constant.WithAppName(service),
-		constant.WithLogDir("./nacos/log"),
-		constant.WithCacheDir("./nacos/cache"),
-		constant.WithLogLevel("info"),
 		constant.WithUsername(username),
 		constant.WithPassword(password),
+		constant.WithTimeoutMs(3000),
+		constant.WithUpdateThreadNum(2),
 	)
 
 	port, err := strconv.Atoi(u.Port())

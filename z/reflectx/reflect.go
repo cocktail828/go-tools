@@ -21,22 +21,17 @@ func IsNil(obj any) bool {
 }
 
 func BytesToString(b []byte) string {
-	byteHeader := (*reflect.SliceHeader)(unsafe.Pointer(&b))
-	strHeader := reflect.StringHeader{
-		Data: byteHeader.Data,
-		Len:  byteHeader.Len,
+	// NOTE: The returned string is only valid until the next call to BytesToString.
+	if len(b) == 0 {
+		return ""
 	}
-
-	return *(*string)(unsafe.Pointer(&strHeader))
+	return unsafe.String(&b[0], len(b))
 }
 
 func StringToBytes(s string) []byte {
-	strHeader := (*reflect.StringHeader)(unsafe.Pointer(&s))
-	byteHeader := reflect.SliceHeader{
-		Data: strHeader.Data,
-		Len:  strHeader.Len,
-		Cap:  strHeader.Len,
+	// NOTE: The returned slice is only valid until the next call to StringToBytes or BytesToString.
+	if len(s) == 0 {
+		return nil
 	}
-
-	return *(*[]byte)(unsafe.Pointer(&byteHeader))
+	return unsafe.Slice(unsafe.StringData(s), len(s))
 }

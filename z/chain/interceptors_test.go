@@ -11,67 +11,67 @@ import (
 func TestRecurse(t *testing.T) {
 	slice := []string{}
 	s := ChainInterceptors(
-		func(ctx context.Context, in any, handler UnaryHandler) (resp any, err error) {
-			slice = append(slice, "1 in")
+		func(ctx context.Context, in string, handler UnaryHandler[string]) (resp any, err error) {
+			slice = append(slice, "1")
 			r, e := handler(ctx, in)
-			slice = append(slice, "1 out")
+			slice = append(slice, "1")
 			return r, e
 		},
-		func(ctx context.Context, in any, handler UnaryHandler) (resp any, err error) {
-			slice = append(slice, "2 in")
+		func(ctx context.Context, in string, handler UnaryHandler[string]) (resp any, err error) {
+			slice = append(slice, "2")
 			r, e := handler(ctx, in)
-			slice = append(slice, "2 out")
+			slice = append(slice, "2")
 			return r, e
 		},
-		func(ctx context.Context, in any, handler UnaryHandler) (resp any, err error) {
-			slice = append(slice, "3 in")
+		func(ctx context.Context, in string, handler UnaryHandler[string]) (resp any, err error) {
+			slice = append(slice, "3")
 			r, e := handler(ctx, in)
-			slice = append(slice, "3 out")
+			slice = append(slice, "3")
 			return r, e
 		},
 	)
 
-	val, err := s(context.TODO(), nil, func(ctx context.Context, in any) (any, error) {
+	val, err := s(context.TODO(), "test", func(ctx context.Context, in string) (any, error) {
 		slice = append(slice, "end")
 		return 10, nil
 	})
 	assert.Equal(t, val, 10)
 	assert.NoError(t, err)
-	assert.EqualValues(t, []string{"1 in", "2 in", "3 in", "end", "3 out", "2 out", "1 out"}, slice)
+	assert.EqualValues(t, []string{"1", "2", "3", "end", "3", "2", "1"}, slice)
 }
 
 func TestFailure(t *testing.T) {
 	slice := []string{}
 	s := ChainInterceptors(
-		func(ctx context.Context, in any, handler UnaryHandler) (resp any, err error) {
-			slice = append(slice, "1 in")
+		func(ctx context.Context, in string, handler UnaryHandler[string]) (resp any, err error) {
+			slice = append(slice, "1")
 			r, e := handler(ctx, in)
-			slice = append(slice, "1 out")
+			slice = append(slice, "1")
 			return r, e
 		},
-		func(ctx context.Context, in any, handler UnaryHandler) (resp any, err error) {
-			slice = append(slice, "2 in")
+		func(ctx context.Context, in string, handler UnaryHandler[string]) (resp any, err error) {
+			slice = append(slice, "2")
 			return nil, net.ErrClosed
 		},
-		func(ctx context.Context, in any, handler UnaryHandler) (resp any, err error) {
-			slice = append(slice, "3 in")
+		func(ctx context.Context, in string, handler UnaryHandler[string]) (resp any, err error) {
+			slice = append(slice, "3")
 			r, e := handler(ctx, in)
-			slice = append(slice, "3 out")
+			slice = append(slice, "3")
 			return r, e
 		},
 	)
 
-	_, err := s(context.TODO(), nil, func(ctx context.Context, in any) (any, error) {
+	_, err := s(context.TODO(), "test", func(ctx context.Context, in string) (any, error) {
 		slice = append(slice, "end")
 		return 10, nil
 	})
 	assert.EqualError(t, err, net.ErrClosed.Error())
-	assert.EqualValues(t, []string{"1 in", "2 in", "1 out"}, slice)
+	assert.EqualValues(t, []string{"1", "2", "1"}, slice)
 }
 
-func TestNilInter(t *testing.T) {
-	s := ChainInterceptors()
-	_, err := s(context.TODO(), nil, func(ctx context.Context, in any) (any, error) {
+func TestEmptyInterceptors(t *testing.T) {
+	s := ChainInterceptors[string]()
+	_, err := s(context.TODO(), "test", func(ctx context.Context, in string) (any, error) {
 		return nil, nil
 	})
 	assert.NoError(t, err)

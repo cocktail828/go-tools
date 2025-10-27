@@ -21,3 +21,9 @@ func TestIsNil(t *testing.T) {
 	assert.Equal(t, true, IsNil(k))
 	assert.Equal(t, false, IsNil(net.AddrError{"test", "127.0.0.1"}))
 }
+
+func TestBytesToString(t *testing.T) {
+	for _, s := range []string{"", "a", "ab", "abc"} {
+		assert.Equal(t, s, BytesToString(StringToBytes(s)))
+	}
+}

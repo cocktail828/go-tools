@@ -38,34 +38,55 @@ func (r *Recorder) Elapse() time.Duration {
 type BlockChecker struct {
 	Timeout   time.Duration // required, timeout is the duration to check
 	OnTimeout func()        // required, onTimeout is the callback function to call when timeout cannot be nil
-	ticker    *time.Ticker
 }
 
 // Go starts the check process
-// ctx: a cancellable context
-func (c *BlockChecker) Go(ctx context.Context) {
+// The returned Checker can be used to check if the timeout is reached.
+// If the ctx is cancelled, the check process will be stopped.
+func (c *BlockChecker) Go(ctx context.Context) Checker {
 	if c.Timeout == 0 || c.OnTimeout == nil {
 		panic("timeout or onTimeout is nil")
 	}
 
+	ticker := time.NewTicker(c.Timeout)
 	go func() {
-		c.ticker = time.NewTicker(c.Timeout)
-		defer c.ticker.Stop()
+		defer ticker.Stop()
 
 		for {
 			select {
 			case <-ctx.Done():
 				return
-			case <-c.ticker.C:
+			case <-ticker.C:
 				c.OnTimeout()
 			}
 		}
 	}()
+
+	return &checkerIMPL{ticker, c.Timeout}
+}
+
+type Checker interface {
+	// Check resets the time ticker, to avoid ticker timeout
+	Check()
+
+	// Reset resets the timeout to d duration
+	// It does not reset ot stop the ticker
+	Reset(d time.Duration)
+}
+
+// checkerIMPL implements Checker interface
+type checkerIMPL struct {
+	ticker  *time.Ticker
+	timeout time.Duration
 }
 
 // Check resets the time ticker
-func (c *BlockChecker) Check() {
-	if c.ticker != nil {
-		c.ticker.Reset(c.Timeout)
+func (c *checkerIMPL) Check() {
+	c.Reset(c.timeout)
+}
+
+func (c *checkerIMPL) Reset(d time.Duration) {
+	if d > 0 {
+		c.timeout = d
 	}
 }
