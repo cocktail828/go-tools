@@ -2,10 +2,11 @@ package healthy
 
 import (
 	"context"
-	"log"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/cocktail828/go-tools/xlog"
 )
 
 type Keepalive interface {
@@ -22,15 +23,17 @@ type timedVal struct {
 type keepaliveImpl struct {
 	Evaluater // 健康状态评估
 	Liveness  // 健康检查器
+	logger    xlog.Printer
 	running   atomic.Bool
 	healthy   timedVal
 	mu        sync.Mutex
 }
 
-func NewKeepalive(el Evaluater, lv Liveness) Keepalive {
+func NewKeepalive(el Evaluater, lv Liveness, logger xlog.Printer) Keepalive {
 	return &keepaliveImpl{
 		Evaluater: el,
 		Liveness:  lv,
+		logger:    logger,
 	}
 }
 
@@ -61,7 +64,7 @@ func (ka *keepaliveImpl) Background(itvl time.Duration) context.CancelFunc {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				log.Printf("keepaliveImpl Background goroutine panic: %v", r)
+				ka.logger.Printf("keepaliveImpl Background goroutine panic: %v", r)
 			}
 		}()
 

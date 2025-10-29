@@ -15,11 +15,11 @@ func (p NoopPrinter) Printf(format string, v ...any) {}
 type Level int
 
 const (
-	LevelDebug Level = Level(slog.LevelDebug)
-	LevelInfo  Level = Level(slog.LevelInfo)
-	LevelWarn  Level = Level(slog.LevelWarn)
-	LevelError Level = Level(slog.LevelError)
-	LevelFatal Level = Level(slog.LevelError + 4)
+	LevelDebug = Level(slog.LevelDebug)
+	LevelInfo  = Level(slog.LevelInfo)
+	LevelWarn  = Level(slog.LevelWarn)
+	LevelError = Level(slog.LevelError)
+	LevelFatal = Level(slog.LevelError + 4)
 )
 
 func (l Level) Level() slog.Level { return slog.Level(l) }
