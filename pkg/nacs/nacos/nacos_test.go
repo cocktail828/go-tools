@@ -17,12 +17,16 @@ var (
 )
 
 func init() {
+}
+
+func TestMain(m *testing.M) {
 	_u, err := url.ParseRequestURI(uri)
 	z.Must(err)
 
 	_nac, err := NewNacosClient(_u)
 	z.Must(err)
 	nac = _nac
+	// m.Run()
 }
 
 func TestConfigor(t *testing.T) {

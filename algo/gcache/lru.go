@@ -92,7 +92,7 @@ func (c *LRUCache) SetWithExpire(key, value any, expiration time.Duration) error
 // generate a value using `LoaderFunc` method returns value.
 func (c *LRUCache) Get(key any) (any, error) {
 	v, err := c.get(key, false)
-	if err == KeyNotFoundError {
+	if err == ErrKeyNotFoundError {
 		return c.getWithLoader(key)
 	}
 	return v, err
@@ -129,12 +129,12 @@ func (c *LRUCache) getValue(key any, onLoad bool) (any, error) {
 	if !onLoad {
 		c.stats.IncrMissCount()
 	}
-	return nil, KeyNotFoundError
+	return nil, ErrKeyNotFoundError
 }
 
 func (c *LRUCache) getWithLoader(key any) (any, error) {
 	if c.loaderExpireFunc == nil {
-		return nil, KeyNotFoundError
+		return nil, ErrKeyNotFoundError
 	}
 	return c.load(key, func(v any, expiration *time.Duration, e error) (any, error) {
 		if e != nil {
@@ -206,18 +206,6 @@ func (c *LRUCache) removeElement(e *list.Element) {
 		entry := e.Value.(*lruItem)
 		c.evictedFunc(entry.key, entry.value)
 	}
-}
-
-func (c *LRUCache) keys() []any {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	keys := make([]any, len(c.items))
-	var i = 0
-	for k := range c.items {
-		keys[i] = k
-		i++
-	}
-	return keys
 }
 
 // GetALL returns all key-value pairs in the cache.

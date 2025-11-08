@@ -75,7 +75,8 @@ func TestPoolDeadline(t *testing.T) {
 	defer db.Close()
 	z.Must(db.Ping())
 
-	ctx, _ := context.WithTimeout(context.Background(), time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
 	var c *Conn
 	assert.Equal(t, context.DeadlineExceeded, db.DoContext(ctx, func(ci driver.Conn) error {
 		if ci == nil {
@@ -85,7 +86,7 @@ func TestPoolDeadline(t *testing.T) {
 		time.Sleep(time.Hour)
 		return nil
 	}))
-	assert.Equal(t, false, c.isOpen)
+	assert.False(t, c.isOpen)
 	assert.Equal(t, 0, db.Stats().OpenCount)
 	assert.Equal(t, 0, db.Stats().IdleCount)
 }
@@ -102,9 +103,10 @@ func TestPoolMaxConn(t *testing.T) {
 	wgc.Add(3)
 
 	for i := 0; i < 3; i++ {
-		ctx, _ := context.WithTimeout(context.Background(), time.Second*5)
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 		go func() {
 			defer wgc.Done()
+			defer cancel()
 			assert.Equal(t, nil, db.DoContext(ctx, func(ci driver.Conn) error {
 				wg.Done()
 				time.Sleep(time.Second * 2)

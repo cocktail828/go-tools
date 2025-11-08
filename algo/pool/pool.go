@@ -950,7 +950,7 @@ func (db *DB) doDC(ctx context.Context, dc *driverConn, releaseConn func(error),
 	go func() { errchan <- f(dc.ci) }()
 	select {
 	case <-ctx.Done():
-		err = context.DeadlineExceeded
+		err = ctx.Err()
 	case err = <-errchan:
 	}
 	dc.Unlock()

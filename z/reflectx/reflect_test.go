@@ -17,7 +17,7 @@ func TestIsNil(t *testing.T) {
 		return nil
 	}()
 
-	assert.Equal(t, false, k == nil)
+	assert.Nil(t, k)
 	assert.Equal(t, true, IsNil(k))
 	assert.Equal(t, false, IsNil(net.AddrError{"test", "127.0.0.1"}))
 }

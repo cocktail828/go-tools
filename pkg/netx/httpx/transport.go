@@ -92,7 +92,7 @@ func lookupInternal(hostport string) []balancer.Node {
 }
 
 type lbRoundTripper struct {
-	transport   http.Transport // the underlying round tripper to use
+	transport   http.RoundTripper // the underlying round tripper to use
 	builder     func(nodes []balancer.Node) balancer.Balancer
 	portMap     map[string]string // http: 80, https: 443, ...
 	lastCheckAt time.Time
@@ -130,6 +130,7 @@ func NewDNSTransport(
 	appendOnNonExist(portmap, "https", "443")
 
 	return &lbRoundTripper{
+		transport:   transport,
 		builder:     builder,
 		portMap:     portmap,
 		selectorMap: map[string]balancer.Balancer{},
@@ -201,7 +202,28 @@ func (lb *lbRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 
 	// domain, use load balancer
 	if ip := net.ParseIP(hostWithoutPort); ip == nil {
-		if addr := lb.Pick(hostWithoutPort + ":" + port); addr != "" {
+		hostport := hostWithoutPort + ":" + port
+		if addr := lb.Pick(hostport); addr != "" {
+			// HTTPS, Set ServerName to original host name if we connect to IP address directly
+			if req.URL.Scheme == "https" {
+				// Save original TLS config
+				originalTLSConfig := lb.transport.(*http.Transport).TLSClientConfig
+				if originalTLSConfig == nil {
+					originalTLSConfig = &tls.Config{}
+				}
+
+				// Create a new TLS config copy, set ServerName to original host name
+				newTLSConfig := originalTLSConfig.Clone()
+				newTLSConfig.ServerName = hostWithoutPort
+
+				// Use new TLS config
+				lb.transport.(*http.Transport).TLSClientConfig = newTLSConfig
+				defer func() {
+					// Restore original TLS config
+					lb.transport.(*http.Transport).TLSClientConfig = originalTLSConfig
+				}()
+			}
+
 			req.URL.Host = addr
 		}
 	}

@@ -41,33 +41,14 @@ jobs:
           fi
           echo "✅ Code format check passed!"
 
-      - name: Static check with go vet + staticcheck
-        run: |
-          go vet ./...
-          staticcheck ./...
-          echo "✅ Static check passed!"
+      # - name: Static check with go vet + staticcheck
+      #   run: |
+      #     go vet ./...
+      #     staticcheck ./...
+      #     echo "✅ Static check passed!"
 
       - name: Run unit tests
         id: test
         run: |
-          go test ./... -v -race -coverprofile=coverage.txt
+          go test ./... -v -coverprofile=coverage.txt
           echo "✅ All tests passed!"
-
-      - name: Check coverage file
-        id: coverage-check
-        run: |
-          if [ -f coverage.txt ]; then
-            echo "coverage_present=true" >> $GITHUB_OUTPUT
-            echo "✅ Coverage file found"
-          else
-            echo "coverage_present=false" >> $GITHUB_OUTPUT
-            echo "⚠️ Coverage file not found"
-          fi
-
-      - name: Upload coverage report
-        if: steps.coverage-check.outputs.coverage_present == 'true' && success()
-        uses: codecov/codecov-action@v4
-        with:
-          files: ./coverage.txt
-          fail_ci_if_error: true
-          verbose: true

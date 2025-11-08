@@ -164,7 +164,7 @@ func (c *ARC) set(key, value any) (any, error) {
 // Get a value from cache pool using key if it exists. If not exists and it has LoaderFunc, it will generate the value using you have specified LoaderFunc method returns value.
 func (c *ARC) Get(key any) (any, error) {
 	v, err := c.get(key, false)
-	if err == KeyNotFoundError {
+	if err == ErrKeyNotFoundError {
 		return c.getWithLoader(key)
 	}
 	return v, err
@@ -222,12 +222,12 @@ func (c *ARC) getValue(key any, onLoad bool) (any, error) {
 	if !onLoad {
 		c.stats.IncrMissCount()
 	}
-	return nil, KeyNotFoundError
+	return nil, ErrKeyNotFoundError
 }
 
 func (c *ARC) getWithLoader(key any) (any, error) {
 	if c.loaderExpireFunc == nil {
-		return nil, KeyNotFoundError
+		return nil, ErrKeyNotFoundError
 	}
 	return c.load(key, func(v any, expiration *time.Duration, e error) (any, error) {
 		if e != nil {

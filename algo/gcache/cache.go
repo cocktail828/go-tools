@@ -18,7 +18,7 @@ const (
 	TYPE_ARC    EvictType = "arc"
 )
 
-var KeyNotFoundError = errors.New("Key not found.")
+var ErrKeyNotFoundError = errors.New("key not found")
 
 type Cache interface {
 	EvictType() EvictType
@@ -223,7 +223,7 @@ func (c *baseCache) load(key any, cb func(any, *time.Duration, error) (any, erro
 
 		defer func() {
 			if r := recover(); r != nil {
-				e = fmt.Errorf("Loader panics: %v", r)
+				e = fmt.Errorf("loader panics: %v", r)
 			}
 		}()
 		return cb(c.loaderExpireFunc(key))

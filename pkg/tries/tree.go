@@ -402,14 +402,7 @@ walk: // outer loop for walking the tree
 						return
 					}
 
-					if handle = n.handle; handle != nil {
-						return
-					} else if len(n.children) == 1 {
-						// No handle found. Check if a handle for this path + a
-						// trailing slash exists for TSR recommendation
-						n = n.children[0]
-					}
-
+					handle = n.handle
 					return
 
 				case catchAll:

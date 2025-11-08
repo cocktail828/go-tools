@@ -10,6 +10,7 @@ import (
 )
 
 func TestPool(t *testing.T) {
+	t.Parallel()
 	pool, _ := NewElasticJob(DefaultConfig())
 	cnt := 0
 	for i := 0; i < 10; i++ {
@@ -23,11 +24,13 @@ func TestPool(t *testing.T) {
 }
 
 func TestPoolInvalidParam(t *testing.T) {
+	t.Parallel()
 	_, err := NewElasticJob(Config{})
 	assert.ErrorIs(t, err, ErrInvalidParam)
 }
 
 func TestPoolFull(t *testing.T) {
+	t.Parallel()
 	cfg := DefaultConfig()
 	cfg.PendingTaskNum = 1
 	pool, err := NewElasticJob(cfg)
@@ -41,12 +44,14 @@ func TestPoolFull(t *testing.T) {
 }
 
 func TestPoolClosed(t *testing.T) {
+	t.Parallel()
 	pool, _ := NewElasticJob(DefaultConfig())
 	pool.Close(context.Background())
 	assert.Equal(t, ErrPoolClosed, pool.Submit(func() {}))
 }
 
 func TestPoolCloseFail(t *testing.T) {
+	t.Parallel()
 	cnt := 102400
 	c, f := context.WithCancel(context.Background())
 	pool := ElasticJob{
@@ -66,13 +71,15 @@ func TestPoolCloseFail(t *testing.T) {
 }
 
 func TestPoolElastic(t *testing.T) {
+	t.Parallel()
 	cfg := DefaultConfig()
 	cfg.PendingTaskNum = 100
 	cfg.MaxWorkers = 100
+	cfg.Period = time.Second
 	pool, _ := NewElasticJob(cfg)
 
 	q := make(chan struct{}, 1)
-	time.AfterFunc(time.Second*20, func() { q <- struct{}{} })
+	time.AfterFunc(time.Second*10, func() { q <- struct{}{} })
 loop:
 	for {
 		select {
@@ -82,6 +89,4 @@ loop:
 			pool.Submit(func() { time.Sleep(time.Second) })
 		}
 	}
-
-	time.Sleep(time.Second * 30)
 }

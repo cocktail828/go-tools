@@ -4,6 +4,8 @@ import (
 	"strings"
 
 	"github.com/cocktail828/go-tools/tools/gogen/ast"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 type DSLMeta struct {
@@ -36,7 +38,7 @@ type routeMeta struct {
 
 func serviceAst2Meta(svc ast.ServiceAST) serviceMeta {
 	m := serviceMeta{
-		Interceptors: titleSlice(strings.Title, svc.Interceptors...),
+		Interceptors: titleSlice(func(s string) string { return cases.Title(language.English).String(s) }, svc.Interceptors...),
 	}
 
 	grpHasIncp := false
@@ -44,7 +46,7 @@ func serviceAst2Meta(svc ast.ServiceAST) serviceMeta {
 		grp := groupMeta{
 			Name:         strings.ReplaceAll(rg.Prefix, "/", "_"),
 			Prefix:       rg.Prefix,
-			Interceptors: titleSlice(strings.Title, rg.Interceptors...),
+			Interceptors: titleSlice(func(s string) string { return cases.Title(language.English).String(s) }, rg.Interceptors...),
 		}
 
 		if len(rg.Interceptors) > 0 {
@@ -57,8 +59,8 @@ func serviceAst2Meta(svc ast.ServiceAST) serviceMeta {
 			}
 
 			grp.Routes = append(grp.Routes, routeMeta{
-				HandlerName: strings.Title(rrt.HandlerName),
-				Method:      strings.Title(rrt.Method),
+				HandlerName: cases.Title(language.English).String(rrt.HandlerName),
+				Method:      cases.Title(language.English).String(rrt.Method),
 				Path:        rrt.Path,
 				Request:     rrt.Request,
 				Response:    rrt.Response,

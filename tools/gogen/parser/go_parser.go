@@ -78,7 +78,6 @@ func parseStructFields(fieldLines []string) ([]ast.StructField, error) {
 				inBlockComment = false
 
 				currentLine = strings.SplitN(currentLine, "*/", 2)[1]
-				trimmedLine = strings.TrimSpace(currentLine)
 			} else {
 				blockCommentBuffer = append(blockCommentBuffer, currentLine)
 				continue

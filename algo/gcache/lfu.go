@@ -115,7 +115,7 @@ func (c *LFUCache) set(key, value any) (any, error) {
 // generate a value using `LoaderFunc` method returns value.
 func (c *LFUCache) Get(key any) (any, error) {
 	v, err := c.get(key, false)
-	if err == KeyNotFoundError {
+	if err == ErrKeyNotFoundError {
 		return c.getWithLoader(key)
 	}
 	return v, err
@@ -151,12 +151,12 @@ func (c *LFUCache) getValue(key any, onLoad bool) (any, error) {
 	if !onLoad {
 		c.stats.IncrMissCount()
 	}
-	return nil, KeyNotFoundError
+	return nil, ErrKeyNotFoundError
 }
 
 func (c *LFUCache) getWithLoader(key any) (any, error) {
 	if c.loaderExpireFunc == nil {
-		return nil, KeyNotFoundError
+		return nil, ErrKeyNotFoundError
 	}
 	return c.load(key, func(v any, expiration *time.Duration, e error) (any, error) {
 		if e != nil {
@@ -271,18 +271,6 @@ func (c *LFUCache) removeItem(item *lfuItem) {
 	if c.evictedFunc != nil {
 		c.evictedFunc(item.key, item.value)
 	}
-}
-
-func (c *LFUCache) keys() []any {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	keys := make([]any, len(c.items))
-	var i = 0
-	for k := range c.items {
-		keys[i] = k
-		i++
-	}
-	return keys
 }
 
 // GetALL returns all key-value pairs in the cache.

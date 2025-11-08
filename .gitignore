@@ -1,3 +1,4 @@
 tools/gogen/xxx
 tools/gogen/scripts/protogen
 pkg/nacs/nacos/nacos
+coverage.txt
