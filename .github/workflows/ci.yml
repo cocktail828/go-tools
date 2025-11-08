@@ -1,0 +1,73 @@
+name: Go CI (Format + Test)
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  format-test:
+    runs-on: ubuntu-latest
+    container:
+      image: golang:1.23
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go module cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/go-build
+            /go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Download dependencies and install staticcheck
+        run: |
+          go mod download
+          go install honnef.co/go/tools/cmd/staticcheck@latest
+
+      - name: Check code format with gofmt
+        run: |
+          fmt_out=$(gofmt -l .)
+          if [ -n "$fmt_out" ]; then
+            echo "❌ Found code format issues (run 'gofmt -w .' to fix):"
+            echo "$fmt_out"
+            exit 1
+          fi
+          echo "✅ Code format check passed!"
+
+      - name: Static check with go vet + staticcheck
+        run: |
+          go vet ./...
+          staticcheck ./...
+          echo "✅ Static check passed!"
+
+      - name: Run unit tests
+        id: test
+        run: |
+          go test ./... -v -race -coverprofile=coverage.txt
+          echo "✅ All tests passed!"
+
+      - name: Check coverage file
+        id: coverage-check
+        run: |
+          if [ -f coverage.txt ]; then
+            echo "coverage_present=true" >> $GITHUB_OUTPUT
+            echo "✅ Coverage file found"
+          else
+            echo "coverage_present=false" >> $GITHUB_OUTPUT
+            echo "⚠️ Coverage file not found"
+          fi
+
+      - name: Upload coverage report
+        if: steps.coverage-check.outputs.coverage_present == 'true' && success()
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./coverage.txt
+          fail_ci_if_error: true
+          verbose: true
