@@ -48,6 +48,11 @@ func NewNode(node int64) (*Node, error) {
 	}, nil
 }
 
+// SetEpoch set the epoch time of the node.
+// The epoch time is the time from which the snowflake ID is generated.
+// The default epoch time is Nov 04 2010 01:42:54 UTC.
+func (n *Node) SetEpoch(t time.Time) { n.epoch = t }
+
 // Generate creates and returns a unique snowflake ID.
 // To help guarantee uniqueness:
 // - Make sure your system is keeping accurate system time.
