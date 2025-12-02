@@ -25,56 +25,56 @@ type Node interface {
 	Value() any
 }
 
-type nodeArray struct {
+type Candidate struct {
 	mu    sync.RWMutex
 	nodes []Node
 }
 
-func (na *nodeArray) Nodes() []Node {
-	na.mu.RLock()
-	defer na.mu.RUnlock()
-	return na.nodes
+func (c *Candidate) Nodes() []Node {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.nodes
 }
 
-func (na *nodeArray) updateLocked(nodes []Node) {
+func (c *Candidate) updateLocked(nodes []Node) {
 	if nodes == nil {
 		nodes = []Node{}
 	}
-	na.nodes = nodes
+	c.nodes = nodes
 }
 
 // Update updates balancer nodes
-func (na *nodeArray) Update(nodes []Node) {
+func (c *Candidate) Update(nodes []Node) {
 	tmp := map[any]struct{}{}
 	for _, n := range nodes {
 		tmp[n.Value()] = struct{}{}
 	}
 
-	na.mu.RLock()
-	for _, n := range na.nodes {
+	c.mu.RLock()
+	for _, n := range c.nodes {
 		delete(tmp, n.Value())
 	}
-	na.mu.RUnlock()
+	c.mu.RUnlock()
 
 	// nodes not changed
 	if len(tmp) == 0 {
 		return
 	}
 
-	na.mu.Lock()
-	defer na.mu.Unlock()
-	na.updateLocked(nodes)
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.updateLocked(nodes)
 }
 
-func (na *nodeArray) Remove(node Node) {
-	na.mu.Lock()
-	defer na.mu.Unlock()
+func (c *Candidate) Remove(node Node) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 
-	for i, n := range na.nodes {
+	for i, n := range c.nodes {
 		if n == node {
-			copy(na.nodes[i:], na.nodes[i+1:])
-			na.nodes[len(na.nodes)-1] = nil
-			na.nodes = na.nodes[:len(na.nodes)-1]
+			copy(c.nodes[i:], c.nodes[i+1:])
+			c.nodes[len(c.nodes)-1] = nil
+			c.nodes = c.nodes[:len(c.nodes)-1]
 			break
 		}
 	}
@@ -82,11 +82,11 @@ func (na *nodeArray) Remove(node Node) {
 
 type fallibleNode struct {
 	Node
-	*nodeArray
+	*Candidate
 }
 
 // MarkFailure marks node as unhealthy and remove it from balancer
 func (w fallibleNode) MarkFailure() {
-	w.nodeArray.Remove(w.Node)
+	w.Candidate.Remove(w.Node)
 	w.Node.MarkFailure()
 }

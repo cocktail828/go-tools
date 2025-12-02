@@ -37,7 +37,7 @@ func TestWRR(t *testing.T) {
 	assert.ElementsMatch(t, []any{3000, 2000, 1000}, []any{m[3], m[2], m[1]})
 }
 
-func TestNodeArray(t *testing.T) {
+func TestCandidate(t *testing.T) {
 	for _, b := range []Balancer{
 		NewRoundRobin([]Node{X(3), X(2), X(1), X(4), X(5)}),
 		NewWeightRoundRobin([]Node{X(3), X(2), X(1), X(4), X(5)}),

@@ -1,12 +1,12 @@
 package balancer
 
 type failoverBalancer struct {
-	*nodeArray
+	Candidate
 	pos uint32
 }
 
 func NewFailover(nodes []Node) Balancer {
-	return &failoverBalancer{nodeArray: &nodeArray{nodes: nodes}}
+	return &failoverBalancer{Candidate: Candidate{nodes: nodes}}
 }
 
 func (b *failoverBalancer) String() string {
@@ -25,7 +25,7 @@ func (b *failoverBalancer) Pick() Node {
 		idx := (i + b.pos) % uint32(len(b.nodes))
 		if n := b.nodes[idx]; n.Healthy() {
 			b.pos = idx
-			return fallibleNode{Node: n, nodeArray: b.nodeArray}
+			return fallibleNode{n, &b.Candidate}
 		}
 	}
 

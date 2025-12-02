@@ -10,11 +10,11 @@ var (
 )
 
 type randomBalancer struct {
-	*nodeArray
+	Candidate
 }
 
 func NewRandom(nodes []Node) Balancer {
-	return &randomBalancer{nodeArray: &nodeArray{nodes: nodes}}
+	return &randomBalancer{Candidate: Candidate{nodes: nodes}}
 }
 
 func (b *randomBalancer) String() string {
@@ -32,7 +32,7 @@ func (b *randomBalancer) Pick() Node {
 	for i := 0; i < len(b.nodes)/2; i++ {
 		n := b.nodes[randGen.Intn(len(b.nodes))]
 		if n.Healthy() {
-			return fallibleNode{Node: n, nodeArray: b.nodeArray}
+			return fallibleNode{n, &b.Candidate}
 		}
 	}
 	return nil
