@@ -5,7 +5,6 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"sync"
 
 	"github.com/cocktail828/go-tools/pkg/nacs"
 	"github.com/pkg/errors"
@@ -16,8 +15,9 @@ type fileConfigor struct {
 	rctx    context.Context
 	rcancel context.CancelFunc
 
-	fpath string   // 当前配置管理器关联的文件路径
-	dmap  sync.Map // map[path] => payload([]byte)
+	fpath   string
+	payload []byte
+	err     error
 }
 
 // file:///tmp/test_config.txt
@@ -36,26 +36,17 @@ func NewFileConfigor(u *url.URL) (nacs.Configor, error) {
 	return f, nil
 }
 
-func (f *fileConfigor) loadConfigLocked(fpath string) (payload []byte, err error) {
+func (f *fileConfigor) loadConfigLocked(fpath string) ([]byte, error) {
 	if fpath == "" {
 		return nil, errors.New("empty file path")
 	}
 
-	payload, err = os.ReadFile(fpath)
-	if err != nil {
-		return nil, err
-	}
-
-	f.dmap.Store(fpath, payload)
-	return
+	f.payload, f.err = os.ReadFile(fpath)
+	return f.payload, f.err
 }
 
 func (f *fileConfigor) Load() ([]byte, error) {
-	payload, ok := f.dmap.Load(f.fpath)
-	if !ok {
-		return nil, errors.Errorf("file %q not found", f.fpath)
-	}
-	return payload.([]byte), nil
+	return f.payload, f.err
 }
 
 // we should only care about write event

@@ -10,7 +10,7 @@ import (
 	"github.com/cocktail828/go-tools/z/reflectx"
 )
 
-func GoroutineID() uint64 {
+func GoID() uint64 {
 	var buf [64]byte
 	n := runtime.Stack(buf[:], false)
 	idField := strings.Fields(strings.TrimPrefix(string(buf[:n]), "goroutine "))[0]

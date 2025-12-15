@@ -23,9 +23,9 @@ func IP2Long(ip net.IP) (uint32, bool) {
 }
 
 // the IP will be filter out if the result is true
-type Filter func(*net.IPNet) bool
+type Excluder func(*net.IPNet) bool
 
-func Inet(filters ...Filter) ([]*net.IPNet, error) {
+func Inet(filters ...Excluder) ([]*net.IPNet, error) {
 	inters, err := net.Interfaces()
 	if err != nil {
 		return nil, err

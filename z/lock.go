@@ -50,6 +50,6 @@ func (n *NamedMutex) ByName(name string) sync.Locker {
 func (n *NamedMutex) ByGoroutine() sync.Locker {
 	return &locker{
 		NamedMutex: n,
-		id:         GoroutineID(),
+		id:         GoID(),
 	}
 }
