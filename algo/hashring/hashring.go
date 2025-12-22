@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"sync"
 
-	"github.com/cocktail828/go-tools/z/mathx"
+	"github.com/cocktail828/go-tools/algo/hash/murmur3"
 )
 
 const (
@@ -57,7 +57,7 @@ func WithVirtualSpots(n int) Option {
 func New(opts ...Option) *HashRing {
 	hring := &HashRing{
 		hashFunc: func(s string) uint32 {
-			return mathx.MurmurHash3_32([]byte(s), 0)
+			return murmur3.Sum32([]byte(s))
 		},
 		virualSpots: DefaultVirualSpots,
 		weights:     make(map[string]int),

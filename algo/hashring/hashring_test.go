@@ -6,7 +6,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/cocktail828/go-tools/z/mathx"
+	"github.com/cocktail828/go-tools/algo/hash/murmur3"
 )
 
 const (
@@ -37,7 +37,7 @@ func TestHashRingCreation(t *testing.T) {
 
 	// Test with custom hash function
 	customHash := func(s string) uint32 {
-		return mathx.MurmurHash3_32([]byte(s), 123)
+		return murmur3.Sum32([]byte(s))
 	}
 	hr = New(WithHash(customHash))
 	if hr.hashFunc == nil {

@@ -7,7 +7,7 @@ import (
 	"strings"
 	"sync/atomic"
 
-	"github.com/cocktail828/go-tools/z/mathx"
+	"github.com/cocktail828/go-tools/algo/mathx"
 	"github.com/cocktail828/go-tools/z/timex"
 )
 

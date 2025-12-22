@@ -1,4 +1,4 @@
-package mathx
+package hash
 
 import "unsafe"
 

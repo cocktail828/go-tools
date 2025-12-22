@@ -3,7 +3,7 @@ package queue
 import (
 	"sync"
 
-	"github.com/cocktail828/go-tools/z/mathx"
+	"github.com/cocktail828/go-tools/algo/mathx"
 )
 
 // RingQueue implements a ring queue using a fixed-size array,

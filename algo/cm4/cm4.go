@@ -1,6 +1,6 @@
 package cm4
 
-import "github.com/cocktail828/go-tools/z/mathx"
+import "github.com/cocktail828/go-tools/algo/mathx"
 
 // CM4 is a Count-Min sketch implementation with 4-bit counters, heavily
 // based on Damian Gryski'cm CM4 [1].
