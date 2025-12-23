@@ -5,7 +5,7 @@ import (
 )
 
 type UnaryHandler[T any] func(ctx context.Context, in T) (any, error)
-type UnaryInterceptor[T any] func(ctx context.Context, in T, handler UnaryHandler[T]) (resp any, err error)
+type UnaryInterceptor[T any] func(ctx context.Context, in T, handler UnaryHandler[T]) (any, error)
 
 func getChainUnaryHandler[T any](interceptors []UnaryInterceptor[T], curr int, finalHandler UnaryHandler[T]) UnaryHandler[T] {
 	if curr == len(interceptors)-1 {

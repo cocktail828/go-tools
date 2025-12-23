@@ -7,11 +7,11 @@ import (
 )
 
 var (
-	Digets          = "0123456789"
-	AlphabetLowCase = "abcdefghijklmnopqrstuvwxyz"
-	AlphabetUpCase  = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-	Alphabet        = AlphabetLowCase + AlphabetUpCase
-	AlphabetDigets  = Digets + Alphabet
+	Digets         = "0123456789"
+	AlphabetLower  = "abcdefghijklmnopqrstuvwxyz"
+	AlphabetUpper  = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+	Alphabet       = AlphabetLower + AlphabetUpper
+	AlphabetDigets = Digets + Alphabet
 )
 
 type option struct {

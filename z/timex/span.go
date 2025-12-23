@@ -44,7 +44,7 @@ type BlockChecker struct {
 // The returned Checker can be used to check if the timeout is reached.
 // If the ctx is cancelled, the check process will be stopped.
 func (c *BlockChecker) Go(ctx context.Context) Checker {
-	if c.Timeout == 0 || c.OnTimeout == nil {
+	if c.Timeout <= 0 || c.OnTimeout == nil {
 		panic("timeout or onTimeout is nil")
 	}
 
@@ -85,6 +85,7 @@ func (c *checkerIMPL) Check() {
 	c.Reset(c.timeout)
 }
 
+// Reset resets the timeout to d duration
 func (c *checkerIMPL) Reset(d time.Duration) {
 	if d > 0 {
 		c.timeout = d
