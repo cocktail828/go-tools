@@ -1,12 +1,12 @@
 syntax = "proto3";
 
-package rpc;
+package messagepb;
 
 option go_package = "./;messagepb";
 
 import "google/protobuf/any.proto";
 
-enum message_type {
+enum MessageType {
   UPLOAD = 0;
   SEARCH = 1;
   QUERY = 2;
@@ -15,17 +15,17 @@ enum message_type {
   ANY = 100;
 }
 
-message pair {
+message Pair {
   string key = 1;
   string value = 2;
 }
 
 message Request {
-  repeated string tags = 2;
-  repeated pair slices = 3;
-  bytes data = 4;
-  map<string, string> meta = 5;
-  google.protobuf.Any extra = 6;
+  repeated string tags = 1;
+  repeated Pair slices = 2;
+  bytes data = 3;
+  map<string, string> meta = 4;
+  google.protobuf.Any extra = 5;
 }
 
 message Response {

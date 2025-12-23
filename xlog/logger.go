@@ -1,7 +1,5 @@
 package xlog
 
-import "log/slog"
-
 type Printer interface {
 	Printf(format string, v ...any)
 }
@@ -15,13 +13,11 @@ func (p NoopPrinter) Printf(format string, v ...any) {}
 type Level int
 
 const (
-	LevelDebug = Level(slog.LevelDebug)
-	LevelInfo  = Level(slog.LevelInfo)
-	LevelWarn  = Level(slog.LevelWarn)
-	LevelError = Level(slog.LevelError)
-	LevelFatal = Level(slog.LevelError + 4)
+	LevelDebug Level = iota
+	LevelInfo  Level = iota
+	LevelWarn  Level = iota
+	LevelError Level = iota
+	LevelFatal Level = iota
 )
-
-func (l Level) Level() slog.Level { return slog.Level(l) }
 
 var AllLevels = []Level{LevelDebug, LevelInfo, LevelWarn, LevelError, LevelFatal}
