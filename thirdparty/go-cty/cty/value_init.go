@@ -53,7 +53,7 @@ func ParseNumberVal(s string) (Value, error) {
 	if err != nil {
 		duration, err := time.ParseDuration(s)
 		if err == nil {
-			return NumberVal(new(big.Float).SetInt64(duration.Nanoseconds())), nil
+			return NumberIntVal(duration.Nanoseconds()), nil
 		}
 		return NilVal, fmt.Errorf("a number is required")
 	}
