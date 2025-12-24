@@ -2,6 +2,8 @@ module github.com/cocktail828/go-tools
 
 go 1.23.0
 
+replace github.com/zclconf/go-cty => ./thirdparty/go-cty
+
 require (
 	github.com/BurntSushi/toml v1.4.0
 	github.com/fatih/color v1.18.0

@@ -5,14 +5,31 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsimple"
 	"github.com/hashicorp/hcl/v2/hclwrite"
 	"github.com/zclconf/go-cty/cty"
 )
 
-// time.Duration will be marshaled as int64
 func Unmarshal(data []byte, v any) error {
-	return hclsimple.Decode("example.hcl", data, nil, v)
+	err := hclsimple.Decode("example.hcl", data, nil, v)
+	if err != nil {
+		if diags, ok := err.(hcl.Diagnostics); ok {
+			for i := 0; i < len(diags); i++ {
+				diag := diags[i]
+				if diag.Summary == "Unsupported argument" {
+					diags[i] = diags[len(diags)-1]
+					diags = diags[:len(diags)-1]
+				}
+			}
+
+			if diags.HasErrors() {
+				return diags
+			}
+			return nil
+		}
+	}
+	return err
 }
 
 type hclTag struct {

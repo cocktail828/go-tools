@@ -149,3 +149,21 @@ func TestHCL2(t *testing.T) {
 		})
 	}
 }
+
+func TestDecode(t *testing.T) {
+	type Config struct {
+		Foo time.Duration `hcl:"foo"`
+		// Baz float64       `hcl:"baz"`
+	}
+
+	const exampleConfig = `
+	foo = "10s"
+	baz = "10.5"
+	`
+
+	var config Config
+	if err := Unmarshal([]byte(exampleConfig), &config); err != nil {
+		t.Fatalf("Failed to load configuration: %s, config: %#v", err, config)
+	}
+	t.Logf("Configuration is %v\n", config)
+}
