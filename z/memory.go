@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 )
 
 // Memory represent memory size, the underlying unit is byte.
@@ -20,21 +21,22 @@ const (
 )
 
 // Bytes return the size in bytes.
-func (s Memory) Bytes() int64       { return int64(s) }
-func (s Memory) Kilobytes() float64 { return float64(s) / float64(KiloByte) }
-func (s Memory) Megabytes() float64 { return float64(s) / float64(MegaByte) }
-func (s Memory) Gigabytes() float64 { return float64(s) / float64(GigaByte) }
-func (s Memory) Terabytes() float64 { return float64(s) / float64(TeraByte) }
+func (m Memory) Bytes() int64       { return int64(m) }
+func (m Memory) Kilobytes() float64 { return float64(m) / float64(KiloByte) }
+func (m Memory) Megabytes() float64 { return float64(m) / float64(MegaByte) }
+func (m Memory) Gigabytes() float64 { return float64(m) / float64(GigaByte) }
+func (m Memory) Terabytes() float64 { return float64(m) / float64(TeraByte) }
+func (m Memory) PetaBytes() float64 { return float64(m) / float64(PetaByte) }
 
 var memoryUnits = []string{"B", "KB", "MB", "GB", "TB", "PB"}
 
 // String return the size in a human-readable format (e.g. "1.5 GB").
-func (s Memory) String() string {
-	if s == 0 {
+func (m Memory) String() string {
+	if m == 0 {
 		return "0B"
 	}
 
-	bytes := float64(s)
+	bytes := float64(m)
 	unitIndex := 0
 
 	for bytes >= 1024 && unitIndex < len(memoryUnits)-1 {
@@ -43,7 +45,7 @@ func (s Memory) String() string {
 	}
 
 	if unitIndex == 0 {
-		return fmt.Sprintf("%d%s", int64(s), memoryUnits[unitIndex])
+		return fmt.Sprintf("%d%s", int64(m), memoryUnits[unitIndex])
 	}
 
 	return fmt.Sprintf("%.2f%s", bytes, memoryUnits[unitIndex])
@@ -105,16 +107,16 @@ func leadingFraction(s string) (x uint64, scale float64, rem string) {
 
 var unitMap = map[string]uint64{
 	"B":  uint64(Byte),
-	"KB": uint64(KiloByte),
-	"MB": uint64(MegaByte),
-	"GB": uint64(GigaByte),
-	"TB": uint64(TeraByte),
-	"PB": uint64(PetaByte),
 	"K":  uint64(KiloByte),
 	"M":  uint64(MegaByte),
 	"G":  uint64(GigaByte),
 	"T":  uint64(TeraByte),
 	"P":  uint64(PetaByte),
+	"KB": uint64(KiloByte),
+	"MB": uint64(MegaByte),
+	"GB": uint64(GigaByte),
+	"TB": uint64(TeraByte),
+	"PB": uint64(PetaByte),
 }
 
 func quote(s string) string { return strconv.Quote(s) }
@@ -198,7 +200,7 @@ func ParseMemory(s string) (Memory, error) {
 		}
 		u := s[:i]
 		s = s[i:]
-		unit, ok := unitMap[u]
+		unit, ok := unitMap[strings.TrimSpace(u)]
 		if !ok {
 			return 0, errors.New("memory: unknown unit " + quote(u) + " in memory " + quote(orig))
 		}
@@ -225,4 +227,18 @@ func ParseMemory(s string) (Memory, error) {
 		return 0, errors.New("memory: invalid memory " + quote(orig))
 	}
 	return Memory(d), nil
+}
+
+func (m Memory) MarshalJSON() ([]byte, error) {
+	return fmt.Appendf(nil, "%q", m.String()), nil
+}
+
+func (m *Memory) UnmarshalJSON(b []byte) error {
+	s := strings.Trim(string(b), "\"")
+	mem, err := ParseMemory(s)
+	if err != nil {
+		return err
+	}
+	*m = mem
+	return nil
 }

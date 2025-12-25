@@ -3,10 +3,12 @@ package hcl2
 import (
 	"fmt"
 	"reflect"
+	"sort"
 	"strings"
 
 	"github.com/hashicorp/hcl/v2"
-	"github.com/hashicorp/hcl/v2/hclsimple"
+	"github.com/hashicorp/hcl/v2/gohcl"
+	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/hashicorp/hcl/v2/hclwrite"
 	"github.com/zclconf/go-cty/cty"
 )
@@ -14,27 +16,33 @@ import (
 // Unmarshal parses the HCL2 configuration data from the given byte slice and
 // unmarshals it into the provided struct.
 // shortage:
-// 1. time.Duration is not supported. Using 'github.com/cocktail828/go-cty' instead
+// 1. time.Duration is not supported. Using 'github.com/cocktail828/go-cty@v0.0.1' instead
 func Unmarshal(data []byte, v any) error {
-	err := hclsimple.Decode("example.hcl", data, nil, v)
-	if err != nil {
-		diags, ok := err.(hcl.Diagnostics)
-		if !ok {
-			return err
+	file, diags := hclsyntax.ParseConfig(data, "example.hcl", hcl.Pos{Line: 1, Column: 1})
+	if diags.HasErrors() {
+		return diags
+	}
+
+	has_err := false
+	diags = gohcl.DecodeBody(file.Body, nil, v)
+	for _, diag := range diags {
+		if diag.Summary == "Unsupported argument" {
+			// Allow unknow fields
+			diag.Severity = hcl.DiagWarning
 		}
 
-		for _, diag := range diags {
-			if diag.Summary == "Unsupported argument" {
-				// Allow unknow fields
-				diag.Severity = hcl.DiagWarning
-			}
+		if diag.Severity == hcl.DiagError {
+			has_err = true
 		}
-		if diags.HasErrors() {
-			return diags
-		}
-		return nil
 	}
-	return err
+
+	if has_err {
+		sort.Slice(diags, func(i, j int) bool {
+			return diags[i].Severity < diags[j].Severity
+		})
+		return diags
+	}
+	return nil
 }
 
 type hclTag struct {
