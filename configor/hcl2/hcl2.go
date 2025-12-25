@@ -11,23 +11,28 @@ import (
 	"github.com/zclconf/go-cty/cty"
 )
 
+// Unmarshal parses the HCL2 configuration data from the given byte slice and
+// unmarshals it into the provided struct.
+// shortage:
+// 1. time.Duration is not supported. Using 'github.com/cocktail828/go-cty' instead
 func Unmarshal(data []byte, v any) error {
 	err := hclsimple.Decode("example.hcl", data, nil, v)
 	if err != nil {
-		if diags, ok := err.(hcl.Diagnostics); ok {
-			for i := 0; i < len(diags); i++ {
-				diag := diags[i]
-				if diag.Summary == "Unsupported argument" {
-					diags[i] = diags[len(diags)-1]
-					diags = diags[:len(diags)-1]
-				}
-			}
-
-			if diags.HasErrors() {
-				return diags
-			}
-			return nil
+		diags, ok := err.(hcl.Diagnostics)
+		if !ok {
+			return err
 		}
+
+		for _, diag := range diags {
+			if diag.Summary == "Unsupported argument" {
+				// Allow unknow fields
+				diag.Severity = hcl.DiagWarning
+			}
+		}
+		if diags.HasErrors() {
+			return diags
+		}
+		return nil
 	}
 	return err
 }

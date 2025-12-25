@@ -150,7 +150,7 @@ func TestHCL2(t *testing.T) {
 	}
 }
 
-func TestDecode(t *testing.T) {
+func TestUnmarshal(t *testing.T) {
 	type Config struct {
 		Foo time.Duration `hcl:"foo"`
 		// Baz float64       `hcl:"baz"`

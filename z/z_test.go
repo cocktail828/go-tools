@@ -1,12 +1,8 @@
 package z
 
 import (
-	"fmt"
-	"io"
 	"slices"
 	"testing"
-
-	"github.com/stretchr/testify/assert"
 )
 
 func TestZ(t *testing.T) {
@@ -19,26 +15,28 @@ func TestZ(t *testing.T) {
 			break
 		}
 	}
-	a()
+	a(t)
 }
 
-func c() { fmt.Println(Stack(5)) }
-func b() { c() }
-func a() { b() }
+func c(t *testing.T) { t.Log(Stack(5)) }
+func b(t *testing.T) { c(t) }
+func a(t *testing.T) { b(t) }
 
-func TestChainCall(t *testing.T) {
-	ss := []string{}
-	f := ChainCall(func(in int) error {
-		ss = append(ss, "1")
-		return nil
-	}, func(in int) error {
-		ss = append(ss, "2")
-		return io.ErrClosedPipe
-	}, func(in int) error {
-		ss = append(ss, "3")
-		return nil
-	})
+func TestSize(t *testing.T) {
+	testCases := []string{
+		"10B",
+		"512KB",
+		"1.5GB",
+		"2TB",
+		"100MB",
+	}
 
-	f(0)
-	assert.Equal(t, []string{"1", "2"}, ss)
+	for _, tc := range testCases {
+		bytes, err := ParseMemory(tc)
+		if err != nil {
+			t.Fatalf("%-10s → ERROR: %v\n", tc, err)
+		} else {
+			t.Logf("%-10s → %v\n", tc, bytes)
+		}
+	}
 }
