@@ -565,7 +565,7 @@ func (g *Generator) declareNameVars(runs [][]Value, typeName string, suffix stri
 
 func (g *Generator) buildExtra(_ [][]Value, typeName string) {
 	g.Printf("\n")
-	g.Printf(stringFuncs, typeName, "code: %d, desc: %s, cause: %q", "%+v\\ncode: %d, desc: %s")
+	g.Printf(stringFuncs, typeName, "code = %d, cause = %q", "{code: %d, desc: %q, cause: %q}")
 }
 
 const stringFuncs = `func (i %[1]s) Code() uint32 {
@@ -601,7 +601,7 @@ func (e *wrapError) Error() string {
 	if e.cause == nil || e.Code() == 0 {
 		return "" // success
 	}
-	return fmt.Sprintf("%[2]s", e.Code(), e.Desc(), e.cause)
+	return fmt.Sprintf("%[2]s", e.Code(), e.cause)
 }
 
 func (e *wrapError) Code() uint32 {
@@ -623,7 +623,7 @@ func (e *wrapError) Format(s fmt.State, verb rune) {
 	switch verb {
 	case 'v':
 		if s.Flag('+') {
-			fmt.Fprintf(s, "%[3]s", e.Cause(), e.Code(), e.Desc())
+			fmt.Fprintf(s, "%[3]s", e.Code(), e.Desc(), e.Cause())
 			return
 		}
 		fallthrough

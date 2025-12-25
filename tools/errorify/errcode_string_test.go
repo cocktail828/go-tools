@@ -85,7 +85,7 @@ func (e *wrapError) Error() string {
 	if e.cause == nil || e.Code() == 0 {
 		return "" // success
 	}
-	return fmt.Sprintf("code: %d, desc: %s, cause: %q", e.Code(), e.Desc(), e.cause)
+	return fmt.Sprintf("code = %d, cause = %q", e.Code(), e.cause)
 }
 
 func (e *wrapError) Code() uint32 {
@@ -107,7 +107,7 @@ func (e *wrapError) Format(s fmt.State, verb rune) {
 	switch verb {
 	case 'v':
 		if s.Flag('+') {
-			fmt.Fprintf(s, "%+v\ncode: %d, desc: %s", e.Cause(), e.Code(), e.Desc())
+			fmt.Fprintf(s, "{code: %d, desc: %q, cause: %q}", e.Code(), e.Desc(), e.Cause())
 			return
 		}
 		fallthrough

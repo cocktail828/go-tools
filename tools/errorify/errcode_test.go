@@ -36,6 +36,9 @@ func TestErrorify(t *testing.T) {
 	err := GeneralXrr7.Wrap(io.ErrClosedPipe, "aklsjdf")
 	assert.True(t, errors.Is(err, io.ErrClosedPipe))
 	assert.False(t, errors.Is(err, net.ErrClosed))
+	t.Logf("%v\n", err)
+	t.Logf("%+v\n", err)
+	t.Logf("%#v\n", err)
 
 	var e *wrapError
 	if assert.True(t, errors.As(err, &e)) {
