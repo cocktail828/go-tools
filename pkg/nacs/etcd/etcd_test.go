@@ -23,7 +23,7 @@ func TestMain(m *testing.M) {
 	_nac, err := NewEtcdClient(_u)
 	z.Must(err)
 	ncs = _nac
-	m.Run()
+	// m.Run()
 }
 
 func TestConfigor(t *testing.T) {
