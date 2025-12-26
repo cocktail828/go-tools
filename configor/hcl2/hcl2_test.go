@@ -157,7 +157,7 @@ func TestUnmarshal(t *testing.T) {
 	}
 
 	const exampleConfig = `
-	foo = "10s"
+	foo = "10"
 	baz = "10.5"
 	`
 
