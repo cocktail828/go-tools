@@ -23,20 +23,15 @@ func Unmarshal(data []byte, v any) error {
 		return diags
 	}
 
-	has_err := false
 	diags = gohcl.DecodeBody(file.Body, nil, v)
 	for _, diag := range diags {
 		if diag.Summary == "Unsupported argument" {
 			// Allow unknow fields
 			diag.Severity = hcl.DiagWarning
 		}
-
-		if diag.Severity == hcl.DiagError {
-			has_err = true
-		}
 	}
 
-	if has_err {
+	if diags.HasErrors() {
 		sort.Slice(diags, func(i, j int) bool {
 			return diags[i].Severity < diags[j].Severity
 		})

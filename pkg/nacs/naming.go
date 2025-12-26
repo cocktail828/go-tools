@@ -2,25 +2,13 @@ package nacs
 
 import (
 	"context"
-	"strings"
 )
 
 type Instance struct {
-	Enable   bool   // valid at watch and discover
-	Healthy  bool   // valid at watch and discover
-	Service  string // service@version format, valid at watch and discover
-	Host     string // host
-	Port     uint   // port
-	Metadata map[string]string
-}
-
-func Compose(service, version string) string {
-	return service + "@" + version
-}
-
-func (i Instance) ServiceVersion() (string, string) {
-	service, version, _ := strings.Cut(i.Service, "@")
-	return service, version
+	Name string // expect service@version format, valid at watch and discover
+	Host string // host
+	Port uint   // port
+	Meta map[string]string
 }
 
 // Registry is a service registry interface
@@ -28,10 +16,10 @@ func (i Instance) ServiceVersion() (string, string) {
 // must be provided and handled in specific implementations
 type Registry interface {
 	// Register register a service instance
-	Register(instance Instance) (context.CancelFunc, error)
+	Register(host string, port uint, meta map[string]string) (context.CancelFunc, error)
 
 	// DeRegister de-registers a service instance
-	DeRegister(instance Instance) error
+	DeRegister(host string, port uint) error
 
 	// Discover discovers service instances
 	Discover() ([]Instance, error)

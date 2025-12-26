@@ -51,6 +51,10 @@ func (f *fileConfigor) Load() ([]byte, error) {
 
 // we should only care about write event
 func (f *fileConfigor) Monitor(cb func(name string, payload []byte, err error)) (context.CancelFunc, error) {
+	if cb == nil {
+		return nil, errors.New("callback function is nil")
+	}
+
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to create fsnotify watcher")
@@ -58,10 +62,6 @@ func (f *fileConfigor) Monitor(cb func(name string, payload []byte, err error)) 
 
 	if err := watcher.Add(f.fpath); err != nil {
 		return nil, errors.Wrapf(err, "failed to watch file %s", f.fpath)
-	}
-
-	if cb == nil {
-		cb = func(name string, payload []byte, err error) {}
 	}
 
 	ctx, cancel := context.WithCancel(f.rctx)

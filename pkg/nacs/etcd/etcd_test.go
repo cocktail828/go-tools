@@ -1,4 +1,4 @@
-package nacos
+package etcd
 
 import (
 	"context"
@@ -12,18 +12,18 @@ import (
 )
 
 var (
-	ncs *NacosClient
-	uri = "nacos://nacos:nacos@127.0.0.1:8848?namespace=myns&group=mygroup&service=asfd&version=v1.0.0"
+	ncs *EtcdClient
+	uri = "etcd://172.29.231.108:2379,172.29.231.108:2380,172.29.231.108:2381?namespace=myns&service=asfd&version=v1.0.0"
 )
 
 func TestMain(m *testing.M) {
 	_u, err := url.ParseRequestURI(uri)
 	z.Must(err)
 
-	_nac, err := NewNacosClient(_u)
+	_nac, err := NewEtcdClient(_u)
 	z.Must(err)
 	ncs = _nac
-	// m.Run()
+	m.Run()
 }
 
 func TestConfigor(t *testing.T) {
