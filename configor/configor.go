@@ -32,6 +32,9 @@ func (c *Configor) bindEnv(in any) error {
 	for i := 0; i < v.NumField(); i++ {
 		field := v.Field(i)
 		structField := t.Field(i)
+		if field.CanSet() {
+			continue
+		}
 
 		if field.Kind() == reflect.Ptr {
 			if field.IsNil() {
