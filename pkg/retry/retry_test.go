@@ -302,27 +302,6 @@ func TestRetryWithDelayStrategies(t *testing.T) {
 	Do(func() error { return err }, Attempts(2), Delay(BackoffDelay(time.Millisecond*10, time.Millisecond*100)))
 }
 
-func TestRetryConfigReset(t *testing.T) {
-	cfg := &retryConfig{}
-
-	// 修改配置
-	cfg.attempts = 10
-	cfg.delay = FixedDelay(time.Second)
-	cfg.onRetry = func(attempt uint, err error) {}
-	cfg.retryIf = func(attempt uint, err error) bool { return false }
-	cfg.context = context.Background()
-
-	// 重置配置
-	cfg.Reset()
-
-	// 验证重置后的默认值
-	assert.Equal(t, uint(3), cfg.attempts)
-	assert.NotNil(t, cfg.delay)
-	assert.NotNil(t, cfg.onRetry)
-	assert.Nil(t, cfg.retryIf)
-	assert.NotNil(t, cfg.context)
-}
-
 func TestRetryWithZeroAttempts(t *testing.T) {
 	// 当attempts为0时，应该无限重试直到成功或上下文取消
 	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*100)

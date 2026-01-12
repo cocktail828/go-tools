@@ -1,3 +1,6 @@
+//go:build go1.21
+// +build go1.21
+
 /*
 Open Source Initiative OSI - The MIT License (MIT):Licensing
 
@@ -23,38 +26,36 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-package mapset
+package setx
 
 import (
 	"testing"
 )
 
-type yourType struct {
-	name string
-}
+func Test_Sorted(t *testing.T) {
+	test := func(t *testing.T, ctor func(vals ...string) Set[string]) {
+		set := ctor("apple", "banana", "pear")
+		sorted := Sorted(set)
 
-func Test_ExampleIterator(t *testing.T) {
+		if len(sorted) != set.Cardinality() {
+			t.Errorf("Length of slice is not the same as the set. Expected: %d. Actual: %d", set.Cardinality(), len(sorted))
+		}
 
-	s := NewSet(
-		[]*yourType{
-			{name: "Alise"},
-			{name: "Bob"},
-			{name: "John"},
-			{name: "Nick"},
-		}...,
-	)
-
-	var found *yourType
-	it := s.Iterator()
-
-	for elem := range it.C {
-		if elem.name == "John" {
-			found = elem
-			it.Stop()
+		if sorted[0] != "apple" {
+			t.Errorf("Element 0 was not equal to apple: %s", sorted[0])
+		}
+		if sorted[1] != "banana" {
+			t.Errorf("Element 1 was not equal to banana: %s", sorted[1])
+		}
+		if sorted[2] != "pear" {
+			t.Errorf("Element 2 was not equal to pear: %s", sorted[2])
 		}
 	}
 
-	if found == nil || found.name != "John" {
-		t.Fatalf("expected iterator to have found `John` record but got nil or something else")
-	}
+	t.Run("Safe", func(t *testing.T) {
+		test(t, NewSet[string])
+	})
+	t.Run("Unsafe", func(t *testing.T) {
+		test(t, NewThreadUnsafeSet[string])
+	})
 }

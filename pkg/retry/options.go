@@ -2,7 +2,6 @@ package retry
 
 import (
 	"context"
-	"time"
 )
 
 type retryConfig struct {
@@ -11,14 +10,6 @@ type retryConfig struct {
 	onRetry  func(attempt uint, err error)
 	retryIf  func(attempt uint, err error) bool
 	context  context.Context
-}
-
-func (c *retryConfig) Reset() {
-	c.attempts = uint(3)
-	c.delay = FixedDelay(time.Millisecond * 100)
-	c.onRetry = func(attempt uint, err error) {}
-	c.retryIf = nil
-	c.context = context.Background()
 }
 
 // Option represents an option for retry.

@@ -45,7 +45,7 @@ func NewHystrix(cfg Config) *Hystrix {
 		assigner:  &Assigner{maxCount: cfg.MaxConcurrency.Val.Get()},
 		statistic: rolling.NewRolling(128).Dual(),
 		recovery:  newRecovery(cfg.KeepAliveProbes.Val.Get()),
-		logger:    xlog.NoopPrinter{},
+		logger:    xlog.NopPrinter{},
 	}
 	h.MaxConcurrency.OnUpdate.Set(func(v int) { h.assigner.Resize(v) })
 	h.stateChangeAt.Store(timex.UnixNano())

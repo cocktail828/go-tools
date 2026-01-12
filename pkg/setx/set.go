@@ -23,19 +23,19 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-// Package mapset implements a simple and  set collection.
+// Package setx implements a simple and  set collection.
 // Items stored within it are unordered and unique. It supports
 // typical set operations: membership testing, intersection, union,
 // difference, symmetric difference and cloning.
 //
-// Package mapset provides two implementations of the Set
+// Package setx provides two implementations of the Set
 // interface. The default implementation is safe for concurrent
 // access, but a non-thread-safe implementation is also provided for
 // programs that can benefit from the slight speed improvement and
 // that can enforce mutual exclusion through other means.
-package mapset
+package setx
 
-// Set is the primary interface provided by the mapset package.  It
+// Set is the primary interface provided by the setx package.  It
 // represents an unordered set of data and a large number of
 // operations that can be applied to that set.
 type Set[T comparable] interface {

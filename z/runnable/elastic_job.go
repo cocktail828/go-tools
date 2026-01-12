@@ -84,7 +84,7 @@ func NewElasticJob(c Config) (*ElasticJob, error) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	p := &ElasticJob{
-		logger:        xlog.NoopPrinter{},
+		logger:        xlog.NopPrinter{},
 		taskCh:        make(chan Task, c.PendingTaskNum),
 		shrinkCh:      make(chan struct{}, c.MaxWorkers),
 		runningCtx:    ctx,

@@ -1,16 +1,10 @@
 package retry
 
 import (
+	"context"
 	"fmt"
-	"sync"
 	"time"
 )
-
-var configPool = sync.Pool{
-	New: func() any {
-		return &retryConfig{}
-	},
-}
 
 func Do(f func() error, opts ...Option) error {
 	_, err := DoWithData(func() (any, error) {
@@ -20,10 +14,14 @@ func Do(f func() error, opts ...Option) error {
 }
 
 func DoWithData[T any](f func() (T, error), opts ...Option) (T, error) {
-	cfg := configPool.Get().(*retryConfig)
-	defer configPool.Put(cfg)
+	cfg := &retryConfig{
+		attempts: 3,
+		delay:    FixedDelay(time.Millisecond * 100),
+		onRetry:  func(attempt uint, err error) {},
+		retryIf:  nil,
+		context:  context.Background(),
+	}
 
-	cfg.Reset()
 	for _, opt := range opts {
 		opt(cfg)
 	}

@@ -11,10 +11,10 @@ type Recorder struct {
 	last  time.Time
 }
 
-// NewTimeRecorder creates a new Recorder
-func NewTimeRecorder() *Recorder {
-	now := time.Now()
-	return &Recorder{now, now}
+// Reset resets the Recorder to the current time
+func (r *Recorder) Reset() {
+	r.start = time.Now()
+	r.last = r.start
 }
 
 // Duration returns the duration from last record
