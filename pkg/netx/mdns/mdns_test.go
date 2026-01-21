@@ -18,7 +18,7 @@ func TestMDNS(t *testing.T) {
 	go svc.Register(ctx)
 
 	time.Sleep(time.Millisecond * 300)
-	entries, err := Lookup(context.Background(), "_nas._tcp", "")
+	entries, err := Lookup("_nas._tcp", "")
 	if err != nil {
 		t.Fatal(err)
 	}

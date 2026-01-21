@@ -48,9 +48,9 @@ type Entry struct {
 // Lookup queries for services of the given name and domain.
 //
 // If domain is empty, "local." is used.
-func Lookup(ctx context.Context, service, domain string) ([]Entry, error) {
+func Lookup(service, domain string) ([]Entry, error) {
 	entryCh := make(chan *mdns.ServiceEntry, 100)
-	if err := mdns.QueryContext(ctx, &mdns.QueryParam{
+	if err := mdns.Query(&mdns.QueryParam{
 		Service: service,
 		Domain:  domain,
 		Entries: entryCh,
