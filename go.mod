@@ -7,6 +7,7 @@ require (
 	github.com/fatih/color v1.18.0
 	github.com/go-playground/validator/v10 v10.21.0
 	github.com/hashicorp/hcl/v2 v2.22.0
+	github.com/hashicorp/mdns v1.0.6
 	github.com/nacos-group/nacos-sdk-go/v2 v2.2.9
 	github.com/pkg/errors v0.9.1
 	github.com/stretchr/testify v1.10.0
@@ -67,6 +68,7 @@ require (
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.4 // indirect
+	github.com/miekg/dns v1.1.55 // indirect
 	github.com/mitchellh/go-wordwrap v0.0.0-20150314170334-ad45545899c7 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
