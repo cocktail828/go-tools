@@ -2,28 +2,29 @@ package mdns
 
 import (
 	"context"
-	"fmt"
 	"testing"
 	"time"
 )
 
 func TestMDNS(t *testing.T) {
-	svc := &Service{
-		Name:    "_fnos",
-		Service: "_nas._tcp",
-		Port:    80,
-	}
-
 	ctx, cancel := context.WithCancel(context.Background())
-	go svc.Register(ctx)
+	go Announce(ctx, Instance{
+		Name:    "_fnos",
+		Service: "_mediacenter._udp",
+		Port:    8000,
+		Info:    []string{"xxx", "yyy"},
+	})
 
 	time.Sleep(time.Millisecond * 300)
-	entries, err := Lookup("_nas._tcp", "")
+	entries, err := Lookup(LookParam{
+		Service: "_mediacenter._udp",
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	for _, entry := range entries {
-		fmt.Println(entry)
+		t.Logf("%#v\n", entry)
 	}
 	cancel()
 }
