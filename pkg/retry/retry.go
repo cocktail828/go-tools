@@ -57,7 +57,7 @@ func retry[T any](f func() (T, error), cfg *retryConfig) (t T, oerr error) {
 		// if retryIf is nil, retry always
 		// if retryIf is not nil, retry if retryIf returns true
 		if cfg.retryIf != nil && !cfg.retryIf(n, err) {
-			return t, err
+			return t, errs
 		}
 
 		// if context is nil, retry until delay

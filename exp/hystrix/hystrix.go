@@ -31,7 +31,7 @@ type Hystrix struct {
 	Config
 	lastTestAt    atomic.Int64 // last single test timestamp in nanoseconds
 	isOpen        atomic.Bool  // circuit state
-	isForceOpen   bool         // manually turn on/off the circuit
+	isForceOpen   atomic.Bool  // manually turn on/off the circuit
 	assigner      *Assigner    // for concurrency control
 	statistic     *rolling.DualRolling
 	recovery      *recovery
@@ -85,7 +85,7 @@ func (s Statistic) String() string {
 
 // open or close the circuitbreaker manually
 func (h *Hystrix) Trigger(isopen bool) {
-	h.isForceOpen = isopen
+	h.isForceOpen.Store(isopen)
 }
 
 func (h *Hystrix) qps(nsec int64) float64 {
@@ -102,7 +102,7 @@ func (h *Hystrix) failRate(nsec int64) float64 {
 }
 
 func (h *Hystrix) allowRequest() (allow, singletest bool) {
-	if h.isForceOpen {
+	if h.isForceOpen.Load() {
 		return false, false
 	}
 
@@ -152,13 +152,15 @@ func (h *Hystrix) trigger(open bool) {
 			h.stateChangeAt.Store(now)
 			h.lastTestAt.Store(now)
 			h.logger.Printf("hystrix-go: opening circuitbreaker. Stats: %s", h.Statistic())
-			h.statistic.Reset()
+			// Don't reset immediately - let old data expire naturally
+			// This prevents race with concurrent feedback() calls
 		}
 	} else {
 		if h.isOpen.CompareAndSwap(true, false) {
 			h.stateChangeAt.Store(timex.UnixNano())
 			h.logger.Printf("hystrix-go: closing circuitbreaker. Recovery status: %s", h.recovery)
 			h.recovery.Reset()
+			h.statistic.Reset() // Safe to reset here after circuit closes
 		}
 	}
 }
@@ -232,7 +234,16 @@ func (h *Hystrix) GoC(ctx context.Context, runable func(context.Context) error) 
 	runStart := timex.UnixNano()
 	go func() {
 		err := runable(context.WithValue(ctx, singleTestMeta{}, singletest))
-		resultChan <- snapshot{err, singletest, runStart, timex.UnixNano()}
+		result := snapshot{err, singletest, runStart, timex.UnixNano()}
+
+		// Use select with default to avoid blocking if receiver already exited
+		select {
+		case resultChan <- result:
+			// Successfully sent
+		default:
+			// Receiver already exited (timeout/cancel), don't block
+			h.logger.Printf("hystrix-go: result channel full, receiver likely exited")
+		}
 	}()
 
 	go func() {

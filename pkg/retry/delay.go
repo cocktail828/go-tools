@@ -1,17 +1,11 @@
 package retry
 
 import (
-	"math/rand"
-	"sync"
+	"math/rand/v2"
 	"time"
 )
 
 type DelayFunc func(attempt uint) time.Duration
-
-var (
-	randMu  sync.Mutex
-	randGen = rand.New(rand.NewSource(time.Now().UnixNano()))
-)
 
 func BackoffDelay(initialDelay time.Duration, maxDelay time.Duration) DelayFunc {
 	if initialDelay <= 0 {
@@ -23,14 +17,11 @@ func BackoffDelay(initialDelay time.Duration, maxDelay time.Duration) DelayFunc 
 
 	return func(attempt uint) time.Duration {
 		backoff := initialDelay * (1 << min(attempt, uint(30)))
-
-		randMu.Lock()
-		jitter := time.Duration(randGen.Int63n(int64(backoff)))
-		randMu.Unlock()
+		jitter := time.Duration(rand.Int64N(int64(backoff)))
 
 		// random jitter (backoff * (0.9 ~ 1.1))
 		backoff += jitter/5 - backoff/10
-		return max(backoff, maxDelay)
+		return min(backoff, maxDelay)
 	}
 }
 
@@ -46,8 +37,6 @@ func RandomDelay(maxDelay time.Duration) DelayFunc {
 		maxDelay = time.Second * 10
 	}
 	return func(_ uint) time.Duration {
-		randMu.Lock()
-		defer randMu.Unlock()
-		return time.Duration(randGen.Int63n(int64(maxDelay)))
+		return time.Duration(rand.Int64N(int64(maxDelay)))
 	}
 }

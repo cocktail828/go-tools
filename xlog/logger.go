@@ -14,10 +14,10 @@ type Level int
 
 const (
 	LevelDebug Level = iota - 1
-	LevelInfo  Level = iota - 1
-	LevelWarn  Level = iota - 1
-	LevelError Level = iota - 1
-	LevelFatal Level = iota - 1
+	LevelInfo
+	LevelWarn
+	LevelError
+	LevelFatal
 )
 
 var AllLevels = []Level{LevelDebug, LevelInfo, LevelWarn, LevelError, LevelFatal}

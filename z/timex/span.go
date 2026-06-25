@@ -89,5 +89,6 @@ func (c *checkerIMPL) Check() {
 func (c *checkerIMPL) Reset(d time.Duration) {
 	if d > 0 {
 		c.timeout = d
+		c.ticker.Reset(d)
 	}
 }

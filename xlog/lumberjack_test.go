@@ -34,6 +34,32 @@ func TestWithCache(t *testing.T) {
 	}
 }
 
+func TestCloseAndRewrite(t *testing.T) {
+	l := Logger{
+		Filename:   "rewrite.log",
+		MaxSize:    1,
+		MaxAge:     1,
+		MaxBackups: 2,
+	}
+	defer os.RemoveAll(l.Filename)
+
+	_, err := l.Write([]byte("first write\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := l.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = l.Write([]byte("second write after close\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	l.Close()
+}
+
 func BenchmarkLumberjack(b *testing.B) {
 	l := Logger{
 		BufSize:    1024 * 1024 * 10,

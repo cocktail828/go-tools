@@ -14,14 +14,18 @@ type limitedColorful struct {
 }
 
 func (l *limitedColorful) log(depth int, printer lvprinter, v ...any) {
+	if printer.Level() < l.level {
+		return
+	}
+
 	supressed := l.supressMap[printer.Level()]
 	if l.limiter.Allow() {
 		l.Logger.log(depth, printer, v...)
-		if supressed.Load() > 0 {
+		if supressed != nil && supressed.Load() > 0 {
 			l.Logger.logf(depth, printer, "about %d lines of log has been supressed...", supressed.Load())
+			supressed.Store(0)
 		}
-		supressed.Store(0)
-	} else {
+	} else if supressed != nil {
 		supressed.Add(1)
 	}
 }
@@ -34,11 +38,11 @@ func (l *limitedColorful) logln(depth int, printer lvprinter, v ...any) {
 	supressed := l.supressMap[printer.Level()]
 	if l.limiter.Allow() {
 		l.Logger.logln(depth, printer, v...)
-		if supressed.Load() > 0 {
+		if supressed != nil && supressed.Load() > 0 {
 			l.Logger.logf(depth, printer, "about %d lines of log has been supressed...", supressed.Load())
+			supressed.Store(0)
 		}
-		supressed.Store(0)
-	} else {
+	} else if supressed != nil {
 		supressed.Add(1)
 	}
 }
@@ -51,11 +55,11 @@ func (l *limitedColorful) logf(depth int, printer lvprinter, format string, v ..
 	supressed := l.supressMap[printer.Level()]
 	if l.limiter.Allow() {
 		l.Logger.logf(depth, printer, format, v...)
-		if supressed.Load() > 0 {
+		if supressed != nil && supressed.Load() > 0 {
 			l.Logger.logf(depth, printer, "about %d lines of log has been supressed...", supressed.Load())
+			supressed.Store(0)
 		}
-		supressed.Store(0)
-	} else {
+	} else if supressed != nil {
 		supressed.Add(1)
 	}
 }

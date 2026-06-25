@@ -21,8 +21,8 @@ func (b *rrBalancer) Pick() Node {
 		return nil
 	}
 
-	b.mu.RLock()
-	defer b.mu.RUnlock()
+	b.mu.Lock()
+	defer b.mu.Unlock()
 
 	for i := range uint32(len(b.nodes)) {
 		idx := (i + b.pos) % uint32(len(b.nodes))

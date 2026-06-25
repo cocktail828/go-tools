@@ -34,10 +34,10 @@ func compose(opts ...Option) *option {
 
 type Option func(o *option)
 
-func WithBool(v bool) Option     { return func(o *option) { o.boolVal = v } }
-func WithString(v string) Option { return func(o *option) { o.strVal = v } }
-func WithFloat(v float64) Option { return func(o *option) { o.floatVal = v } }
-func WithInt(v int64) Option     { return func(o *option) { o.intVal = v } }
+func BoolVal(v bool) Option     { return func(o *option) { o.boolVal = v } }
+func StringVal(v string) Option { return func(o *option) { o.strVal = v } }
+func FloatVal(v float64) Option { return func(o *option) { o.floatVal = v } }
+func IntVal(v int64) Option     { return func(o *option) { o.intVal = v } }
 
 func parseValue[T any](name string, parseFn func(string) (T, error), defaultVal T) T {
 	if name == "" || name == "-" {
@@ -53,26 +53,26 @@ func parseValue[T any](name string, parseFn func(string) (T, error), defaultVal 
 	return defaultVal
 }
 
-func String(name string, opts ...Option) string {
+func AsString(name string, opts ...Option) string {
 	return parseValue(name, func(s string) (string, error) {
 		return s, nil
 	}, compose(opts...).strVal)
 }
 
-func Float(name string, opts ...Option) float64 {
+func AsFloat(name string, opts ...Option) float64 {
 	return parseValue(name, func(s string) (float64, error) {
 		v, err := strconv.ParseFloat(s, 64)
 		return v, err
 	}, compose(opts...).floatVal)
 }
 
-func Int(name string, opts ...Option) int64 {
+func AsInt(name string, opts ...Option) int64 {
 	return parseValue(name, func(s string) (int64, error) {
 		return strconv.ParseInt(s, 0, 64)
 	}, compose(opts...).intVal)
 }
 
 // load bool env loosely, accept "true", "false", "0", and non-zero digits
-func Bool(name string, opts ...Option) bool {
+func AsBool(name string, opts ...Option) bool {
 	return parseValue(name, strconv.ParseBool, compose(opts...).boolVal)
 }

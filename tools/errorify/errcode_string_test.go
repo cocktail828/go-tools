@@ -4,9 +4,10 @@ package main_test
 
 import (
 	"fmt"
-	"github.com/pkg/errors"
 	"io"
 	"strconv"
+
+	"github.com/pkg/errors"
 )
 
 func _() {
@@ -94,6 +95,14 @@ func (e *wrapError) Code() uint32 {
 
 func (e *wrapError) Desc() string {
 	return e.ec.Desc()
+}
+
+func (e *wrapError) Is(err error) bool {
+	return errors.Is(e.cause, err)
+}
+
+func (e *wrapError) As(val any) bool {
+	return errors.As(e.cause, val)
 }
 
 func (e *wrapError) Cause() error {

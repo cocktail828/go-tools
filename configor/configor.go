@@ -21,7 +21,54 @@ type Pair struct {
 	Unmarshaller func([]byte, any) error
 }
 
-func (c *Configor) bindEnv(in any) error {
+func (c *Configor) setFieldValue(field reflect.Value, name string, val string) error {
+	if field.Type() == reflect.TypeOf(time.Duration(0)) {
+		durationValue, err := time.ParseDuration(val)
+		if err != nil {
+			return errors.Errorf("error parsing %s as time.Duration: %v", name, err)
+		}
+		field.Set(reflect.ValueOf(durationValue))
+		return nil
+	}
+
+	switch field.Kind() {
+	case reflect.String:
+		field.SetString(val)
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		intValue, err := strconv.ParseInt(val, 10, 64)
+		if err != nil {
+			return errors.Errorf("error parsing %s as int64: %v", name, err)
+		}
+		field.SetInt(intValue)
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		intValue, err := strconv.ParseUint(val, 10, 64)
+		if err != nil {
+			return errors.Errorf("error parsing %s as uint64: %v", name, err)
+		}
+		field.SetUint(intValue)
+	case reflect.Float32:
+		floatValue, err := strconv.ParseFloat(val, 32)
+		if err != nil {
+			return errors.Errorf("error parsing %s as float32: %v", name, err)
+		}
+		field.SetFloat(floatValue)
+	case reflect.Float64:
+		floatValue, err := strconv.ParseFloat(val, 64)
+		if err != nil {
+			return errors.Errorf("error parsing %s as float64: %v", name, err)
+		}
+		field.SetFloat(floatValue)
+	case reflect.Bool:
+		boolValue, err := strconv.ParseBool(val)
+		if err != nil {
+			return errors.Errorf("error parsing %s as bool: %v", name, err)
+		}
+		field.SetBool(boolValue)
+	}
+	return nil
+}
+
+func (c *Configor) walkFields(in any, fn func(field reflect.Value, structField reflect.StructField) error) error {
 	v := reflect.ValueOf(in)
 	if v.Kind() != reflect.Ptr || v.Elem().Kind() != reflect.Struct {
 		return errors.Errorf("input must be a pointer to a struct")
@@ -32,7 +79,7 @@ func (c *Configor) bindEnv(in any) error {
 	for i := 0; i < v.NumField(); i++ {
 		field := v.Field(i)
 		structField := t.Field(i)
-		if field.CanSet() {
+		if !field.CanSet() {
 			continue
 		}
 
@@ -47,77 +94,47 @@ func (c *Configor) bindEnv(in any) error {
 		}
 
 		if field.Kind() == reflect.Struct {
-			if err := c.bindEnv(field.Addr().Interface()); err != nil {
+			if err := c.walkFields(field.Addr().Interface(), fn); err != nil {
 				return err
 			}
 			continue
 		}
 
-		envName := structField.Tag.Get("env")
-		if envName != "" && envName != "-" && c.EnvPrefix != "" {
-			envName = c.EnvPrefix + "_" + envName
-		}
-
-		envVal := ""
-		if c.LoadEnv && envName != "" && envName != "-" {
-			envVal = os.Getenv(envName)
-		}
-
-		if envVal == "" {
-			envVal = structField.Tag.Get("default")
-		}
-
-		if envVal == "" {
-			continue
-		}
-
-		if field.Type() == reflect.TypeOf(time.Duration(0)) {
-			durationValue, err := time.ParseDuration(envVal)
-			if err != nil {
-				return errors.Errorf("error parsing %s as time.Duration: %v", envName, err)
-			}
-			field.Set(reflect.ValueOf(durationValue))
-			continue
-		}
-
-		switch field.Kind() {
-		case reflect.String:
-			field.SetString(envVal)
-		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-			intValue, err := strconv.ParseInt(envVal, 10, 64)
-			if err != nil {
-				return errors.Errorf("error parsing %s as int64: %v", envName, err)
-			}
-			field.SetInt(intValue)
-		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-			intValue, err := strconv.ParseUint(envVal, 10, 64)
-			if err != nil {
-				return errors.Errorf("error parsing %s as uint64: %v", envName, err)
-			}
-			field.SetUint(intValue)
-		case reflect.Float32:
-			floatValue, err := strconv.ParseFloat(envVal, 32)
-			if err != nil {
-				return errors.Errorf("error parsing %s as float32: %v", envName, err)
-			}
-			field.SetFloat(floatValue)
-		case reflect.Float64:
-			floatValue, err := strconv.ParseFloat(envVal, 64)
-			if err != nil {
-				return errors.Errorf("error parsing %s as float64: %v", envName, err)
-			}
-			field.SetFloat(floatValue)
-		case reflect.Bool:
-			boolValue, err := strconv.ParseBool(envVal)
-			if err != nil {
-				return errors.Errorf("error parsing %s as bool: %v", envName, err)
-			}
-			field.SetBool(boolValue)
-		default:
-			// return errors.Errorf("unsupported field type: %s", field.Kind())
+		if err := fn(field, structField); err != nil {
+			return err
 		}
 	}
 	return nil
+}
+
+func (c *Configor) bindDefault(in any) error {
+	return c.walkFields(in, func(field reflect.Value, structField reflect.StructField) error {
+		defVal := structField.Tag.Get("default")
+		if defVal == "" {
+			return nil
+		}
+		return c.setFieldValue(field, structField.Name, defVal)
+	})
+}
+
+func (c *Configor) bindEnv(in any) error {
+	if !c.LoadEnv {
+		return nil
+	}
+	return c.walkFields(in, func(field reflect.Value, structField reflect.StructField) error {
+		envName := structField.Tag.Get("env")
+		if envName == "" || envName == "-" {
+			return nil
+		}
+		if c.EnvPrefix != "" {
+			envName = c.EnvPrefix + "_" + envName
+		}
+		envVal := os.Getenv(envName)
+		if envVal == "" {
+			return nil
+		}
+		return c.setFieldValue(field, envName, envVal)
+	})
 }
 
 func (c *Configor) Load(v any, data ...[]byte) error {
@@ -139,7 +156,8 @@ func (c *Configor) LoadWithUnmarshaller(v any, pairs ...Pair) error {
 		return errors.Errorf("target %v must be addressable", v)
 	}
 
-	if err := c.bindEnv(v); err != nil {
+	// Priority: env > file > default
+	if err := c.bindDefault(v); err != nil {
 		return err
 	}
 
@@ -147,6 +165,10 @@ func (c *Configor) LoadWithUnmarshaller(v any, pairs ...Pair) error {
 		if err := p.Unmarshaller(p.Data, v); err != nil {
 			return err
 		}
+	}
+
+	if err := c.bindEnv(v); err != nil {
+		return err
 	}
 
 	if c.Validator != nil {

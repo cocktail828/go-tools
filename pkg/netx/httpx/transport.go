@@ -129,12 +129,19 @@ func NewDNSTransport(
 	appendOnNonExist(portmap, "http", "80")
 	appendOnNonExist(portmap, "https", "443")
 
-	return &lbRoundTripper{
+	lb := &lbRoundTripper{
 		transport:   transport,
 		builder:     builder,
 		portMap:     portmap,
 		selectorMap: map[string]balancer.Balancer{},
 	}
+
+	// Set DialTLSContext to handle custom ServerName
+	if t, ok := transport.(*http.Transport); ok {
+		t.DialTLSContext = lb.dialTLSContext
+	}
+
+	return lb
 }
 
 // create selector if not exists
@@ -204,24 +211,12 @@ func (lb *lbRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	if ip := net.ParseIP(hostWithoutPort); ip == nil {
 		hostport := hostWithoutPort + ":" + port
 		if addr := lb.Pick(hostport); addr != "" {
-			// HTTPS, Set ServerName to original host name if we connect to IP address directly
+			// For HTTPS, we need to set ServerName in TLS config
+			// Instead of modifying shared Transport, we use context to pass the original hostname
 			if req.URL.Scheme == "https" {
-				// Save original TLS config
-				originalTLSConfig := lb.transport.(*http.Transport).TLSClientConfig
-				if originalTLSConfig == nil {
-					originalTLSConfig = &tls.Config{}
-				}
-
-				// Create a new TLS config copy, set ServerName to original host name
-				newTLSConfig := originalTLSConfig.Clone()
-				newTLSConfig.ServerName = hostWithoutPort
-
-				// Use new TLS config
-				lb.transport.(*http.Transport).TLSClientConfig = newTLSConfig
-				defer func() {
-					// Restore original TLS config
-					lb.transport.(*http.Transport).TLSClientConfig = originalTLSConfig
-				}()
+				// Store original hostname in context for DialTLSContext
+				ctx := context.WithValue(req.Context(), serverNameKey{}, hostWithoutPort)
+				req = req.WithContext(ctx)
 			}
 
 			req.URL.Host = addr
@@ -229,4 +224,45 @@ func (lb *lbRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	}
 
 	return lb.transport.RoundTrip(req)
+}
+
+type serverNameKey struct{}
+
+// dialTLSContext wraps the original dialer and sets ServerName from context
+func (lb *lbRoundTripper) dialTLSContext(ctx context.Context, network, addr string) (net.Conn, error) {
+	transport := lb.transport.(*http.Transport)
+
+	// Get original hostname from context
+	serverName, _ := ctx.Value(serverNameKey{}).(string)
+
+	// Use the base TLS config
+	tlsConfig := transport.TLSClientConfig
+	if tlsConfig == nil {
+		tlsConfig = &tls.Config{}
+	}
+
+	// Clone and set ServerName if provided
+	if serverName != "" {
+		tlsConfig = tlsConfig.Clone()
+		tlsConfig.ServerName = serverName
+	}
+
+	// Establish TCP connection
+	dialer := &net.Dialer{
+		Timeout:   30 * time.Second,
+		KeepAlive: 30 * time.Second,
+	}
+	conn, err := dialer.DialContext(ctx, network, addr)
+	if err != nil {
+		return nil, err
+	}
+
+	// Perform TLS handshake
+	tlsConn := tls.Client(conn, tlsConfig)
+	if err := tlsConn.HandshakeContext(ctx); err != nil {
+		conn.Close()
+		return nil, err
+	}
+
+	return tlsConn, nil
 }

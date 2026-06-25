@@ -153,5 +153,12 @@ func (dl *Downloader) Parallel(ctx context.Context, url string) (io.Reader, erro
 		return nil, errors.Wrap(err, "parallel download failed")
 	}
 
+	// Check all parts are successfully downloaded
+	for i, part := range parts {
+		if part == nil {
+			return nil, errors.Errorf("part %d failed to download", i)
+		}
+	}
+
 	return io.MultiReader(parts...), nil
 }

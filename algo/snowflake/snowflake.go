@@ -1,6 +1,7 @@
 package snowflake
 
 import (
+	"fmt"
 	"sync"
 	"time"
 
@@ -62,6 +63,10 @@ func (n *Node) Generate() int64 {
 	defer n.mu.Unlock()
 
 	now := time.Since(n.epoch).Milliseconds()
+	if now < n.now {
+		panic(fmt.Sprintf("clock moved backward by %dms", n.now-now))
+	}
+
 	if now == n.now {
 		n.step = (n.step + 1) & maxStep
 		if n.step == 0 {

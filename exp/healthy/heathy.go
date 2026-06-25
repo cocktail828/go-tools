@@ -15,18 +15,14 @@ type Keepalive interface {
 	Background(itvl time.Duration) context.CancelFunc // 启动后台探活
 }
 
-type timedVal struct {
-	val bool
-	tm  time.Time
-}
-
 type keepaliveImpl struct {
-	Evaluater // 健康状态评估
-	Liveness  // 健康检查器
-	logger    xlog.Printer
-	running   atomic.Bool
-	healthy   timedVal
-	mu        sync.Mutex
+	Evaluater  // 健康状态评估
+	Liveness   // 健康检查器
+	logger     xlog.Printer
+	running    atomic.Bool
+	healthyVal atomic.Bool  // Health status value
+	healthyTm  atomic.Int64 // Last update timestamp (UnixNano)
+	mu         sync.Mutex
 }
 
 func NewKeepalive(el Evaluater, lv Liveness, logger xlog.Printer) Keepalive {
@@ -38,15 +34,24 @@ func NewKeepalive(el Evaluater, lv Liveness, logger xlog.Printer) Keepalive {
 }
 
 func (ka *keepaliveImpl) Alive() bool {
-	tv := ka.healthy
+	now := time.Now()
+	lastUpdate := time.Unix(0, ka.healthyTm.Load())
 
-	if now := time.Now(); now.Sub(tv.tm) > time.Millisecond*100 {
+	if now.Sub(lastUpdate) > time.Millisecond*100 {
 		if ka.mu.TryLock() {
 			defer ka.mu.Unlock()
-			ka.healthy = timedVal{ka.Evaluater.Alive(), now}
+			// Double-check with lock held to prevent race
+			if time.Since(time.Unix(0, ka.healthyTm.Load())) > time.Millisecond*100 {
+				healthy := ka.Evaluater.Alive()
+				ka.healthyVal.Store(healthy)
+				ka.healthyTm.Store(time.Now().UnixNano())
+				return healthy
+			}
 		}
+		// TryLock failed or already updated by another goroutine
+		// Return cached value (may be slightly stale but acceptable)
 	}
-	return tv.val
+	return ka.healthyVal.Load()
 }
 
 // 被动探活, 业务主动反馈每次执行的情况

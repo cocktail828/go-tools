@@ -83,7 +83,8 @@ func NewElasticJob(c Config) (*ElasticJob, error) {
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	p := &ElasticJob{
+	ej := &ElasticJob{
+		config:        c,
 		logger:        xlog.NopPrinter{},
 		taskCh:        make(chan Task, c.PendingTaskNum),
 		shrinkCh:      make(chan struct{}, c.MaxWorkers),
@@ -93,69 +94,69 @@ func NewElasticJob(c Config) (*ElasticJob, error) {
 
 	// Initialize with minimum workers
 	for i := 0; i < c.MinWorkers; i++ {
-		p.spawn()
+		ej.spawn()
 	}
 
 	// Start the elastic scaling goroutine
-	p.wg.Add(1)
-	go p.elastic()
+	ej.wg.Add(1)
+	go ej.elastic()
 
-	return p, nil
+	return ej, nil
 }
 
-func (p *ElasticJob) SetLogger(logger xlog.Printer) {
-	p.logger = logger
+func (ej *ElasticJob) SetLogger(logger xlog.Printer) {
+	ej.logger = logger
 }
 
 // Tune updates the configuration of the worker pool
 // However, the 'PendingTaskNum' parameter will not be affect
-func (p *ElasticJob) Tune(c Config) error {
+func (ej *ElasticJob) Tune(c Config) error {
 	if err := c.Normalize(); err != nil {
 		return err
 	}
-	p.stateMux.Lock()
-	defer p.stateMux.Unlock()
-	p.config = c
+	ej.stateMux.Lock()
+	defer ej.stateMux.Unlock()
+	ej.config = c
 	return nil
 }
 
 // elastic manages the worker pool scaling based on task queue usage
-func (p *ElasticJob) elastic() {
-	defer p.wg.Done()
+func (ej *ElasticJob) elastic() {
+	defer ej.wg.Done()
 
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
 
-	var highWaterTime time.Time           // Last time high water threshold was reached
-	var lowWaterTime time.Time            // Last time low water threshold was reached
-	currentWorkers := p.config.MinWorkers // already spawned at start
+	var highWaterTime time.Time            // Last time high water threshold was reached
+	var lowWaterTime time.Time             // Last time low water threshold was reached
+	currentWorkers := ej.config.MinWorkers // already spawned at start
 
 	for {
 		select {
 		case <-ticker.C:
 			func() {
 				// concurrency safe
-				if !p.stateMux.TryLock() {
+				if !ej.stateMux.TryLock() {
 					return
 				}
-				defer p.stateMux.Unlock()
+				defer ej.stateMux.Unlock()
 
 				currentTime := time.Now()
-				taskQueueLen := float64(len(p.taskCh))
-				taskQueueCap := float64(cap(p.taskCh))
+				taskQueueLen := float64(len(ej.taskCh))
+				taskQueueCap := float64(cap(ej.taskCh))
 				currentUsage := taskQueueLen / taskQueueCap
-				step := max((p.config.MaxWorkers-p.config.MinWorkers)/10, 1)
+				step := max((ej.config.MaxWorkers-ej.config.MinWorkers)/10, 1)
 
 				// 1. Check if we need to expand workers
-				if currentUsage >= p.config.ExpandThreshold && currentWorkers < p.config.MaxWorkers {
+				if currentUsage >= ej.config.ExpandThreshold && currentWorkers < ej.config.MaxWorkers {
 					if highWaterTime.IsZero() {
 						highWaterTime = currentTime
-					} else if currentTime.Sub(highWaterTime) >= p.config.Period {
-						for i := 0; i < step && currentWorkers < p.config.MaxWorkers; i++ {
-							p.spawn()
+					} else if currentTime.Sub(highWaterTime) >= ej.config.Period {
+						for i := 0; i < step && currentWorkers < ej.config.MaxWorkers; i++ {
+							ej.spawn()
 							currentWorkers++
 						}
-						p.logger.Printf("expand workers to %d", currentWorkers)
+						ej.logger.Printf("expand workers to %d", currentWorkers)
 						highWaterTime = time.Time{}
 					}
 				} else {
@@ -163,18 +164,18 @@ func (p *ElasticJob) elastic() {
 				}
 
 				// 2. Check if we need to shrink workers
-				if currentUsage < p.config.ShrinkThreshold && currentWorkers > p.config.MinWorkers {
+				if currentUsage < ej.config.ShrinkThreshold && currentWorkers > ej.config.MinWorkers {
 					if lowWaterTime.IsZero() {
 						lowWaterTime = currentTime
-					} else if currentTime.Sub(lowWaterTime) >= p.config.Period {
-						for i := 0; i < step && currentWorkers > p.config.MinWorkers; i++ {
+					} else if currentTime.Sub(lowWaterTime) >= ej.config.Period {
+						for i := 0; i < step && currentWorkers > ej.config.MinWorkers; i++ {
 							select {
-							case p.shrinkCh <- struct{}{}:
+							case ej.shrinkCh <- struct{}{}:
 								currentWorkers--
 							default:
 							}
 						}
-						p.logger.Printf("shrink workers to %d", currentWorkers)
+						ej.logger.Printf("shrink workers to %d", currentWorkers)
 						lowWaterTime = time.Time{}
 					}
 				} else {
@@ -182,32 +183,39 @@ func (p *ElasticJob) elastic() {
 				}
 			}()
 
-		case <-p.runningCtx.Done():
+		case <-ej.runningCtx.Done():
 			return
 		}
 	}
 }
 
+func execute(ej *ElasticJob, task Task) {
+	defer func() {
+		if err := recover(); err != nil {
+			ej.logger.Printf("Task panic: %v\n", err)
+		}
+	}()
+	task()
+}
+
 // spawn creates a new worker that processes tasks
-func (p *ElasticJob) spawn() {
-	p.wg.Add(1)
+func (ej *ElasticJob) spawn() {
+	ej.wg.Add(1)
 
 	go func() {
-		defer p.wg.Done()
+		defer ej.wg.Done()
 
 		for {
 			select {
-			case <-p.runningCtx.Done():
+			case <-ej.runningCtx.Done():
 				return
-			case <-p.shrinkCh: // Elastic worker stopped due to idleness
+			case <-ej.shrinkCh:
 				return
-			case task, ok := <-p.taskCh:
+			case task, ok := <-ej.taskCh:
 				if !ok {
 					return
 				}
-				p.execute(task)
-			default:
-				return
+				execute(ej, task)
 			}
 		}
 	}()
@@ -229,58 +237,47 @@ func (cr *CloseResult) Chan() <-chan Task { return cr.ch }
 
 // Close shutdown the worker pool, drain the task channel and wait for all tasks to complete
 // It returns an error if the context deadline is exceeded
-func (p *ElasticJob) Close(ctx context.Context) *CloseResult {
-	p.runningCancel()
+func (ej *ElasticJob) Close(ctx context.Context) *CloseResult {
+	ej.runningCancel()
 
 	// concurrency safe when closing task channel
-	if p.mu.TryLock() {
-		// ensure that the task channel is closed once
-		if p.closed.CompareAndSwap(false, true) {
-			close(p.taskCh)
-		}
-		p.mu.Unlock()
+	ej.mu.Lock()
+	if ej.closed.CompareAndSwap(false, true) {
+		close(ej.taskCh)
 	}
+	ej.mu.Unlock()
 
 loop:
 	for {
 		select {
-		case task, ok := <-p.taskCh:
+		case task, ok := <-ej.taskCh:
 			// drain the channel
 			if !ok {
 				break loop
 			}
-			p.execute(task)
+			execute(ej, task)
 
 		case <-ctx.Done():
-			p.wg.Wait()
-			return &CloseResult{p.taskCh, ctx.Err()}
+			ej.wg.Wait()
+			return &CloseResult{ej.taskCh, ctx.Err()}
 		}
 	}
-	p.wg.Wait()
+	ej.wg.Wait()
 
 	return nil
 }
 
-func (p *ElasticJob) execute(task Task) {
-	defer func() {
-		if err := recover(); err != nil {
-			p.logger.Printf("Task panic: %v\n", err)
-		}
-	}()
-	task()
-}
-
 // Submit adds a task to the worker pool
-func (p *ElasticJob) Submit(task Task) (err error) {
+func (ej *ElasticJob) Submit(task Task) (err error) {
 	// in case of write to a closed channel
-	p.mu.RLock()
-	defer p.mu.RUnlock()
-	if p.closed.Load() {
+	ej.mu.RLock()
+	defer ej.mu.RUnlock()
+	if ej.closed.Load() {
 		return ErrPoolClosed
 	}
 
 	select {
-	case p.taskCh <- task:
+	case ej.taskCh <- task:
 		return nil
 	default:
 		return ErrPoolFull

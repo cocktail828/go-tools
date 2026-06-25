@@ -14,36 +14,28 @@ import (
 
 type Response struct {
 	*http.Response
-	mu     sync.Mutex
-	buffer *[]byte
+	once   sync.Once
+	buffer []byte
+	err    error
 }
 
 func (r *Response) shouldLoad() error {
-	if r.buffer != nil {
-		return nil
-	}
-
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if r.buffer != nil {
-		return nil
-	}
-
-	buf, err := io.ReadAll(r.Response.Body)
-	if err != nil {
-		nopBody := []byte{}
-		r.buffer = &nopBody
-		return errors.Errorf("read response payload fail: %v", err)
-	}
-	r.buffer = &buf
-	return nil
+	r.once.Do(func() {
+		buf, err := io.ReadAll(r.Response.Body)
+		if err != nil {
+			r.err = errors.Errorf("read response payload fail: %v", err)
+			return
+		}
+		r.buffer = buf
+	})
+	return r.err
 }
 
-func (r *Response) Payload() io.ReadCloser {
-	if r.buffer == nil {
-		r.shouldLoad()
+func (r *Response) Payload() (io.ReadCloser, error) {
+	if err := r.shouldLoad(); err != nil {
+		return nil, err
 	}
-	return io.NopCloser(bytes.NewReader(*r.buffer))
+	return io.NopCloser(bytes.NewReader(r.buffer)), nil
 }
 
 // Bind auto choose Content-Type and bind response body to v
@@ -69,12 +61,12 @@ func (r *Response) BindJSON(v any) error {
 	if err := r.shouldLoad(); err != nil {
 		return err
 	}
-	return json.Unmarshal(*r.buffer, v)
+	return json.Unmarshal(r.buffer, v)
 }
 
 func (r *Response) BindXML(v any) error {
 	if err := r.shouldLoad(); err != nil {
 		return err
 	}
-	return xml.Unmarshal(*r.buffer, v)
+	return xml.Unmarshal(r.buffer, v)
 }

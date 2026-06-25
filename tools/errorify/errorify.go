@@ -612,6 +612,14 @@ func (e *wrapError) Desc() string {
 	return e.ec.Desc()
 }
 
+func (e *wrapError) Is(err error) bool {
+	return errors.Is(e.cause, err)
+}
+
+func (e *wrapError) As(val any) bool {
+	return errors.As(e.cause, val)
+}
+
 func (e *wrapError) Cause() error {
 	return errors.Cause(e.cause)
 }

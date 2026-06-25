@@ -170,6 +170,12 @@ func (l *Logger) close() error {
 	err := l.file.Close()
 	l.file = nil
 	l.size = 0
+
+	if l.millCh != nil {
+		close(l.millCh)
+		l.millCh = nil
+		l.startMill = sync.Once{}
+	}
 	return err
 }
 

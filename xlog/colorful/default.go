@@ -26,7 +26,7 @@ func Writer() io.Writer                    { return std.Writer() }
 func SetColor(lv xlog.Level, c *color.Color) { std.SetColor(lv, c) }
 
 // disable all color if no level is passed
-func DisableColor(levels ...xlog.Level) { std.DisableColor() }
+func DisableColor(levels ...xlog.Level) { std.DisableColor(levels...) }
 
 // enable all color if no level is passed
 func EnableColor(levels ...xlog.Level) { std.EnableColor(levels...) }

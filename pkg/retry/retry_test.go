@@ -350,8 +350,13 @@ func TestRetryIfWithSpecificError(t *testing.T) {
 		return err == specificErr
 	}))
 
-	assert.Equal(t, otherErr, err) // 应该因为otherErr而停止重试
-	assert.Equal(t, 2, count)      // 只重试了一次
+	// RetryIf 返回 false 时应该返回 Error 集合
+	assert.IsType(t, Error{}, err)
+	retryErr := err.(Error)
+	assert.Len(t, retryErr, 2)
+	assert.Equal(t, specificErr, retryErr[0])
+	assert.Equal(t, otherErr, retryErr[1])
+	assert.Equal(t, 2, count) // 只重试了一次
 }
 
 func TestContextCancellation(t *testing.T) {

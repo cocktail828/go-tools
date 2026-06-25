@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"time"
 
 	"github.com/cocktail828/go-tools/pkg/nacs"
 	"github.com/pkg/errors"
@@ -85,6 +86,9 @@ func (c *EtcdClient) Register(host string, port uint, meta map[string]string) (c
 
 	cancelCtx, cancel := context.WithCancel(ctx)
 	go func() {
+		ticker := time.NewTicker(time.Second * time.Duration(c.ttl) / 3)
+		defer ticker.Stop()
+
 		for {
 			select {
 			case <-cancelCtx.Done():
@@ -92,6 +96,13 @@ func (c *EtcdClient) Register(host string, port uint, meta map[string]string) (c
 				return
 			case _, ok := <-ch:
 				if !ok {
+					// KeepAlive channel closed, lease may have expired
+					return
+				}
+			case <-ticker.C:
+				// Periodic check to prevent goroutine leak if channel never closes
+				// Try to verify lease is still valid
+				if cancelCtx.Err() != nil {
 					return
 				}
 			}
@@ -128,13 +139,24 @@ func (c *EtcdClient) Watch(callback func([]nacs.Instance, error)) (context.Cance
 	ch := c.baseClient.client.Watch(ctx, c.Prefix()+"/instances/", clientv3.WithPrefix(), clientv3.WithPrevKV())
 
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				// Log panic and notify via callback
+				callback(nil, errors.Errorf("watch callback panic: %v", r))
+			}
+		}()
+
 		for wr := range ch {
 			if wr.Err() != nil {
 				callback(nil, wr.Err())
 				continue
 			}
 
-			instances, _ := c.Discover()
+			instances, err := c.Discover()
+			if err != nil {
+				callback(nil, errors.Wrap(err, "discover instances failed"))
+				continue
+			}
 			callback(instances, nil)
 		}
 	}()

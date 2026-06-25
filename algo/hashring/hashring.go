@@ -100,6 +100,11 @@ func (h *HashRing) updateLocked() {
 		totalW += w
 	}
 
+	if totalW == 0 {
+		h.nodes = h.nodes[:0]
+		return
+	}
+
 	totalVirtualSpots := h.virualSpots * len(h.weights)
 	h.nodes = h.nodes[:0]
 

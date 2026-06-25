@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/BurntSushi/toml"
 	"github.com/go-playground/validator/v10"
 	"github.com/stretchr/testify/assert"
 )
@@ -151,6 +152,9 @@ func TestBind(t *testing.T) {
 	}
 
 	var cfg xConfig
+	if err := c.bindDefault(&cfg); err != nil {
+		log.Fatalf("Error binding default: %v\n", err)
+	}
 	if err := c.bindEnv(&cfg); err != nil {
 		log.Fatalf("Error binding env: %v\n", err)
 	}
@@ -181,8 +185,8 @@ func TestBindEnvWithPointerFields(t *testing.T) {
 	assert.Nil(t, nilPtrTest.Flag)
 
 	c := Configor{}
-	if err := c.bindEnv(&nilPtrTest); err != nil {
-		assert.FailNow(t, "failed to bind nil pointer fields", err.Error())
+	if err := c.bindDefault(&nilPtrTest); err != nil {
+		assert.FailNow(t, "failed to bind default to nil pointer fields", err.Error())
 	}
 	assert.Equal(t, "default_name", *nilPtrTest.Name)
 	assert.Equal(t, 20, *nilPtrTest.Age)
@@ -208,4 +212,64 @@ func TestBindEnvWithPointerFields(t *testing.T) {
 	assert.Equal(t, "env_name", *envPtrTest.Name)
 	assert.Equal(t, 30, *envPtrTest.Age)
 	assert.True(t, *envPtrTest.Flag)
+}
+
+func TestPriority_EnvOverridesFileOverridesDefault(t *testing.T) {
+	type PriorityConfig struct {
+		Name    string `env:"P_NAME" default:"from_default" toml:"name"`
+		Port    int    `env:"P_PORT" default:"80" toml:"port"`
+		Timeout string `env:"P_TIMEOUT" default:"1s" toml:"timeout"`
+	}
+
+	tomlData := []byte(`
+name = "from_file"
+port = 8080
+timeout = "5s"
+`)
+
+	t.Run("file overrides default", func(t *testing.T) {
+		c := Configor{
+			LoadEnv:      false,
+			Unmarshaller: toml.Unmarshal,
+		}
+		var cfg PriorityConfig
+		err := c.Load(&cfg, tomlData)
+		assert.NoError(t, err)
+		assert.Equal(t, "from_file", cfg.Name)
+		assert.Equal(t, 8080, cfg.Port)
+		assert.Equal(t, "5s", cfg.Timeout)
+	})
+
+	t.Run("env overrides file and default", func(t *testing.T) {
+		m := MMP{
+			"P_NAME": "from_env",
+			"P_PORT": "9090",
+		}
+		m.SetEnv()
+		defer m.ResetEnv()
+
+		c := Configor{
+			LoadEnv:      true,
+			Unmarshaller: toml.Unmarshal,
+		}
+		var cfg PriorityConfig
+		err := c.Load(&cfg, tomlData)
+		assert.NoError(t, err)
+		assert.Equal(t, "from_env", cfg.Name, "env should override file")
+		assert.Equal(t, 9090, cfg.Port, "env should override file")
+		assert.Equal(t, "5s", cfg.Timeout, "file should override default when no env set")
+	})
+
+	t.Run("default used when no file and no env", func(t *testing.T) {
+		c := Configor{
+			LoadEnv:      true,
+			Unmarshaller: toml.Unmarshal,
+		}
+		var cfg PriorityConfig
+		err := c.Load(&cfg)
+		assert.NoError(t, err)
+		assert.Equal(t, "from_default", cfg.Name)
+		assert.Equal(t, 80, cfg.Port)
+		assert.Equal(t, "1s", cfg.Timeout)
+	})
 }

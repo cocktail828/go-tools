@@ -1,4 +1,4 @@
-package z
+package unit
 
 import (
 	"errors"
@@ -200,7 +200,7 @@ func ParseMemory(s string) (Memory, error) {
 		}
 		u := s[:i]
 		s = s[i:]
-		unit, ok := unitMap[strings.TrimSpace(u)]
+		unit, ok := unitMap[strings.ToUpper(strings.TrimSpace(u))]
 		if !ok {
 			return 0, errors.New("memory: unknown unit " + quote(u) + " in memory " + quote(orig))
 		}
