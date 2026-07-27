@@ -20,23 +20,25 @@ var globalRand = struct {
 	*rand.Rand
 }{Rand: rand.New(rand.NewSource(time.Now().UnixNano()))}
 
-type option struct {
-	rnd   *rand.Rand
-	width int    // default 8
-	chars string // default AlphabetDigets
+type params struct {
+	rnd           *rand.Rand
+	width         int    // default 8
+	chars         string // default AlphabetDigets
+	isCapitalized bool
 }
 
-type Option func(o *option)
+type Option func(o *params)
 
-func WithWidth(v int) Option             { return func(o *option) { o.width = v } }
-func WithChars(chars string) Option      { return func(o *option) { o.chars = chars } }
-func WithRandomizer(r *rand.Rand) Option { return func(o *option) { o.rnd = r } }
+func WithWidth(v int) Option             { return func(o *params) { o.width = v } }
+func WithChars(chars string) Option      { return func(o *params) { o.chars = chars } }
+func WithRandomizer(r *rand.Rand) Option { return func(o *params) { o.rnd = r } }
+func WithCapitalized() Option            { return func(o *params) { o.isCapitalized = true } }
 
 // RandomName returns a random name with the given options.
 // If width is not specified, it will default to 8.
 // If chars is not specified, it will default to AlphabetDigets.
 func RandomName(opts ...Option) string {
-	o := option{
+	o := params{
 		width: 8,
 		chars: AlphabetDigets,
 	}
@@ -59,5 +61,11 @@ func RandomName(opts ...Option) string {
 		}
 		globalRand.Unlock()
 	}
-	return sb.String()
+
+	s := sb.String()
+	if len(s) > 1 && o.isCapitalized {
+		return strings.ToUpper(s[:1]) + s[1:]
+	}
+
+	return s
 }

@@ -17,27 +17,27 @@ func Lookup() map[string]string {
 	return envs
 }
 
-type option struct {
+type variant struct {
 	boolVal  bool
 	strVal   string
 	floatVal float64
 	intVal   int64
 }
 
-func compose(opts ...Option) *option {
-	o := &option{}
+func compose(opts ...Option) *variant {
+	o := &variant{}
 	for _, opt := range opts {
 		opt(o)
 	}
 	return o
 }
 
-type Option func(o *option)
+type Option func(o *variant)
 
-func BoolVal(v bool) Option     { return func(o *option) { o.boolVal = v } }
-func StringVal(v string) Option { return func(o *option) { o.strVal = v } }
-func FloatVal(v float64) Option { return func(o *option) { o.floatVal = v } }
-func IntVal(v int64) Option     { return func(o *option) { o.intVal = v } }
+func BoolVal(v bool) Option     { return func(o *variant) { o.boolVal = v } }
+func StringVal(v string) Option { return func(o *variant) { o.strVal = v } }
+func FloatVal(v float64) Option { return func(o *variant) { o.floatVal = v } }
+func IntVal(v int64) Option     { return func(o *variant) { o.intVal = v } }
 
 func parseValue[T any](name string, parseFn func(string) (T, error), defaultVal T) T {
 	if name == "" || name == "-" {

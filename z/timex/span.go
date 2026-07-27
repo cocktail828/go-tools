@@ -33,62 +33,43 @@ func (r *Recorder) Elapse() time.Duration {
 	return span
 }
 
-// BlockChecker checks we receive at least one msg in d duration. If not, checker
-// will print a warn message.
-type BlockChecker struct {
-	Timeout   time.Duration // required, timeout is the duration to check
-	OnTimeout func()        // required, onTimeout is the callback function to call when timeout cannot be nil
+// Check starts a new event loop check, and resets the timeout to d duration
+func NewBlockChecker(d time.Duration, ontmo func(dur time.Duration)) *blockChecker {
+	return NewBlockCheckerCtx(context.Background(), d, ontmo)
 }
 
-// Go starts the check process
-// The returned Checker can be used to check if the timeout is reached.
-// If the ctx is cancelled, the check process will be stopped.
-func (c *BlockChecker) Go(ctx context.Context) Checker {
-	if c.Timeout <= 0 || c.OnTimeout == nil {
-		panic("timeout or onTimeout is nil")
+func NewBlockCheckerCtx(ctx context.Context, d time.Duration, ontmo func(dur time.Duration)) *blockChecker {
+	subctx, cancel := context.WithCancel(ctx)
+	c := &blockChecker{
+		cancel:  cancel,
+		ticker:  time.NewTicker(d),
+		timeout: d,
+		ontmo:   ontmo,
 	}
 
-	ticker := time.NewTicker(c.Timeout)
 	go func() {
-		defer ticker.Stop()
+		defer c.ticker.Stop()
 
+		timepoint := time.Now()
 		for {
 			select {
-			case <-ctx.Done():
+			case <-subctx.Done():
 				return
-			case <-ticker.C:
-				c.OnTimeout()
+			case <-c.ticker.C:
+				c.ontmo(time.Since(timepoint))
 			}
 		}
 	}()
 
-	return &checkerIMPL{ticker, c.Timeout}
+	return c
 }
 
-type Checker interface {
-	// Check resets the time ticker, to avoid ticker timeout
-	Check()
-
-	// Reset resets the timeout to d duration
-	// It does not reset ot stop the ticker
-	Reset(d time.Duration)
-}
-
-// checkerIMPL implements Checker interface
-type checkerIMPL struct {
+type blockChecker struct {
+	cancel  context.CancelFunc
 	ticker  *time.Ticker
 	timeout time.Duration
+	ontmo   func(time.Duration)
 }
 
-// Check resets the time ticker
-func (c *checkerIMPL) Check() {
-	c.Reset(c.timeout)
-}
-
-// Reset resets the timeout to d duration
-func (c *checkerIMPL) Reset(d time.Duration) {
-	if d > 0 {
-		c.timeout = d
-		c.ticker.Reset(d)
-	}
-}
+func (bc *blockChecker) Stop() { bc.cancel() }
+func (bc *blockChecker) Ping() { bc.ticker.Reset(bc.timeout) } // I'm still living
