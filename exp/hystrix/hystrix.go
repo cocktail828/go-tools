@@ -33,7 +33,8 @@ type Hystrix struct {
 	isOpen        atomic.Bool  // circuit state
 	isForceOpen   atomic.Bool  // manually turn on/off the circuit
 	assigner      *Assigner    // for concurrency control
-	statistic     *rolling.DualRolling
+	posiStat      *rolling.SlidingWindow
+	negaStat      *rolling.SlidingWindow
 	recovery      *recovery
 	logger        xlog.Printer
 	stateChangeAt atomic.Int64 // state change timestamp in nanoseconds
@@ -41,11 +42,12 @@ type Hystrix struct {
 
 func NewHystrix(cfg Config) *Hystrix {
 	h := &Hystrix{
-		Config:    cfg,
-		assigner:  &Assigner{maxCount: cfg.MaxConcurrency.Val.Get()},
-		statistic: rolling.NewRolling(128).Dual(),
-		recovery:  newRecovery(cfg.KeepAliveProbes.Val.Get()),
-		logger:    xlog.NopPrinter{},
+		Config:   cfg,
+		assigner: &Assigner{maxCount: cfg.MaxConcurrency.Val.Get()},
+		posiStat: rolling.NewSlidingWindow(128),
+		negaStat: rolling.NewSlidingWindow(128),
+		recovery: newRecovery(cfg.KeepAliveProbes.Val.Get()),
+		logger:   xlog.NopPrinter{},
 	}
 	h.MaxConcurrency.OnUpdate.Set(func(v int) { h.assigner.Resize(v) })
 	h.stateChangeAt.Store(timex.UnixNano())
@@ -89,14 +91,17 @@ func (h *Hystrix) Trigger(isopen bool) {
 }
 
 func (h *Hystrix) qps(nsec int64) float64 {
-	v0, v1 := h.statistic.At(nsec).QPS(_COUNTER_WIN_SIZE)
+	v0 := h.posiStat.At(nsec).QPS(_COUNTER_WIN_SIZE)
+	v1 := h.negaStat.At(nsec).QPS(_COUNTER_WIN_SIZE)
 	return v0 + v1
 }
 
 func (h *Hystrix) failRate(nsec int64) float64 {
 	var errPct float64
-	if cnt0, cnt1, _ := h.statistic.At(nsec).Count(_COUNTER_WIN_SIZE); cnt0+cnt1 > 0 {
-		errPct = float64(cnt1*100) / float64(cnt0+cnt1)
+	v0, _ := h.posiStat.At(nsec).Estimate(_COUNTER_WIN_SIZE)
+	v1, _ := h.negaStat.At(nsec).Estimate(_COUNTER_WIN_SIZE)
+	if v0+v1 > 0 {
+		errPct = float64(v1*100) / float64(v0+v1)
 	}
 	return errPct
 }
@@ -160,7 +165,8 @@ func (h *Hystrix) trigger(open bool) {
 			h.stateChangeAt.Store(timex.UnixNano())
 			h.logger.Printf("hystrix-go: closing circuitbreaker. Recovery status: %s", h.recovery)
 			h.recovery.Reset()
-			h.statistic.Reset() // Safe to reset here after circuit closes
+			h.posiStat.Reset() // Safe to reset here after circuit closes
+			h.negaStat.Reset()
 		}
 	}
 }
@@ -200,9 +206,9 @@ func (h *Hystrix) feedback(s snapshot) {
 
 	// update statistics
 	if s.err == nil {
-		h.statistic.At(nsec).IncrBy(1, 0)
+		h.posiStat.At(nsec).IncrBy(1)
 	} else {
-		h.statistic.At(nsec).IncrBy(0, 1)
+		h.negaStat.At(nsec).IncrBy(1)
 	}
 }
 
@@ -257,18 +263,22 @@ func (h *Hystrix) GoC(ctx context.Context, runable func(context.Context) error) 
 		tmoCtx, cancel := context.WithTimeout(context.Background(), h.Timeout.Val.Get())
 		defer cancel()
 
+		// Record feedback before signalling the caller so that the circuit
+		// statistics are consistent by the time DoC/Do returns. Sending on
+		// errchan first would let the caller observe the result (and inspect
+		// stats) while feedback is still running in this goroutine.
 		select {
 		case rc := <-resultChan:
-			errchan <- rc.err
 			h.feedback(rc)
+			errchan <- rc.err
 
 		case <-ctx.Done():
-			errchan <- ErrCanceled
 			h.feedback(snapshot{ErrCanceled, singletest, runStart, timex.UnixNano()})
+			errchan <- ErrCanceled
 
 		case <-tmoCtx.Done():
-			errchan <- ErrTimeout
 			h.feedback(snapshot{ErrTimeout, singletest, runStart, timex.UnixNano()})
+			errchan <- ErrTimeout
 		}
 	}()
 

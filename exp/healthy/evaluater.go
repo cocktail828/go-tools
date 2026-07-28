@@ -4,6 +4,7 @@ import (
 	"sync/atomic"
 
 	"github.com/cocktail828/go-tools/algo/rolling"
+	"github.com/cocktail828/go-tools/z/timex"
 )
 
 type Evaluater interface {
@@ -18,7 +19,8 @@ type counterEvaluater struct {
 
 	// privates
 	healthy atomic.Bool // 健康状态 (thread-safe)
-	ro      *rolling.DualRolling
+	negC    *rolling.SlidingWindow
+	posC    *rolling.SlidingWindow
 }
 
 // 适合仅有主动健康检测的场景
@@ -26,7 +28,8 @@ func NewCounterEvaluater(maxFailure, minSuccess int) Evaluater {
 	e := &counterEvaluater{
 		MaxFailure: maxFailure,
 		MinSuccess: minSuccess,
-		ro:         rolling.NewRolling(128).Dual(),
+		negC:       rolling.NewSlidingWindow(128),
+		posC:       rolling.NewSlidingWindow(128),
 	}
 	e.healthy.Store(true)
 	return e
@@ -34,14 +37,16 @@ func NewCounterEvaluater(maxFailure, minSuccess int) Evaluater {
 
 func (e *counterEvaluater) Check(err error) {
 	if err == nil {
-		e.ro.IncrBy(1, 0)
+		e.posC.IncrBy(1)
 	} else {
-		e.ro.IncrBy(0, 1)
+		e.negC.IncrBy(1)
 	}
 }
 
 func (e *counterEvaluater) Alive() bool {
-	posi, nega, _ := e.ro.Count(24) // 获取过期 128ms*24=3.072s 的计数器信息
+	nsec := timex.UnixNano()
+	nega, _ := e.negC.At(nsec).Estimate(24) // 获取过期 128ms*24=3.072s 的计数器信息
+	posi, _ := e.posC.At(nsec).Estimate(24) // 获取过期 128ms*24=3.072s 的计数器信息
 	if nega > int64(e.MaxFailure) {
 		e.healthy.Store(false)
 		return false
@@ -61,7 +66,8 @@ type percentageEvaluater struct {
 
 	// privates
 	healthy atomic.Bool // 健康状态 (thread-safe)
-	ro      *rolling.DualRolling
+	negC    *rolling.SlidingWindow
+	posC    *rolling.SlidingWindow
 }
 
 // 基于成功率的健康状态检测
@@ -70,7 +76,8 @@ func NewPercentageEvaluater(minAlivePct, recoveryPct float32) Evaluater {
 	e := &percentageEvaluater{
 		MinAlivePct: minAlivePct,
 		RecoveryPct: recoveryPct,
-		ro:          rolling.NewRolling(128).Dual(),
+		negC:        rolling.NewSlidingWindow(128),
+		posC:        rolling.NewSlidingWindow(128),
 	}
 	e.healthy.Store(true)
 	return e
@@ -78,14 +85,16 @@ func NewPercentageEvaluater(minAlivePct, recoveryPct float32) Evaluater {
 
 func (e *percentageEvaluater) Check(err error) {
 	if err == nil {
-		e.ro.IncrBy(1, 0)
+		e.posC.IncrBy(1)
 	} else {
-		e.ro.IncrBy(0, 1)
+		e.negC.IncrBy(1)
 	}
 }
 
 func (e *percentageEvaluater) Alive() bool {
-	posi, nega, _ := e.ro.Count(24)
+	nsec := timex.UnixNano()
+	nega, _ := e.negC.At(nsec).Estimate(24) // 获取过期 128ms*24=3.072s 的计数器信息
+	posi, _ := e.posC.At(nsec).Estimate(24) // 获取过期 128ms*24=3.072s 的计数器信息
 	var pct float32
 	if sum := posi + nega; sum > 0 {
 		pct = float32(posi) / float32(sum)

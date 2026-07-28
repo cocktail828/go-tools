@@ -25,7 +25,8 @@ func TestSuccess(t *testing.T) {
 		func(ctx context.Context) error { return nil },
 	))
 
-	v0, v1, _ := h.statistic.Count(10)
+	v0, _ := h.posiStat.Estimate(10)
+	v1, _ := h.negaStat.Estimate(10)
 	assert.EqualValues(t, 1, v0)
 	assert.EqualValues(t, 0, v1)
 }
