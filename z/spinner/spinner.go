@@ -92,7 +92,7 @@ func New(messages []string, opts ...Option) *Spinner {
 		messages: messages,
 		style:    StyleDots,
 
-		charInterval: 80 * time.Millisecond,
+		charInterval: 50 * time.Millisecond,
 		holdDuration: 500 * time.Millisecond,
 		frameRate:    200 * time.Millisecond,
 
@@ -130,13 +130,17 @@ func (s *Spinner) runStatic() {
 	defer s.wg.Done()
 
 	frame, msg, visible := 0, 0, 0
-	lastChar := time.Now()
 	var holdStart time.Time
 	holding := false
 
 	frames := s.style.Frames
-	ticker := time.NewTicker(s.frameRate)
-	defer ticker.Stop()
+	frameTicker := time.NewTicker(s.frameRate)
+	defer frameTicker.Stop()
+
+	charTicker := time.NewTicker(s.charInterval)
+	defer charTicker.Stop()
+
+	runes := []rune(s.messages[msg])
 
 	for {
 		select {
@@ -144,34 +148,44 @@ func (s *Spinner) runStatic() {
 			s.clear()
 			return
 
-		case <-ticker.C:
-			runes := []rune(s.messages[msg])
+		case <-frameTicker.C:
+			// 仅更新 frame 索引并重新渲染
+			s.render(frames[frame], runes, visible)
+			frame = (frame + 1) % len(frames)
 
+		case <-charTicker.C:
+			// 处理字符逐字显示逻辑
 			if !holding {
-				if visible < len(runes) && time.Since(lastChar) >= s.charInterval {
+				if visible < len(runes) {
 					visible++
-					lastChar = time.Now()
 				}
 				if visible >= len(runes) {
 					holding = true
 					holdStart = time.Now()
 				}
 			} else if time.Since(holdStart) >= s.holdDuration {
+				// 切换到下一条消息
 				msg = (msg + 1) % len(s.messages)
+				runes = []rune(s.messages[msg])
 				visible = 0
 				holding = false
-				lastChar = time.Now()
-				continue
 			}
-
-			if visible > len(runes) {
-				visible = len(runes)
-			}
-
-			s.render(frames[frame], runes, visible)
-			frame = (frame + 1) % len(frames)
 		}
 	}
+}
+
+func commonPrefixLen(a, b string) int {
+	ar := []rune(a)
+	br := []rune(b)
+
+	n := min(len(ar), len(br))
+
+	i := 0
+	for i < n && ar[i] == br[i] {
+		i++
+	}
+
+	return i
 }
 
 // runDynamic 由外部通道驱动：收到新文本则重新逐字展示；无新文本时保持当前文本，
@@ -180,15 +194,17 @@ func (s *Spinner) runDynamic() {
 	defer s.wg.Done()
 
 	frame, visible := 0, 0
-	lastChar := time.Now()
 
 	// messages[0] 作为初始文本（Start 已保证非空）。
 	runes := []rune(s.messages[0])
 
 	updates := s.updates
 	frames := s.style.Frames
-	ticker := time.NewTicker(s.frameRate)
-	defer ticker.Stop()
+	frameTicker := time.NewTicker(s.frameRate)
+	defer frameTicker.Stop()
+
+	charTicker := time.NewTicker(s.charInterval)
+	defer charTicker.Stop()
 
 	for {
 		select {
@@ -202,22 +218,22 @@ func (s *Spinner) runDynamic() {
 				updates = nil
 				continue
 			}
+
 			// 取最新文本，重置为逐字展示。
+			cpl := commonPrefixLen(string(runes), text)
+			visible = min(visible, cpl)
 			runes = []rune(text)
-			visible = 0
-			lastChar = time.Now()
 
-		case <-ticker.C:
-			if visible < len(runes) && time.Since(lastChar) >= s.charInterval {
-				visible++
-				lastChar = time.Now()
-			}
-			if visible > len(runes) {
-				visible = len(runes)
-			}
-
+		case <-frameTicker.C:
+			// 仅更新 frame 索引并重新渲染
 			s.render(frames[frame], runes, visible)
 			frame = (frame + 1) % len(frames)
+
+		case <-charTicker.C:
+			// 处理字符逐字显示逻辑
+			if visible < len(runes) {
+				visible++
+			}
 		}
 	}
 }

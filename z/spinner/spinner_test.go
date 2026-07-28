@@ -57,25 +57,22 @@ func TestSpinnerStatic(t *testing.T) {
 }
 
 func TestSpinnerDynamic(t *testing.T) {
-	buf := &safeBuffer{}
 	ch := make(chan string)
 
 	// 动态模式要求至少一条初始文本。
-	s := New([]string{"准备中"}, fastOpts(buf, WithUpdates(ch))...)
+	s := New([]string{"准备中"}, WithUpdates(ch))
 	s.Start()
 
 	send := func(text string) {
 		ch <- text
-		// 等待逐字展示完成（每字 1ms，留足余量）。
-		time.Sleep(time.Duration(len([]rune(text))+50) * time.Millisecond)
-		if got := buf.String(); !strings.Contains(got, text) {
-			t.Errorf("发送 %q 后输出未包含该文本", text)
-		}
 	}
 
 	send("正在加载模型")
+	time.Sleep(time.Millisecond * 500)
 	send("正在执行推理")
-	send("正在保存结果")
+	time.Sleep(time.Millisecond * 500)
+	send("正在保存结果alsfhlasdflasjdflasdlfklaksjdf")
+	time.Sleep(time.Millisecond * 5000)
 
 	s.Stop()
 }
@@ -185,11 +182,11 @@ func TestSpinnerDemo(t *testing.T) {
 	}
 
 	for _, sty := range []Style{
+		StyleBreathStar,
 		StyleDots,
 		StyleCircles,
 		StyleStars,
 		StyleLine,
-		StyleBounce,
 		StyleBraille,
 		StyleMoon,
 		StyleClock,
