@@ -10,7 +10,7 @@ import (
 // TestBasicOperations tests the fundamental functionality of PriorityQueue
 func TestBasicOperationsPriorityQueue(t *testing.T) {
 	// Create a new priority queue
-	pq := New()
+	pq := NewPriorityQueue[float64]()
 
 	// Test case: Enqueue elements with various priorities
 	// Expected behavior: Elements should be dequeued in priority order (smallest first)
@@ -22,14 +22,9 @@ func TestBasicOperationsPriorityQueue(t *testing.T) {
 	// Sort elements to verify correct order
 	sort.Float64s(elements)
 	for _, e := range elements {
-		item, err := pq.Pop()
+		value, err := pq.Pop()
 		if err != nil {
 			t.Fatalf("Unexpected error while popping from queue: %v", err)
-		}
-
-		value, ok := item.(float64)
-		if !ok {
-			t.Fatalf("Popped item is not of expected type float64")
 		}
 
 		if e != value {
@@ -40,7 +35,7 @@ func TestBasicOperationsPriorityQueue(t *testing.T) {
 
 // TestPriorityUpdate tests the priority update functionality
 func TestPriorityUpdate(t *testing.T) {
-	pq := New()
+	pq := NewPriorityQueue[string]()
 	pq.Push("foo", 3)
 	pq.Push("bar", 4)
 	pq.UpdatePriority("bar", 2) // Update bar's priority to be higher than foo
@@ -51,14 +46,14 @@ func TestPriorityUpdate(t *testing.T) {
 		t.Fatalf("Unexpected error while popping from queue: %v", err)
 	}
 
-	if item.(string) != "bar" {
+	if item != "bar" {
 		t.Fatal("Priority update failed: bar should be dequeued first")
 	}
 }
 
 // TestQueueLength tests the Len method of PriorityQueue
 func TestQueueLength(t *testing.T) {
-	pq := New()
+	pq := NewPriorityQueue[string]()
 	// An empty queue should have length 0
 	if pq.Len() != 0 {
 		t.Fatal("Empty queue should have length of 0")
@@ -80,7 +75,7 @@ func TestQueueLength(t *testing.T) {
 
 // TestDuplicateElements tests how the queue handles duplicate elements
 func TestDuplicateElements(t *testing.T) {
-	pq := New()
+	pq := NewPriorityQueue[string]()
 	pq.Push("foo", 2)
 	pq.Push("bar", 3)
 	pq.Push("bar", 1) // Attempt to push a duplicate element
@@ -92,14 +87,14 @@ func TestDuplicateElements(t *testing.T) {
 
 	// Original element's priority should remain unchanged
 	item, _ := pq.Pop()
-	if item.(string) != "foo" {
+	if item != "foo" {
 		t.Fatal("Queue should ignore duplicate insert, not update existing item")
 	}
 }
 
 // TestEmptyQueuePop tests popping from an empty queue
 func TestEmptyQueuePop(t *testing.T) {
-	pq := New()
+	pq := NewPriorityQueue[string]()
 	// Attempting to pop from an empty queue should return an error
 	_, err := pq.Pop()
 	if err == nil {
@@ -109,7 +104,7 @@ func TestEmptyQueuePop(t *testing.T) {
 
 // TestNonExistingItemUpdate tests updating priority of a non-existing item
 func TestNonExistingItemUpdate(t *testing.T) {
-	pq := New()
+	pq := NewPriorityQueue[string]()
 
 	pq.Push("foo", 4)
 	pq.UpdatePriority("bar", 5) // Attempt to update non-existent item
@@ -121,14 +116,14 @@ func TestNonExistingItemUpdate(t *testing.T) {
 
 	// Original item should still be present
 	item, _ := pq.Pop()
-	if item.(string) != "foo" {
-		t.Fatalf("Update should not affect existing items, expected \"foo\", got \"%v\"", item.(string))
+	if item != "foo" {
+		t.Fatalf("Update should not affect existing items, expected \"foo\", got \"%v\"", item)
 	}
 }
 
 // TestConcurrencySafety tests the priority queue under concurrent access
 func TestConcurrencySafety(t *testing.T) {
-	pq := New()
+	pq := NewPriorityQueue[int]()
 	var wg sync.WaitGroup
 	const goroutines = 10
 	const operations = 100
@@ -154,11 +149,10 @@ func TestConcurrencySafety(t *testing.T) {
 	// Verify elements are dequeued in correct order
 	prev := math.MaxInt64
 	for i := 0; i < expectedLen; i++ {
-		item, err := pq.Pop()
+		val, err := pq.Pop()
 		if err != nil {
 			t.Fatalf("Unexpected error during concurrent test: %v", err)
 		}
-		val := item.(int)
 		if prev <= val {
 			t.Fatalf("Elements out of order: expected %d <= %d", prev, val)
 		}
@@ -168,7 +162,7 @@ func TestConcurrencySafety(t *testing.T) {
 
 // TestDifferentElementTypes tests the queue with various hashable element types
 func TestDifferentElementTypes(t *testing.T) {
-	pq := New()
+	pq := NewPriorityQueue[any]()
 
 	// Push different types of hashable elements (avoiding slices and maps)
 	pq.Push(42, 1.0)
@@ -204,7 +198,7 @@ func TestDifferentElementTypes(t *testing.T) {
 
 // TestEdgeCasePriorities tests the queue with extreme priority values
 func TestEdgeCasePriorities(t *testing.T) {
-	pq := New()
+	pq := NewPriorityQueue[string]()
 
 	// Test with extreme priority values
 	pq.Push("maxFloat", math.MaxFloat64)
@@ -228,7 +222,7 @@ func TestEdgeCasePriorities(t *testing.T) {
 
 // TestMultipleUpdates tests multiple priority updates on the same item
 func TestMultipleUpdates(t *testing.T) {
-	pq := New()
+	pq := NewPriorityQueue[string]()
 	element := "dynamicItem"
 
 	// Push with initial priority

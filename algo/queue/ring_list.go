@@ -43,15 +43,10 @@ func (rq *RingQueue) TryPush(n any) bool {
 		return false
 	}
 
-	// return fastly on queue full
-	if rq.IsFull() {
-		return false
-	}
-
 	rq.mu.Lock()
 	defer rq.mu.Unlock()
 
-	// If queue is full and new element will not be added
+	// If queue is full, the new element will not be added
 	if rq.size == rq.max {
 		return false
 	}
