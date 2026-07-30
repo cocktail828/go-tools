@@ -119,7 +119,11 @@ func (s *Spinner) Start() {
 func (s *Spinner) render(frame string, runes []rune, visible int) {
 	// \033[K 清除光标到行尾的残留，避免上一帧较长文本留下尾巴，
 	// 同时保证光标停在最后一个可见字符之后（打字机光标效果）。
-	fmt.Fprintf(s.writer, "\r%s %s\033[K", frame, string(runes[:visible]))
+	if visible >= len(runes) {
+		fmt.Fprintf(s.writer, "\r%s %s...\033[K", frame, string(runes[:visible]))
+	} else {
+		fmt.Fprintf(s.writer, "\r%s %s\033[K", frame, string(runes[:visible]))
+	}
 }
 
 // clear 回到行首并清除整行。
@@ -150,8 +154,8 @@ func (s *Spinner) runStatic() {
 
 		case <-frameTicker.C:
 			// 仅更新 frame 索引并重新渲染
-			s.render(frames[frame], runes, visible)
 			frame = (frame + 1) % len(frames)
+			s.render(frames[frame], runes, visible)
 
 		case <-charTicker.C:
 			// 处理字符逐字显示逻辑
@@ -170,6 +174,7 @@ func (s *Spinner) runStatic() {
 				visible = 0
 				holding = false
 			}
+			s.render(frames[frame], runes, visible)
 		}
 	}
 }
@@ -226,13 +231,14 @@ func (s *Spinner) runDynamic() {
 
 		case <-frameTicker.C:
 			// 仅更新 frame 索引并重新渲染
-			s.render(frames[frame], runes, visible)
 			frame = (frame + 1) % len(frames)
+			s.render(frames[frame], runes, visible)
 
 		case <-charTicker.C:
 			// 处理字符逐字显示逻辑
 			if visible < len(runes) {
 				visible++
+				s.render(frames[frame], runes, visible)
 			}
 		}
 	}
