@@ -19,6 +19,8 @@ func TestBlockChecker(t *testing.T) {
 	bc := NewBlockChecker(time.Millisecond*100, func(dur time.Duration) {
 		t.Log("busy work timeout...", dur)
 	})
+	defer bc.Stop()
+
 	for range 5 {
 		bc.Ping()
 		time.Sleep(time.Millisecond * 50)
