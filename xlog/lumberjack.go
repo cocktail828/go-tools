@@ -173,7 +173,6 @@ func (l *Logger) close() error {
 
 	if l.millCh != nil {
 		close(l.millCh)
-		l.millCh = nil
 		l.startMill = sync.Once{}
 	}
 	return err

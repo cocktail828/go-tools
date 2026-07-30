@@ -57,6 +57,10 @@ func TestSpinnerStatic(t *testing.T) {
 }
 
 func TestSpinnerDynamic(t *testing.T) {
+	if testing.Short() {
+		t.Skip("跳过可视化演示；去掉 -short 可运行")
+	}
+
 	ch := make(chan string)
 
 	// 动态模式要求至少一条初始文本。
