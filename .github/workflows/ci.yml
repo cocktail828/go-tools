@@ -10,7 +10,7 @@ jobs:
   format-test:
     runs-on: ubuntu-latest
     container:
-      image: golang:1.23
+      image: golang:1.25
 
     steps:
       - name: Checkout code
