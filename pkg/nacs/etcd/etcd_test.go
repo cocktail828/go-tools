@@ -27,12 +27,12 @@ func TestMain(m *testing.M) {
 }
 
 func TestConfigor(t *testing.T) {
-	_, err := ncs.Load()
+	_, err := ncs.Load(context.Background())
 	z.Must(err)
 
 	ctx, f := context.WithTimeout(context.Background(), time.Second*3)
-	cancel, err := ncs.Monitor(func(name string, payload []byte, err error) {
-		t.Logf("monitor callback name=%v payload=%v err=%v", name, len(payload), err)
+	cancel, err := ncs.Monitor(func(info nacs.ConfigInfo, err error) {
+		t.Logf("monitor callback dataID=%v payload=%v err=%v", info.DataID, len(info.Payload), err)
 		f()
 	})
 	z.Must(err)
@@ -41,17 +41,17 @@ func TestConfigor(t *testing.T) {
 }
 
 func TestNaming(t *testing.T) {
-	_, err := ncs.Register("127.0.0.1", 8080, map[string]string{"a": "b"})
+	instance := nacs.Instance{
+		Service: "asfd",
+		Version: "v1.0.0",
+		Host:    "127.0.0.1",
+		Port:    8080,
+		Meta:    map[string]string{"a": "b"},
+	}
+	_, err := ncs.Register(context.Background(), instance)
 	z.Must(err)
 
-	expect := []nacs.Instance{
-		{
-			Name: "asfd@v1.0.0",
-			Host: "127.0.0.1",
-			Port: 8080,
-			Meta: map[string]string{"a": "b"},
-		},
-	}
+	expect := []nacs.Instance{instance}
 
 	ctx, f := context.WithTimeout(context.Background(), time.Second*3)
 	cancel, err := ncs.Watch(func(insts []nacs.Instance, err error) {
@@ -63,7 +63,7 @@ func TestNaming(t *testing.T) {
 	defer cancel()
 
 	time.Sleep(time.Second * 2)
-	insts, err := ncs.Discover()
+	insts, err := ncs.Discover(context.Background())
 	z.Must(err)
 	assert.Equal(t, expect, insts)
 

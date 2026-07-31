@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cocktail828/go-tools/pkg/nacs"
 	"github.com/cocktail828/go-tools/z"
 	"github.com/stretchr/testify/assert"
 )
@@ -31,17 +32,17 @@ func TestNative(t *testing.T) {
 		z.Must(err)
 		defer configor.Close()
 
-		value, err := configor.Load()
+		info, err := configor.Load(context.Background())
 		z.Must(err)
-		assert.Equal(t, string(data), string(value))
+		assert.Equal(t, string(data), string(info.Payload))
 
 		// monitor
 		data = []byte("updated_value")
 		ctx, cancel := context.WithCancel(context.Background())
-		_, err = configor.Monitor(func(name string, payload []byte, err error) {
+		_, err = configor.Monitor(func(info nacs.ConfigInfo, err error) {
 			assert.NoError(t, err, "Monitor callback should not return error")
 
-			assert.Equal(t, string(data), string(payload))
+			assert.Equal(t, string(data), string(info.Payload))
 			cancel()
 		})
 		z.Must(err)

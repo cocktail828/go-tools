@@ -60,21 +60,19 @@ func (c *EtcdClient) Close() error {
 	return c.baseClient.Close()
 }
 
-func (c *EtcdClient) Register(host string, port uint, meta map[string]string) (context.CancelFunc, error) {
-	inst := nacs.Instance{Name: c.service + "@" + c.version, Host: host, Port: port, Meta: meta}
+func (c *EtcdClient) Register(ctx context.Context, inst nacs.Instance) (context.CancelFunc, error) {
 	v, err := json.Marshal(inst)
 	if err != nil {
 		return nil, err
 	}
 
 	// create lease
-	ctx := context.Background()
 	lease, err := c.baseClient.client.Grant(ctx, c.ttl)
 	if err != nil {
 		return nil, err
 	}
 
-	if _, err := c.baseClient.client.Put(ctx, c.ServiceKey(host, port), string(v), clientv3.WithLease(lease.ID)); err != nil {
+	if _, err := c.baseClient.client.Put(ctx, c.ServiceKey(inst.Host, inst.Port), string(v), clientv3.WithLease(lease.ID)); err != nil {
 		return nil, err
 	}
 
@@ -84,7 +82,7 @@ func (c *EtcdClient) Register(host string, port uint, meta map[string]string) (c
 		return nil, err
 	}
 
-	cancelCtx, cancel := context.WithCancel(ctx)
+	cancelCtx, cancel := context.WithCancel(context.Background())
 	go func() {
 		ticker := time.NewTicker(time.Second * time.Duration(c.ttl) / 3)
 		defer ticker.Stop()
@@ -101,7 +99,6 @@ func (c *EtcdClient) Register(host string, port uint, meta map[string]string) (c
 				}
 			case <-ticker.C:
 				// Periodic check to prevent goroutine leak if channel never closes
-				// Try to verify lease is still valid
 				if cancelCtx.Err() != nil {
 					return
 				}
@@ -109,16 +106,19 @@ func (c *EtcdClient) Register(host string, port uint, meta map[string]string) (c
 		}
 	}()
 
-	return func() { cancel(); c.DeRegister(host, port) }, nil
+	return func() {
+		cancel()
+		c.DeRegister(context.Background(), inst)
+	}, nil
 }
 
-func (c *EtcdClient) DeRegister(host string, port uint) error {
-	_, err := c.baseClient.client.Delete(context.Background(), c.ServiceKey(host, port))
+func (c *EtcdClient) DeRegister(ctx context.Context, inst nacs.Instance) error {
+	_, err := c.baseClient.client.Delete(ctx, c.ServiceKey(inst.Host, inst.Port))
 	return err
 }
 
-func (c *EtcdClient) Discover() ([]nacs.Instance, error) {
-	resp, err := c.baseClient.client.Get(context.Background(), c.Prefix()+"/instances/", clientv3.WithPrefix())
+func (c *EtcdClient) Discover(ctx context.Context) ([]nacs.Instance, error) {
+	resp, err := c.baseClient.client.Get(ctx, c.Prefix()+"/instances/", clientv3.WithPrefix())
 	if err != nil {
 		return nil, err
 	}
@@ -152,7 +152,7 @@ func (c *EtcdClient) Watch(callback func([]nacs.Instance, error)) (context.Cance
 				continue
 			}
 
-			instances, err := c.Discover()
+			instances, err := c.Discover(ctx)
 			if err != nil {
 				callback(nil, errors.Wrap(err, "discover instances failed"))
 				continue
@@ -164,20 +164,23 @@ func (c *EtcdClient) Watch(callback func([]nacs.Instance, error)) (context.Cance
 	return cancel, nil
 }
 
-func (c *EtcdClient) Load() ([]byte, error) {
-	resp, err := c.baseClient.client.Get(context.Background(), c.ConfigID())
+func (c *EtcdClient) Load(ctx context.Context) (nacs.ConfigInfo, error) {
+	resp, err := c.baseClient.client.Get(ctx, c.ConfigID())
 	if err != nil {
-		return nil, err
+		return nacs.ConfigInfo{}, err
 	}
 	if len(resp.Kvs) == 0 {
-		return nil, errors.Errorf("config %s not found", c.ConfigID())
+		return nacs.ConfigInfo{}, errors.Errorf("config %s not found", c.ConfigID())
 	}
-	return resp.Kvs[0].Value, nil
+	return nacs.ConfigInfo{
+		DataID:  c.ConfigID(),
+		Payload: resp.Kvs[0].Value,
+	}, nil
 }
 
-func (c *EtcdClient) Monitor(cb func(name string, payload []byte, err error)) (context.CancelFunc, error) {
+func (c *EtcdClient) Monitor(cb func(nacs.ConfigInfo, error)) (context.CancelFunc, error) {
 	if cb == nil {
-		return nil, errors.Errorf("callback is nil")
+		return nil, errors.New("callback is nil")
 	}
 	// watch config key
 	ctx, cancel := context.WithCancel(context.Background())
@@ -185,11 +188,14 @@ func (c *EtcdClient) Monitor(cb func(name string, payload []byte, err error)) (c
 	go func() {
 		for wr := range rch {
 			if wr.Err() != nil {
-				cb(c.ConfigID(), nil, wr.Err())
+				cb(nacs.ConfigInfo{DataID: c.ConfigID()}, wr.Err())
 				continue
 			}
 			for _, ev := range wr.Events {
-				cb(c.ConfigID(), ev.Kv.Value, nil)
+				cb(nacs.ConfigInfo{
+					DataID:  c.ConfigID(),
+					Payload: ev.Kv.Value,
+				}, nil)
 			}
 		}
 	}()

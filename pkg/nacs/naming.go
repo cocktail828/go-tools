@@ -4,27 +4,32 @@ import (
 	"context"
 )
 
+// Instance represents a service instance
 type Instance struct {
-	Name string // expect service@version format, valid at watch and discover
-	Host string // host
-	Port uint   // port
-	Meta map[string]string
+	Service string            // service name
+	Version string            // service version
+	Host    string            // instance host
+	Port    uint              // instance port
+	Meta    map[string]string // instance metadata
 }
 
 // Registry is a service registry interface
 // Service details such as service name, service version, and cluster information
-// must be provided and handled in specific implementations
+// are determined by the registry implementation (typically via construction parameters)
 type Registry interface {
-	// Register register a service instance
-	Register(host string, port uint, meta map[string]string) (context.CancelFunc, error)
+	// Register registers a service instance
+	// Returns a cancel function to deregister the instance automatically
+	Register(ctx context.Context, inst Instance) (context.CancelFunc, error)
 
 	// DeRegister de-registers a service instance
-	DeRegister(host string, port uint) error
+	DeRegister(ctx context.Context, inst Instance) error
 
 	// Discover discovers service instances
-	Discover() ([]Instance, error)
+	// The discovery scope (namespace, service, version) is determined by the registry implementation
+	Discover(ctx context.Context) ([]Instance, error)
 
 	// Watch watches service instance changes
+	// The callback is invoked when instances change
 	Watch(callback func([]Instance, error)) (context.CancelFunc, error)
 
 	Close() error

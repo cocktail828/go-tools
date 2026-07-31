@@ -16,11 +16,14 @@ func NewStaticConfigor(payload []byte) nacs.Configor {
 	}
 }
 
-func (s *staticConfigor) Load() ([]byte, error) {
-	return s.payload, nil
+func (s *staticConfigor) Load(ctx context.Context) (nacs.ConfigInfo, error) {
+	return nacs.ConfigInfo{
+		DataID:  "static",
+		Payload: s.payload,
+	}, nil
 }
 
-func (s *staticConfigor) Monitor(cb func(name string, payload []byte, err error)) (context.CancelFunc, error) {
+func (s *staticConfigor) Monitor(cb func(nacs.ConfigInfo, error)) (context.CancelFunc, error) {
 	return func() {}, nil
 }
 

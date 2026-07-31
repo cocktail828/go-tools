@@ -54,14 +54,14 @@ func (c *NacosClient) Close() error {
 	return c.baseClient.Close()
 }
 
-func (c *NacosClient) Register(host string, port uint, meta map[string]string) (context.CancelFunc, error) {
+func (c *NacosClient) Register(ctx context.Context, inst nacs.Instance) (context.CancelFunc, error) {
 	success, err := c.baseClient.namingClient.RegisterInstance(vo.RegisterInstanceParam{
-		Ip:          host,
-		Port:        uint64(port),
+		Ip:          inst.Host,
+		Port:        uint64(inst.Port),
 		Weight:      100, // weight
 		Enable:      true,
 		Healthy:     true,
-		Metadata:    meta,
+		Metadata:    inst.Meta,
 		ServiceName: c.ServiceName(),
 		GroupName:   c.inGroup,
 		Ephemeral:   true, // ephemeral instance
@@ -71,16 +71,16 @@ func (c *NacosClient) Register(host string, port uint, meta map[string]string) (
 	}
 
 	if !success {
-		return nil, errors.Errorf("failed to register service instance: %s:%d", host, port)
+		return nil, errors.Errorf("failed to register service instance: %s:%d", inst.Host, inst.Port)
 	}
 
-	return func() { c.DeRegister(host, port) }, nil
+	return func() { c.DeRegister(context.Background(), inst) }, nil
 }
 
-func (c *NacosClient) DeRegister(host string, port uint) error {
+func (c *NacosClient) DeRegister(ctx context.Context, inst nacs.Instance) error {
 	success, err := c.baseClient.namingClient.DeregisterInstance(vo.DeregisterInstanceParam{
-		Ip:          host,
-		Port:        uint64(port),
+		Ip:          inst.Host,
+		Port:        uint64(inst.Port),
 		ServiceName: c.ServiceName(),
 		GroupName:   c.inGroup,
 		Ephemeral:   true,
@@ -90,7 +90,7 @@ func (c *NacosClient) DeRegister(host string, port uint) error {
 	}
 
 	if !success {
-		return errors.Errorf("failed to deregister service instance: %s:%d", host, port)
+		return errors.Errorf("failed to deregister service instance: %s:%d", inst.Host, inst.Port)
 	}
 
 	return nil
@@ -109,43 +109,51 @@ func toInstances(insts []model.Instance) []nacs.Instance {
 			svc = inst.ServiceName
 		}
 
+		// extract service and version from service name (format: service@version)
+		service, version, found := strings.Cut(svc, "@")
+		if !found {
+			service = svc
+			version = ""
+		}
+
 		result = append(result, nacs.Instance{
-			Name: svc,
-			Host: inst.Ip,
-			Port: uint(inst.Port),
-			Meta: inst.Metadata,
+			Service: service,
+			Version: version,
+			Host:    inst.Ip,
+			Port:    uint(inst.Port),
+			Meta:    inst.Metadata,
 		})
 	}
 
 	return result
 }
 
-func (c *NacosClient) Discover() ([]nacs.Instance, error) {
+func (c *NacosClient) Discover(ctx context.Context) ([]nacs.Instance, error) {
 	param := vo.SelectInstancesParam{
 		ServiceName: c.ServiceName(),
 		GroupName:   c.inGroup,
 		HealthyOnly: true, // 只返回健康实例
 	}
 
-	instances, err := c.baseClient.namingClient.SelectInstances(param)
+	insts, err := c.baseClient.namingClient.SelectInstances(param)
 	if err != nil {
 		return nil, err
 	}
 
-	return toInstances(instances), nil
+	return toInstances(insts), nil
 }
 
 func (c *NacosClient) Watch(callback func([]nacs.Instance, error)) (context.CancelFunc, error) {
 	param := vo.SubscribeParam{
 		ServiceName: c.ServiceName(),
 		GroupName:   c.inGroup,
-		SubscribeCallback: func(instances []model.Instance, err error) {
+		SubscribeCallback: func(insts []model.Instance, err error) {
 			if err != nil {
 				callback(nil, err)
 				return
 			}
 
-			callback(toInstances(instances), nil)
+			callback(toInstances(insts), nil)
 		},
 	}
 
@@ -154,10 +162,10 @@ func (c *NacosClient) Watch(callback func([]nacs.Instance, error)) (context.Canc
 	}, c.baseClient.namingClient.Subscribe(&param)
 }
 
-func (c *NacosClient) Load() ([]byte, error) {
+func (c *NacosClient) Load(ctx context.Context) (nacs.ConfigInfo, error) {
 	id := c.ConfigID()
 	if id == "" {
-		return nil, errors.New("nacos: data ID cannot be empty")
+		return nacs.ConfigInfo{}, errors.New("nacos: data ID cannot be empty")
 	}
 
 	content, err := c.baseClient.configClient.GetConfig(vo.ConfigParam{
@@ -165,15 +173,18 @@ func (c *NacosClient) Load() ([]byte, error) {
 		Group:  c.inGroup,
 	})
 	if err != nil {
-		return nil, err
+		return nacs.ConfigInfo{}, err
 	}
 
-	return []byte(content), nil
+	return nacs.ConfigInfo{
+		DataID:  id,
+		Payload: []byte(content),
+	}, nil
 }
 
-func (c *NacosClient) Monitor(cb func(name string, payload []byte, err error)) (context.CancelFunc, error) {
+func (c *NacosClient) Monitor(cb func(nacs.ConfigInfo, error)) (context.CancelFunc, error) {
 	if cb == nil {
-		cb = func(name string, payload []byte, err error) {}
+		return nil, errors.New("callback is nil")
 	}
 
 	id := c.ConfigID()
@@ -182,9 +193,11 @@ func (c *NacosClient) Monitor(cb func(name string, payload []byte, err error)) (
 	}
 
 	if err := c.baseClient.configClient.ListenConfig(vo.ConfigParam{
-		DataId:   id,
-		Group:    c.inGroup,
-		OnChange: func(namespace, group, dataId, data string) { cb(dataId, []byte(data), nil) },
+		DataId: id,
+		Group:  c.inGroup,
+		OnChange: func(namespace, group, dataId, data string) {
+			cb(nacs.ConfigInfo{DataID: dataId, Payload: []byte(data)}, nil)
+		},
 	}); err != nil {
 		return nil, err
 	}

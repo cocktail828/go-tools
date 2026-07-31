@@ -45,12 +45,15 @@ func (f *fileConfigor) loadConfigLocked(fpath string) ([]byte, error) {
 	return f.payload, f.err
 }
 
-func (f *fileConfigor) Load() ([]byte, error) {
-	return f.payload, f.err
+func (f *fileConfigor) Load(ctx context.Context) (nacs.ConfigInfo, error) {
+	return nacs.ConfigInfo{
+		DataID:  f.fpath,
+		Payload: f.payload,
+	}, f.err
 }
 
 // we should only care about write event
-func (f *fileConfigor) Monitor(cb func(name string, payload []byte, err error)) (context.CancelFunc, error) {
+func (f *fileConfigor) Monitor(cb func(nacs.ConfigInfo, error)) (context.CancelFunc, error) {
 	if cb == nil {
 		return nil, errors.New("callback function is nil")
 	}
@@ -78,7 +81,10 @@ func (f *fileConfigor) Monitor(cb func(name string, payload []byte, err error)) 
 
 				if event.Op&fsnotify.Write == fsnotify.Write {
 					payload, err := f.loadConfigLocked(event.Name)
-					cb(event.Name, payload, err)
+					cb(nacs.ConfigInfo{
+						DataID:  event.Name,
+						Payload: payload,
+					}, err)
 				}
 
 			case _, ok := <-watcher.Errors:
