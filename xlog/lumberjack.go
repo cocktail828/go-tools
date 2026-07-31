@@ -374,8 +374,8 @@ func (l *Logger) millRunOnce() error {
 
 // millRun runs in a goroutine to manage post-rotation compression and removal
 // of old log files.
-func (l *Logger) millRun() {
-	for range l.millCh {
+func (l *Logger) millRun(ch chan bool) {
+	for range ch {
 		// what am I going to do, log this?
 		_ = l.millRunOnce()
 	}
@@ -386,7 +386,7 @@ func (l *Logger) millRun() {
 func (l *Logger) mill() {
 	l.startMill.Do(func() {
 		l.millCh = make(chan bool, 1)
-		go l.millRun()
+		go l.millRun(l.millCh)
 	})
 	select {
 	case l.millCh <- true:

@@ -78,14 +78,19 @@ func TestPoolDeadline(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	var c *Conn
+	var mu sync.Mutex
 	assert.Equal(t, context.DeadlineExceeded, db.DoContext(ctx, func(ci driver.Conn) error {
 		if ci == nil {
 			return errors.Errorf("unknow ci")
 		}
+		mu.Lock()
 		c = ci.(*Conn)
+		mu.Unlock()
 		time.Sleep(time.Hour)
 		return nil
 	}))
+	mu.Lock()
+	defer mu.Unlock()
 	assert.False(t, c.isOpen)
 	assert.Equal(t, 0, db.Stats().OpenCount)
 	assert.Equal(t, 0, db.Stats().IdleCount)

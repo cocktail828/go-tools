@@ -50,5 +50,5 @@ jobs:
       - name: Run unit tests
         id: test
         run: |
-          go test ./... -v -coverprofile=coverage.txt
+          go test ./... -v -race -coverprofile=coverage.txt
           echo "✅ All tests passed!"
