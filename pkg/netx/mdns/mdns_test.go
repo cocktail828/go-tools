@@ -145,8 +145,8 @@ func TestRegisterAndDiscover(t *testing.T) {
 	if e.AddrV4 == nil || !e.AddrV4.Equal(net.ParseIP("192.168.0.1")) {
 		t.Errorf("AddrV4 = %v, want 192.168.0.1", e.AddrV4)
 	}
-	if e.Info != "path=/health" {
-		t.Errorf("Info = %q, want %q", e.Info, "path=/health")
+	if strings.Join(e.TXT, "|") != "path=/health" {
+		t.Errorf("Info = %q, want %q", e.TXT[0], "path=/health")
 	}
 }
 

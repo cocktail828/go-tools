@@ -15,13 +15,12 @@ import (
 
 // ServiceEntry is returned after we query for a service
 type ServiceEntry struct {
-	Name       string
-	Host       string
-	AddrV4     net.IP
-	AddrV6     net.IPAddr
-	Port       int
-	Info       string
-	InfoFields []string
+	Name   string
+	Host   string
+	AddrV4 net.IP
+	AddrV6 net.IPAddr
+	Port   int
+	TXT    []string
 
 	hasTXT bool
 	sent   bool
@@ -337,8 +336,7 @@ func (c *client) query(params *QueryParam) error {
 				case *dns.TXT:
 					// Pull out the txt
 					inp = ensureName(inprogress, rr.Hdr.Name)
-					inp.Info = strings.Join(rr.Txt, "|")
-					inp.InfoFields = rr.Txt
+					inp.TXT = rr.Txt
 					inp.hasTXT = true
 
 				case *dns.A:
