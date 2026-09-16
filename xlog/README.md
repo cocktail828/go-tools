@@ -29,7 +29,7 @@ const (
 
 ## Logger（日志轮转）
 
-基于 lumberjack 实现的日志文件 writer，支持按大小自动轮转、保留备份数、按天过期清理、gzip 压缩。
+基于 lumberjack 实现的日志文件 writer，支持按大小自动轮转、保留备份数、按天过期清理。
 
 ### 基本用法
 
@@ -41,7 +41,6 @@ w := &xlog.Logger{
     MaxSize:    100,  // MB，默认 100
     MaxAge:     7,    // 保留天数，0 表示不按时间清理
     MaxBackups: 5,    // 保留备份数，0 表示不按数量清理
-    Compress:   true, // 对轮转后的文件 gzip 压缩
     BufSize:    10,   // 写缓冲区大小（MB），0 表示不缓冲
 }
 defer w.Close()
@@ -64,7 +63,6 @@ slog.SetDefault(slog.New(slog.NewJSONHandler(w, nil)))
 | MaxSize   | int    | 100    | 单文件最大 MB，超过后轮转                   |
 | MaxAge    | int    | 0      | 备份保留天数，0 不限                       |
 | MaxBackups| int    | 0      | 备份保留数量，0 不限                       |
-| Compress  | bool   | false  | 是否 gzip 压缩已轮转文件                   |
 | BufSize   | int    | 0      | 写缓冲区 MB，0 表示直接写磁盘              |
 | Level     | string | error  | 预留字段，供外部日志框架使用                |
 | Verbose   | bool   | false  | 预留字段，供外部日志框架使用                |

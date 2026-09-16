@@ -21,7 +21,7 @@ func TestWithCache(t *testing.T) {
 	l := Logger{
 		BufSize:    10,
 		Filename:   "cache.log",
-		MaxSize:    100,
+		MaxSize:    1,
 		MaxAge:     1,
 		MaxBackups: 2,
 	}
