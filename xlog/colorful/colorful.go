@@ -8,7 +8,6 @@ import (
 
 	"github.com/cocktail828/go-tools/xlog"
 	"github.com/fatih/color"
-	"golang.org/x/time/rate"
 )
 
 type Flag int
@@ -40,7 +39,7 @@ func (lc lvcolor) Level() xlog.Level { return lc.lv }
 
 type Logger struct {
 	stdlog                              *log.Logger
-	level                               xlog.Level
+	level                               atomic.Int32
 	print, debu, info, warn, erro, fata *lvcolor
 	panic                               *color.Color
 }
@@ -105,23 +104,23 @@ func (l *Logger) EnableColor(levels ...xlog.Level) {
 	l.iterate(func(c *color.Color) { c.EnableColor() }, levels...)
 }
 
-func (l *Logger) SetLevel(lv xlog.Level) { l.level = lv }
-func (l *Logger) GetLevel() xlog.Level   { return l.level }
+func (l *Logger) SetLevel(lv xlog.Level) { l.level.Store(int32(lv)) }
+func (l *Logger) GetLevel() xlog.Level   { return xlog.Level(l.level.Load()) }
 
 func (l *Logger) log(depth int, printer lvprinter, v ...any) {
-	if printer.Level() >= l.level {
+	if printer.Level() >= l.GetLevel() {
 		l.stdlog.Output(depth, printer.Sprint(v...))
 	}
 }
 
 func (l *Logger) logln(depth int, printer lvprinter, v ...any) {
-	if printer.Level() >= l.level {
+	if printer.Level() >= l.GetLevel() {
 		l.stdlog.Output(depth, printer.Sprintln(v...))
 	}
 }
 
 func (l *Logger) logf(depth int, printer lvprinter, format string, v ...any) {
-	if printer.Level() >= l.level {
+	if printer.Level() >= l.GetLevel() {
 		l.stdlog.Output(depth, printer.Sprintf(format, v...))
 	}
 }
@@ -153,19 +152,3 @@ func (l *Logger) Fatalf(format string, v ...any) { l.logf(3, l.fata, format, v..
 func (l *Logger) Panic(v ...any)                 { panic(l.panic.Sprint(v...)) }
 func (l *Logger) Panicln(v ...any)               { panic(l.panic.Sprintln(v...)) }
 func (l *Logger) Panicf(format string, v ...any) { panic(l.panic.Sprintf(format, v...)) }
-
-// Limited returns a limitedColorful logger.
-// The logger will only print log if the limiter allows.
-// It's useful when too much same log happens, and we want to limit the log output.
-func (l *Logger) Limited(limiter *rate.Limiter) *limitedColorful {
-	return &limitedColorful{
-		Logger:  l,
-		limiter: limiter,
-		supressMap: map[xlog.Level]*atomic.Uint32{
-			xlog.LevelDebug: {},
-			xlog.LevelInfo:  {},
-			xlog.LevelWarn:  {},
-			xlog.LevelError: {},
-		},
-	}
-}
